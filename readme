@@ -1,48 +1,75 @@
-# Pxxl.app - Deploy Your Projects Faster
+# Pxxl.app — Deploy Your Projects Faster
+
 ## Overview
-Pxxl.app is a powerful deployment platform that enables developers to deploy web applications instantly with zero configuration 1 . The platform provides enterprise-grade hosting infrastructure, continuous deployment, and automatic scaling for modern web applications 1 .
+
+Pxxl.app is a powerful deployment platform that enables developers to deploy web applications instantly with zero configuration. The platform provides enterprise-grade hosting infrastructure, continuous deployment, and automatic scaling for modern web applications.
+
+---
 
 ## Key Features
+
 ### 🚀 Instant Deployment
-- Zero Configuration : Deploy any framework directly from your repository with automated builds 1
-- Zero-Downtime Updates : Seamless deployments without service interruption 1
-- One-Push Deployment : Your application goes live globally with a single push 1
+
+- **Zero Configuration** — Deploy any framework directly from your repository with automated builds.
+- **Zero-Downtime Updates** — Seamless deployments without service interruption.
+- **One-Push Deployment** — Your application goes live globally with a single push.
+
 ### 🔗 Git Integration
-- Repository Linking : Connect your Git repository and let Pxxl automatically configure your project environment 1
-- Automated Builds : Continuous integration with every commit 1
-- Multi-Framework Support : Works with all modern web frameworks and technologies 1
+
+- **Repository Linking** — Connect your Git repository and let Pxxl automatically configure your project environment.
+- **Automated Builds** — Continuous integration with every commit.
+- **Multi-Framework Support** — Works with all modern web frameworks and technologies.
+
 ### 🌐 Enterprise-Grade Infrastructure
-- Global CDN : Applications deploy across high-performance CDN networks 1
-- Automatic Scaling : Built-in scaling capabilities to handle traffic spikes 1
-- Security : Enterprise-grade security measures 1
+
+- **Global CDN** — Applications deploy across high-performance CDN networks.
+- **Automatic Scaling** — Built-in scaling capabilities to handle traffic spikes.
+- **Security** — Enterprise-grade security measures.
+
 ### 🎛️ Developer Experience
-- Intuitive Dashboard : Fine-tune deployment settings and optimize performance through an easy-to-use interface 1
-- Real-time Collaboration : Built-in collaboration features for development teams 1
-- Comprehensive Tooling : Everything developers need in one platform 1
+
+- **Intuitive Dashboard** — Fine-tune deployment settings and optimise performance through an easy-to-use interface.
+- **Real-time Collaboration** — Built-in collaboration features for development teams.
+- **Comprehensive Tooling** — Everything developers need in one platform.
+
+---
+
 ## How It Works
-1. Connect Your Code : Link your Git repository to Pxxl.app 1
-2. Customize & Control : Configure deployment settings through the intuitive dashboard 1
-3. Go Live Instantly : Push your code and deploy globally in seconds 1
+
+1. **Connect Your Code** — Link your Git repository to Pxxl.app.
+2. **Customise & Control** — Configure deployment settings through the intuitive dashboard.
+3. **Go Live Instantly** — Push your code and deploy globally in seconds.
+
+---
+
 ## What Developers Are Saying
-"Pxxl's UI makes everything easier for me and the fact that it supports all new technologies was ground breaking, used Pxxl for about 3 of my products and never experienced any issues." 1
 
-— Victor Jack (@iamvictorjack)
+> *"Pxxl's UI makes everything easier for me and the fact that it supports all new technologies was ground breaking, used Pxxl for about 3 of my products and never experienced any issues."*
+>
+> — Victor Jack ([@iamvictorjack](https://twitter.com/iamvictorjack))
 
-"Pxxl stands out with its speed, accuracy, and security. I've been using it since the MVP stage, and the recent updates have made building demo MVPs for startups completely seamless. It's a solid platform I'd recommend any day!" 1
+> *"Pxxl stands out with its speed, accuracy, and security. I've been using it since the MVP stage, and the recent updates have made building demo MVPs for startups completely seamless. It's a solid platform I'd recommend any day!"*
+>
+> — Okunade-Praise Peculiar ([@flameztechPxxl](https://twitter.com/flameztechPxxl))
 
-— Okunade-Praise Peculiar (@flameztechPxxl)
+> *"Pxxl is a game-changer for hosting. It's fast, affordable, and developer-friendly. It is everything I need in one place."*
+>
+> — Whakee ([@whakeee](https://twitter.com/whakeee))
 
-"Pxxl is a game-changer for hosting. It's fast, affordable, and developer-friendly. It is everything I need in one place." 1
-
-— Whakee (@whakeee)
+---
 
 ## Why Choose Pxxl.app?
-- Speed : Lightning-fast deployments and performance 1
-- Simplicity : No complex configuration required 1
-- Reliability : Enterprise-grade infrastructure without the complexity 1
-- Developer-Friendly : Built by developers, for developers 1
-- Comprehensive : All deployment needs in one platform 1
-## Getting Started
-Visit pxxl.app to start deploying your applications instantly with zero configuration 1 .
 
-Experience the future of web deployment with Pxxl.app - where CODE • DEPLOY • SHIP becomes reality.
+- **Speed** — Lightning-fast deployments and performance.
+- **Simplicity** — No complex configuration required.
+- **Reliability** — Enterprise-grade infrastructure without the complexity.
+- **Developer-Friendly** — Built by developers, for developers.
+- **Comprehensive** — All deployment needs in one platform.
+
+---
+
+## Getting Started
+
+Visit [pxxl.app](https://pxxl.app) to start deploying your applications instantly with zero configuration.
+
+> Experience the future of web deployment with **Pxxl.app** — where **CODE • DEPLOY • SHIP** becomes reality.
