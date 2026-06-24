@@ -5,7 +5,7 @@ Official open-source CLI and SDKs for Pxxl deploys, CDN assets, and domain resel
 ## Install
 
 ```bash
-npm install -g pxxl
+npm install -g @pxxlapp/pxxl
 ```
 
 ## CLI
@@ -18,6 +18,10 @@ pxxl deploy
 pxxl cdn upload ./logo.png
 pxxl domain search pxxl.cv
 pxxl domain tlds --search cv
+pxxl team list
+pxxl team use <team-id>
+pxxl db create --name app-db --type postgres
+pxxl db list
 ```
 
 `pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary deterministic ZIP, and deploys through Pxxl SpaceDrop.
@@ -25,12 +29,14 @@ pxxl domain tlds --search cv
 ## Node SDK
 
 ```ts
-import { PxxlClient } from "pxxl";
+import { PxxlClient } from "@pxxlapp/pxxl";
 
 const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY });
 
 const domains = await pxxl.searchDomains({ query: "pxxl.cv" });
 const tlds = await pxxl.listTLDs();
+const teams = await pxxl.listTeams();
+const database = await pxxl.createDatabase({ name: "app-db", type: "postgres" });
 const asset = await pxxl.uploadAsset({
   file: new Blob(["hello"]),
   fileName: "hello.txt",
@@ -39,6 +45,7 @@ const asset = await pxxl.uploadAsset({
 ```
 
 Domain search returns availability, prices, renewal pricing, and active promo fields such as `.cv` bonus amounts when the API returns them.
+Database commands use the same managed database provisioning API as the dashboard. Use `pxxl team use <team-id>` or `PXXL_TEAM_ID` to create/list databases inside a spaceship.
 
 ## Repo Layout
 
@@ -72,4 +79,4 @@ npm version patch
 npm publish --access public
 ```
 
-Use npm 2FA/provenance where available, and smoke test with `npm install -g pxxl && pxxl --help`.
+Use npm 2FA/provenance where available, and smoke test with `npm install -g @pxxlapp/pxxl && pxxl --help`.

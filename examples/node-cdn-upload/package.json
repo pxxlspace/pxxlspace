@@ -6,6 +6,6 @@
     "upload": "node upload.mjs"
   },
   "dependencies": {
-    "pxxl": "file:../.."
+    "@pxxlapp/pxxl": "file:../.."
   }
 }

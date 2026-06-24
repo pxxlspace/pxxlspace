@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { PxxlClient } from "pxxl";
+import { PxxlClient } from "@pxxlapp/pxxl";
 
 const filePath = process.argv[2];
 if (!filePath) {

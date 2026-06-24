@@ -12,6 +12,7 @@ export type CDNAssetKind = "file" | "artifact";
 export interface PxxlClientOptions {
   apiKey?: string;
   baseUrl?: string;
+  teamId?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -114,6 +115,54 @@ export interface DomainSearchInput {
   type?: string;
 }
 
+export interface TeamSummary {
+  id: string;
+  name: string;
+  description?: string | null;
+  avatarUrl?: string | null;
+  ownerId?: string;
+  status?: string;
+  myRole?: string;
+  totalMembers?: number;
+  totalProjects?: number;
+  totalDatabases?: number;
+  totalDomains?: number;
+}
+
+export interface DatabaseSummary {
+  id: string;
+  name: string;
+  actualDatabaseName?: string;
+  type: string;
+  description?: string | null;
+  status: string;
+  dbUser?: string | null;
+  dbName?: string | null;
+  externalUrl?: string | null;
+  port?: number | null;
+  proxyHost?: string | null;
+  proxyPort?: number | null;
+  routeKey?: string | null;
+  projectId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateDatabaseInput {
+  name: string;
+  type: "postgres" | "postgresql" | "clickhouse" | "dragonfly" | "redis" | "keydb" | "mariadb" | "mysql" | "mongodb" | string;
+  description?: string;
+  projectId?: string;
+  dailyBackupsEnabled?: boolean;
+  teamId?: string;
+}
+
+export interface UpdateDatabaseInput {
+  name?: string;
+  description?: string;
+  teamId?: string;
+}
+
 export interface DeployConfig {
   name?: string;
   domainChoice?: string;
@@ -156,11 +205,13 @@ export class PxxlAPIError extends Error {
 export class PxxlClient {
   private readonly apiKey?: string;
   private readonly baseUrl: string;
+  private readonly teamId?: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: PxxlClientOptions = {}) {
     this.apiKey = (options.apiKey || "").trim() || undefined;
     this.baseUrl = (options.baseUrl || "https://gateway.pxxl.app/api/v3").replace(/\/+$/, "");
+    this.teamId = (options.teamId || "").trim() || undefined;
     this.fetchImpl = options.fetchImpl || fetch;
   }
 
@@ -222,6 +273,62 @@ export class PxxlClient {
 
   async searchDomains(input: DomainSearchInput): Promise<{ query: string; results: DomainSearchResult[]; count: number; latency?: number; cached?: boolean }> {
     return this.request("/domains/search", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async listTeams(): Promise<{ teams: TeamSummary[]; total: number }> {
+    return this.request("/teams");
+  }
+
+  async getTeam(id: string): Promise<{ team: TeamSummary; success?: boolean }> {
+    return this.request(`/teams/${encodeURIComponent(id)}`);
+  }
+
+  async listDatabases(teamId = this.teamId): Promise<{ databases: DatabaseSummary[]; total: number; success?: boolean }> {
+    return this.request(`/databases${teamQuery(teamId)}`);
+  }
+
+  async getDatabase(id: string, teamId = this.teamId): Promise<{ database: DatabaseSummary; success?: boolean }> {
+    return this.request(`/databases/${encodeURIComponent(id)}${teamQuery(teamId)}`);
+  }
+
+  async createDatabase(input: CreateDatabaseInput): Promise<{ database: DatabaseSummary; success?: boolean }> {
+    const teamId = input.teamId || this.teamId;
+    const body = {
+      name: input.name,
+      type: input.type,
+      description: input.description,
+      projectId: input.projectId,
+      dailyBackupsEnabled: Boolean(input.dailyBackupsEnabled),
+    };
+    return this.request(`/databases${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async updateDatabase(id: string, input: UpdateDatabaseInput): Promise<{ database: DatabaseSummary; success?: boolean }> {
+    return this.request(`/databases/${encodeURIComponent(id)}${teamQuery(input.teamId || this.teamId)}`, { method: "PATCH", body: JSON.stringify({ name: input.name, description: input.description }) });
+  }
+
+  async deleteDatabase(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "DELETE" });
+  }
+
+  async startDatabase(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}/start${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async stopDatabase(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}/stop${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async restartDatabase(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}/restart${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async databaseStats(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}/stats${teamQuery(teamId)}`);
+  }
+
+  async databaseTables(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}/tables${teamQuery(teamId)}`);
   }
 
   async deploy(input: DeployInput): Promise<unknown> {
@@ -378,14 +485,34 @@ async function exists(path: string): Promise<boolean> {
 }
 
 export async function saveAuthConfig(apiKey: string, baseUrl?: string) {
+  const existing = await readStoredAuthConfig();
   const path = configPath();
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify({ apiKey, baseUrl: baseUrl || "https://gateway.pxxl.app/api/v3" }, null, 2), { mode: 0o600 });
+  await writeFile(path, JSON.stringify({ ...existing, apiKey, baseUrl: baseUrl || existing.baseUrl || "https://gateway.pxxl.app/api/v3" }, null, 2), { mode: 0o600 });
   await chmod(path, 0o600).catch(() => undefined);
 }
 
-export async function readAuthConfig(): Promise<{ apiKey?: string; baseUrl?: string }> {
-  if (process.env.PXXL_API_KEY) return { apiKey: process.env.PXXL_API_KEY, baseUrl: process.env.PXXL_API_URL };
+export async function saveTeamSelection(teamId?: string) {
+  const existing = await readStoredAuthConfig();
+  const next = { ...existing, selectedTeamId: teamId || undefined };
+  if (!next.apiKey && !next.baseUrl && !next.selectedTeamId) return clearAuthConfig();
+  const path = configPath();
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(next, null, 2), { mode: 0o600 });
+  await chmod(path, 0o600).catch(() => undefined);
+}
+
+export async function readAuthConfig(): Promise<{ apiKey?: string; baseUrl?: string; selectedTeamId?: string }> {
+  const stored = await readStoredAuthConfig();
+  return {
+    ...stored,
+    apiKey: process.env.PXXL_API_KEY || stored.apiKey,
+    baseUrl: process.env.PXXL_API_URL || stored.baseUrl,
+    selectedTeamId: process.env.PXXL_TEAM_ID || stored.selectedTeamId,
+  };
+}
+
+async function readStoredAuthConfig(): Promise<{ apiKey?: string; baseUrl?: string; selectedTeamId?: string }> {
   try {
     return JSON.parse(await readFile(configPath(), "utf8"));
   } catch {
@@ -408,4 +535,8 @@ export function sha256Hex(bytes: Uint8Array): string {
 function requiredConfig(value: string | undefined, key: string): string {
   if (!value || !String(value).trim()) throw new Error(`Missing ${key}. Add it to pxxl.toml or pass a CLI flag.`);
   return String(value).trim();
+}
+
+function teamQuery(teamId?: string): string {
+  return teamId && teamId.trim() ? `?teamId=${encodeURIComponent(teamId.trim())}` : "";
 }

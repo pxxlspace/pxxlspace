@@ -11,6 +11,7 @@ import {
   readBoilerplateManifest,
   readPxxlToml,
   saveAuthConfig,
+  saveTeamSelection,
   readAuthConfig,
   clearAuthConfig,
 } from "../dist/index.js";
@@ -137,4 +138,37 @@ test("auth config honors PXXL_API_KEY override", async () => {
     else process.env.PXXL_API_KEY = original;
     await clearAuthConfig();
   }
+});
+
+test("database requests include selected team context", async () => {
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url, init) => {
+      assert.equal(url, "https://gateway.pxxl.app/api/v3/databases?teamId=team_123");
+      assert.equal(init.method, "POST");
+      assert.deepEqual(JSON.parse(init.body), {
+        name: "app-db",
+        type: "postgres",
+        dailyBackupsEnabled: false,
+      });
+      return Response.json({ success: true, database: { id: "db_1", name: "app-db", type: "postgres", status: "creating" } });
+    },
+  });
+  const result = await client.createDatabase({ name: "app-db", type: "postgres" });
+  assert.equal(result.database.id, "db_1");
+});
+
+test("team selection persists without dropping credentials", async () => {
+  await saveAuthConfig("stored_key", "https://stored.test/api/v3");
+  await saveTeamSelection("team_123");
+  const config = await readAuthConfig();
+  assert.equal(config.apiKey, "stored_key");
+  assert.equal(config.baseUrl, "https://stored.test/api/v3");
+  assert.equal(config.selectedTeamId, "team_123");
+  await saveTeamSelection(undefined);
+  const cleared = await readAuthConfig();
+  assert.equal(cleared.selectedTeamId, undefined);
+  assert.equal(cleared.apiKey, "stored_key");
+  await clearAuthConfig();
 });

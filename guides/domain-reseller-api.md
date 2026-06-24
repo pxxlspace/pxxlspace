@@ -16,7 +16,7 @@ Domain search uses Pxxl's public, rate-limited search path. It returns availabil
 ## Node SDK
 
 ```ts
-import { PxxlClient } from "pxxl";
+import { PxxlClient } from "@pxxlapp/pxxl";
 
 const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY });
 

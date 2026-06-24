@@ -16,7 +16,7 @@ Use this skill when a user wants to upload files to Pxxl CDN, generate CDN uploa
 Use the `pxxl` package:
 
 ```ts
-import { PxxlClient } from "pxxl";
+import { PxxlClient } from "@pxxlapp/pxxl";
 
 const cdn = new PxxlClient({ apiKey: process.env.PXXL_API_KEY! });
 ```

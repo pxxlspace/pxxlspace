@@ -1,5 +1,5 @@
 {
-  "name": "pxxl",
+  "name": "@pxxlapp/pxxl",
   "version": "0.1.0",
   "description": "Official Pxxl CLI and SDK for deploys, CDN assets, and domain reseller workflows.",
   "type": "module",

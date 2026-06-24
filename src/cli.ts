@@ -11,6 +11,7 @@ import {
   readBoilerplateManifest,
   readAuthConfig,
   saveAuthConfig,
+  saveTeamSelection,
   sha256Hex,
   writeDefaultPxxlFiles,
   type CDNVisibility,
@@ -35,10 +36,20 @@ Usage:
   pxxl domain tlds
   pxxl domain tlds --search <query>
   pxxl domain search <query> [--type <category>]
+  pxxl team list
+  pxxl team use <team-id>
+  pxxl team current
+  pxxl team clear
+  pxxl db list
+  pxxl db create --name <name> --type <postgres|mysql|redis|...>
+  pxxl db get <database-id>
+  pxxl db start|stop|restart|delete <database-id>
+  pxxl db stats|tables <database-id>
 
 Environment:
   PXXL_API_KEY overrides stored credentials.
   PXXL_API_URL overrides the API base URL.
+  PXXL_TEAM_ID overrides the selected spaceship/team for scoped commands.
 `;
 
 async function main() {
@@ -59,6 +70,8 @@ async function main() {
   if (command === "deploy") return deploy(client, args);
   if (command === "cdn") return cdn(client, args);
   if (command === "domain" || command === "domains") return domains(client, args);
+  if (command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") return teams(client, args);
+  if (command === "db" || command === "database" || command === "databases") return databases(client, args);
 
   throw new Error(`Unknown command: ${command}`);
 }
@@ -149,10 +162,88 @@ async function domains(client: PxxlClient, args: string[]) {
   throw new Error(`Unknown domain command: ${command || ""}`);
 }
 
+async function teams(client: PxxlClient, args: string[]) {
+  const command = args.shift();
+  if (command === "list" || !command) return printJSON(await client.listTeams());
+  if (command === "get" || command === "show") {
+    const id = required(args.shift(), "team id");
+    return printJSON(await client.getTeam(id));
+  }
+  if (command === "use" || command === "switch") {
+    const id = required(args.shift(), "team id");
+    await saveTeamSelection(id);
+    return print(`Using spaceship ${id}`);
+  }
+  if (command === "current") {
+    const config = await readAuthConfig();
+    return printJSON({ selectedTeamId: config.selectedTeamId || null });
+  }
+  if (command === "clear") {
+    await saveTeamSelection(undefined);
+    return print("Cleared selected spaceship.");
+  }
+  throw new Error(`Unknown team command: ${command}`);
+}
+
+async function databases(client: PxxlClient, args: string[]) {
+  const command = args.shift();
+  if (command === "list" || !command) return printJSON(await client.listDatabases(flagValue(args, "--team")));
+  if (command === "get" || command === "show") {
+    const id = required(args.shift(), "database id");
+    return printJSON(await client.getDatabase(id, flagValue(args, "--team")));
+  }
+  if (command === "create") {
+    const name = required(flagValue(args, "--name") || flagValue(args, "-n"), "database name");
+    const type = required(flagValue(args, "--type") || flagValue(args, "-t"), "database type");
+    const result = await client.createDatabase({
+      name,
+      type,
+      description: flagValue(args, "--description"),
+      projectId: flagValue(args, "--project"),
+      dailyBackupsEnabled: args.includes("--daily-backups"),
+      teamId: flagValue(args, "--team"),
+    });
+    return printJSON(result);
+  }
+  if (command === "update") {
+    const id = required(args.shift(), "database id");
+    return printJSON(await client.updateDatabase(id, {
+      name: flagValue(args, "--name") || flagValue(args, "-n"),
+      description: flagValue(args, "--description"),
+      teamId: flagValue(args, "--team"),
+    }));
+  }
+  if (command === "delete" || command === "remove") {
+    const id = required(args.shift(), "database id");
+    return printJSON(await client.deleteDatabase(id, flagValue(args, "--team")));
+  }
+  if (command === "start") {
+    const id = required(args.shift(), "database id");
+    return printJSON(await client.startDatabase(id, flagValue(args, "--team")));
+  }
+  if (command === "stop") {
+    const id = required(args.shift(), "database id");
+    return printJSON(await client.stopDatabase(id, flagValue(args, "--team")));
+  }
+  if (command === "restart") {
+    const id = required(args.shift(), "database id");
+    return printJSON(await client.restartDatabase(id, flagValue(args, "--team")));
+  }
+  if (command === "stats") {
+    const id = required(args.shift(), "database id");
+    return printJSON(await client.databaseStats(id, flagValue(args, "--team")));
+  }
+  if (command === "tables") {
+    const id = required(args.shift(), "database id");
+    return printJSON(await client.databaseTables(id, flagValue(args, "--team")));
+  }
+  throw new Error(`Unknown database command: ${command || ""}`);
+}
+
 async function authedClient(): Promise<PxxlClient> {
   const config = await readAuthConfig();
   if (!config.apiKey) throw new Error("Run `pxxl login --api-key <key>` or set PXXL_API_KEY.");
-  return new PxxlClient({ apiKey: config.apiKey, baseUrl: process.env.PXXL_API_URL || config.baseUrl });
+  return new PxxlClient({ apiKey: config.apiKey, baseUrl: process.env.PXXL_API_URL || config.baseUrl, teamId: config.selectedTeamId });
 }
 
 function flagValue(args: string[], name: string): string | undefined {

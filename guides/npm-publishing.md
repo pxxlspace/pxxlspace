@@ -1,4 +1,4 @@
-# Publish `pxxl` to npm
+# Publish `@pxxlapp/pxxl` to npm
 
 Run releases from the root of `pxxlspace/pxxlspace`.
 
@@ -11,7 +11,7 @@ npm version patch
 npm publish --access public
 ```
 
-Before publishing, confirm that the Pxxl npm account controls the `pxxl` package name. If it does not, publish as `@pxxl/cli` and keep the binary name as `pxxl`.
+The package is published as `@pxxlapp/pxxl` because npm blocks the bare `pxxl` package name for similarity with existing packages. The installed binary remains `pxxl`.
 
 ## Release Checklist
 
@@ -22,6 +22,6 @@ Before publishing, confirm that the Pxxl npm account controls the `pxxl` package
 - Smoke test after publishing:
 
 ```bash
-npm install -g pxxl
+npm install -g @pxxlapp/pxxl
 pxxl --help
 ```
