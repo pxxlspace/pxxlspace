@@ -1,0 +1,13 @@
+{
+  "id": "express-bun",
+  "name": "Express",
+  "description": "A Bun-powered Express API starter for Pxxl.",
+  "framework": "express",
+  "packageManager": "bun",
+  "language": "javascript",
+  "port": 3000,
+  "installCommand": "bun install",
+  "startCommand": "bun src/server.js",
+  "displayName": "Express",
+  "family": "express"
+}

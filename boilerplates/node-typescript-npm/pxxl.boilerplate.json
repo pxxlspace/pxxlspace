@@ -1,0 +1,14 @@
+{
+  "id": "node-typescript-npm",
+  "name": "Node TypeScript",
+  "description": "A minimal TypeScript HTTP API starter for Pxxl.",
+  "framework": "node",
+  "packageManager": "npm",
+  "language": "javascript",
+  "port": 3000,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "startCommand": "npm run start",
+  "displayName": "Node TypeScript",
+  "family": "node"
+}

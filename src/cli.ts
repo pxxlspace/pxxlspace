@@ -12,6 +12,7 @@ import {
   configPath,
   copyBoilerplate,
   createProjectZip,
+  readPxxlToml,
   readBoilerplateManifest,
   readAuthConfig,
   saveAuthConfig,
@@ -27,7 +28,7 @@ import {
 } from "./index.js";
 
 const run = promisify(execFile);
-const cliVersion = "0.1.5";
+const cliVersion = "0.1.6";
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
 const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}
@@ -53,9 +54,13 @@ ${bold("Account")}
 
 ${bold("Deploy")}
   ${cyan("pxxl init")} --new <starter>        Create a Pxxl-ready project
-  ${cyan("pxxl deploy")}                     Zip this directory and deploy with SpaceDrop
+  ${cyan("pxxl deploy")}                     Package this directory and deploy on Pxxl
   ${cyan("pxxl redeploy")} <project-id>       Trigger a fresh deployment
   ${cyan("pxxl pull")} <project-id> [folder]  Clone or update the attached Git repo
+  ${cyan("pxxl projects list")}               List projects
+  ${cyan("pxxl projects get")} [project-id]   Show project details
+  ${cyan("pxxl deployments recent")}          Show recent deployments
+  ${cyan("pxxl deployments get")} [id]        Show deployment details
 
 ${bold("Project Config")}
   ${cyan("pxxl env list")} <project-id>       List project env names
@@ -113,6 +118,8 @@ async function main() {
   if (command === "usage") return usageOverview(client, args);
   if (command === "deploy") return deploy(client, args);
   if (command === "redeploy") return redeploy(client, args);
+  if (command === "project" || command === "projects") return projects(client, args);
+  if (command === "deployment" || command === "deployments") return deployments(client, args);
   if (command === "pull") return pullProject(client, args);
   if (command === "env" || command === "envs") return envs(client, args);
   if (command === "cdn") return cdn(client, args);
@@ -160,16 +167,22 @@ async function usageOverview(client: PxxlClient, args: string[]) {
 async function initProject(args: string[]) {
   let boilerplate = flagValue(args, "--new");
   if (args.includes("--new") && !boilerplate) {
-    const options = await listBoilerplateNames();
-    boilerplate = await promptSelect("Choose a boilerplate", options.map((name) => ({ label: name, value: name })));
+    boilerplate = await chooseBoilerplate();
   }
-  const dir = resolve(flagValue(args, "--dir") || ".");
+  if (boilerplate) boilerplate = await resolveBoilerplateName(boilerplate);
   const manifest = boilerplate ? await readBoilerplateManifest(boilerplate) : undefined;
+  const nameFromFlag = flagValue(args, "--name");
+  const defaultNameSeed = nameFromFlag || manifest?.family || manifest?.framework || manifest?.id || basename(process.cwd());
+  const defaultName = slugifyProjectName(defaultNameSeed) || "pxxl-app";
+  const projectName = nameFromFlag || (isInteractive() ? await promptText("Project name", defaultName) : defaultName);
+  assertValidProjectName(projectName);
+  const dir = await resolveInitDirectory(args, projectName, Boolean(boilerplate));
   if (boilerplate) await copyBoilerplate(boilerplate, dir);
-  const defaultName = basename(dir).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "");
+  const domainChoice = normalizeDomainChoice(flagValue(args, "--domain") || await chooseDomainSuffix()) || "pxxl.pro";
+  assertValidDomainChoice(domainChoice);
   const config: DeployConfig = {
-    name: flagValue(args, "--name") || (isInteractive() ? await promptText("Project name", defaultName) : defaultName),
-    domainChoice: normalizeDomainChoice(flagValue(args, "--domain") || (isInteractive() ? await promptText("Domain suffix", "pxxl.pro") : "pxxl.pro")),
+    name: projectName,
+    domainChoice,
     environment: "production",
     deployEnvironment: "prod",
     port: Number(flagValue(args, "--port") || manifest?.port || 3000),
@@ -184,6 +197,13 @@ async function initProject(args: string[]) {
   };
   await writeDefaultPxxlFiles(dir, config);
   print(`Initialized Pxxl project in ${dir}`);
+  const shouldDeploy = args.includes("--deploy") || (!args.includes("--no-deploy") && Boolean((await readAuthConfig()).apiKey) && await promptConfirm("Deploy now?", true));
+  if (shouldDeploy) {
+    const client = await authedClient();
+    const result = await spinner("Creating first deployment", () => client.deploy({ cwd: dir }));
+    await persistDeploymentResult(dir, result);
+    printDeployResult(result, "Deployment started");
+  }
 }
 
 async function deploy(client: PxxlClient, args: string[]) {
@@ -193,9 +213,10 @@ async function deploy(client: PxxlClient, args: string[]) {
   if (flagValue(args, "--port")) config.port = Number(flagValue(args, "--port"));
   const cwd = resolve(flagValue(args, "--dir") || ".");
   const archive = await createProjectZip(cwd);
-  print(`Created SpaceDrop archive (${archive.length} bytes, sha256 ${sha256Hex(archive).slice(0, 16)}...)`);
-  const result = await spinner("Uploading SpaceDrop archive", () => client.deploy({ ...config, cwd }));
-  printResult(result, "Deployment started");
+  print(`Created Pxxl deploy archive (${archive.length} bytes, sha256 ${sha256Hex(archive).slice(0, 16)}...)`);
+  const result = await spinner("Uploading deploy archive", () => client.deploy({ ...config, cwd }));
+  await persistDeploymentResult(cwd, result);
+  printDeployResult(result, "Deployment started");
 }
 
 async function redeploy(client: PxxlClient, args: string[]) {
@@ -206,6 +227,38 @@ async function redeploy(client: PxxlClient, args: string[]) {
   }));
   if (wantsJSON(args)) return printJSON(result);
   printResult(result, "Redeploy queued");
+}
+
+async function projects(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "list";
+  if (command === "list" || command === "ls") {
+    const result = await spinner("Fetching projects", () => client.listProjects(flagValue(args, "--team")));
+    if (wantsJSON(args)) return printJSON(result);
+    return printProjects(result);
+  }
+  if (command === "get" || command === "show") {
+    const id = await resolveProjectId(client, args.shift(), args);
+    const result = await spinner("Fetching project", () => client.getProject(id));
+    if (wantsJSON(args)) return printJSON(result);
+    return printProjectDetails(result);
+  }
+  throw new Error(`Unknown projects command: ${command}`);
+}
+
+async function deployments(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "recent";
+  if (command === "recent" || command === "list" || command === "ls") {
+    const result = await spinner("Fetching deployments", () => client.listDeployments({ projectId: flagValue(args, "--project"), limit: Number(flagValue(args, "--limit") || 20), teamId: flagValue(args, "--team") }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printDeployments(result);
+  }
+  if (command === "get" || command === "show") {
+    const id = await resolveDeploymentId(client, args.shift(), args);
+    const result = await spinner("Fetching deployment", () => client.getDeployment(id));
+    if (wantsJSON(args)) return printJSON(result);
+    return printDeploymentDetails(result);
+  }
+  throw new Error(`Unknown deployments command: ${command}`);
 }
 
 async function pullProject(client: PxxlClient, args: string[]) {
@@ -518,6 +571,54 @@ async function maybePromptSelect<T extends string>(label: string, values: T[], d
   return promptSelect(label, values.map((value) => ({ label: value, value })));
 }
 
+async function resolveInitDirectory(args: string[], projectName: string, isNew: boolean): Promise<string> {
+  const explicit = flagValue(args, "--dir");
+  if (explicit) return resolve(explicit);
+  if (!isNew) return resolve(".");
+  if (!isInteractive()) return resolve(projectName);
+  const mode = await promptSelect("Where should the boilerplate go?", [
+    { label: `New folder: ${projectName}`, value: "new" },
+    { label: "Current folder", value: "current" },
+    { label: "Choose another folder", value: "custom" },
+  ]);
+  if (mode === "current") return resolve(".");
+  if (mode === "custom") return resolve(await promptText("Folder", projectName));
+  return resolve(projectName);
+}
+
+async function chooseDomainSuffix(): Promise<string> {
+  const fallback = ["pxxl.pro", "pxxl.app", "pxxl.dev", "pxxl.codes", "pxxl.bio"];
+  if (!isInteractive()) return fallback[0] || "pxxl.pro";
+  const config = await readAuthConfig();
+  if (!config.apiKey) return promptSelect("Domain suffix", fallback.map((value) => ({ label: value, value })));
+  try {
+    const client = new PxxlClient({ apiKey: config.apiKey, teamId: config.selectedTeamId });
+    const result = await client.deployDomainOptions();
+    const options = extractDomainOptions(result);
+    if (options.length) return promptSelect("Domain suffix", options.map((value) => ({ label: value, value })));
+  } catch {
+    // Fall back to the public defaults if the account-specific option lookup is unavailable.
+  }
+  return promptSelect("Domain suffix", fallback.map((value) => ({ label: value, value })));
+}
+
+function extractDomainOptions(value: unknown): string[] {
+  const root = asRecord(value);
+  const candidates = [
+    ...arrayValue(root.options),
+    ...arrayValue(root.domainOptions),
+    ...arrayValue(root.suffixes),
+    ...arrayValue(asRecord(root.data).options),
+    ...arrayValue(asRecord(root.data).suffixes),
+  ];
+  const suffixes = candidates.map((item) => {
+    if (typeof item === "string") return normalizeDomainChoice(item) || "";
+    const row = asRecord(item);
+    return normalizeDomainChoice(stringValue(row.value || row.suffix || row.domain || row.tld)) || "";
+  }).filter(Boolean);
+  return [...new Set(suffixes)];
+}
+
 function isInteractive(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
@@ -526,6 +627,100 @@ async function listBoilerplateNames(): Promise<string[]> {
   const root = resolve(dirname(new URL(import.meta.url).pathname), "..", "boilerplates");
   const entries = await readdir(root, { withFileTypes: true });
   return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+}
+
+async function listBoilerplateOptions(): Promise<Array<{ id: string; name: string; family: string; packageManager?: string; description?: string }>> {
+  const names = await listBoilerplateNames();
+  const options = [];
+  for (const id of names) {
+    const manifest = await readBoilerplateManifest(id);
+    options.push({
+      id,
+      name: manifest?.displayName || manifest?.name || titleFromId(id),
+      family: manifest?.family || manifest?.framework || id,
+      packageManager: manifest?.packageManager,
+      description: manifest?.description,
+    });
+  }
+  return options.sort((a, b) => a.name.localeCompare(b.name) || String(a.packageManager || "").localeCompare(String(b.packageManager || "")));
+}
+
+async function chooseBoilerplate(): Promise<string> {
+  const options = await listBoilerplateOptions();
+  const grouped = new Map<string, typeof options>();
+  for (const option of options) {
+    const key = option.family || option.name;
+    grouped.set(key, [...(grouped.get(key) || []), option]);
+  }
+  const families = [...grouped.entries()].map(([family, items]) => ({
+    label: items[0]?.name || titleFromId(family),
+    value: family,
+  })).sort((a, b) => a.label.localeCompare(b.label));
+  const family = await promptSelect("Choose a boilerplate", families);
+  const matches = grouped.get(family) || [];
+  if (matches.length === 1) return matches[0]?.id || family;
+  const withPM = matches.filter((item) => item.packageManager);
+  if (withPM.length) {
+    const pm = await promptSelect("Choose package manager", withPM.map((item) => ({ label: item.packageManager || item.id, value: item.id })));
+    return pm;
+  }
+  return matches[0]?.id || family;
+}
+
+async function resolveBoilerplateName(input: string): Promise<string> {
+  const names = await listBoilerplateNames();
+  if (names.includes(input)) return input;
+  const aliases: Record<string, string> = {
+    "express-api-pxxl": "express-npm",
+    "express-api": "express-npm",
+    "express": "express-npm",
+    "vite-react-pxxl": "vite-react-pnpm",
+    "vite-react": "vite-react-npm",
+    "static": "static-cdn-gallery",
+    "html": "static-cdn-gallery",
+    "php": "php-basic",
+  };
+  const withoutSuffix = input.replace(/-pxxl$/, "");
+  if (names.includes(withoutSuffix)) return withoutSuffix;
+  if (aliases[input] && names.includes(aliases[input])) return aliases[input];
+  const matches = (await listBoilerplateOptions()).filter((option) => option.family === input || option.name.toLowerCase() === input.toLowerCase());
+  if (matches.length === 1) return matches[0]?.id || input;
+  if (matches.length > 1 && isInteractive()) {
+    return promptSelect("Choose package manager", matches.map((item) => ({ label: item.packageManager || item.id, value: item.id })));
+  }
+  throw new Error(`Unknown boilerplate: ${input}`);
+}
+
+function titleFromId(id: string): string {
+  return id.split("-").filter((part) => part !== "pxxl").map((part) => part === "npm" || part === "pnpm" ? part : part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+
+function slugifyProjectName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 63);
+}
+
+function assertValidProjectName(value: string) {
+  if (!/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/.test(value)) {
+    throw new Error("Project name must be 3-63 lowercase letters, numbers, or hyphens, without leading or trailing hyphens.");
+  }
+}
+
+function assertValidDomainChoice(value?: string) {
+  if (!value || !/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(value) || value.includes("..")) {
+    throw new Error("Domain suffix must be a valid suffix such as pxxl.pro.");
+  }
+}
+
+async function persistDeploymentResult(cwd: string, result: unknown) {
+  const root = asRecord(result);
+  const config = await readPxxlToml(cwd);
+  config.projectId = stringValue(root.projectId || asRecord(root.project).id) || config.projectId;
+  config.deploymentId = stringValue(root.deploymentId || asRecord(root.deployment).id) || config.deploymentId;
+  const domainName = stringValue(root.domainName || asRecord(root.deployment).domain || asRecord(root.project).domain);
+  if (domainName) config.projectUrl = domainName.startsWith("http") ? domainName : `https://${domainName}`;
+  if (config.projectId && config.deploymentId) config.deploymentUrl = `https://pxxl.app/dashboard/projects/${config.projectId}/deployments/${config.deploymentId}`;
+  config.lastDeployedAt = new Date().toISOString();
+  await writeDefaultPxxlFiles(cwd, config);
 }
 
 async function resolveDatabaseId(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
@@ -564,6 +759,17 @@ async function resolveProjectId(client: PxxlClient, id: string | undefined, args
     label: `${stringValue(project.name || project.id)} ${dim(stringValue(project.status || project.framework))}`,
     value: stringValue(project.id),
   })).filter((option) => option.value));
+}
+
+async function resolveDeploymentId(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
+  if (id) return id;
+  const result = await spinner("Fetching recent deployments", () => client.listDeployments({ projectId: flagValue(args, "--project"), limit: 20, teamId: flagValue(args, "--team") }));
+  const deployments = normalizeDeploymentRows(result);
+  const options = deployments.map((deployment) => ({
+    label: `${deployment.project || "-"} ${deployment.status || "-"} ${dim(deployment.created || "-")}`,
+    value: deployment.id || "",
+  })).filter((option): option is { label: string; value: string } => Boolean(option.value));
+  return promptSelect("Choose deployment", options);
 }
 
 async function ensureCloneDestination(destination: string, force: boolean) {
@@ -829,6 +1035,72 @@ function printDomains(value: unknown) {
   printTable("", rows, ["domain", "status", "type", "id"]);
 }
 
+function printProjects(value: unknown) {
+  const root = asRecord(value);
+  const projects = arrayValue(root.projects || asRecord(root.data).projects || root.data || value).map(projectRow);
+  printHeader("Projects");
+  if (!projects.length) return print(dim("No projects found."));
+  printTable("", projects, ["name", "framework", "status", "domain", "id"]);
+}
+
+function printProjectDetails(value: unknown) {
+  const root = asRecord(value);
+  const project = asRecord(root.project || root.data || root);
+  printHeader("Project");
+  printKV([
+    ["ID", stringValue(project.id)],
+    ["Name", stringValue(project.name)],
+    ["Status", stringValue(project.status)],
+    ["Framework", stringValue(project.framework)],
+    ["Language", stringValue(project.language)],
+    ["Domain", stringValue(project.domain || project.domainName)],
+    ["Source", stringValue(project.source || project.repositoryProvider)],
+    ["Branch", stringValue(project.githubBranch || project.branch)],
+    ["Created", shortDate(project.createdAt)],
+  ]);
+}
+
+function printDeployments(value: unknown) {
+  const deployments = normalizeDeploymentRows(value);
+  printHeader("Deployments");
+  if (!deployments.length) return print(dim("No deployments found."));
+  printTable("", deployments, ["project", "status", "build", "domain", "created", "id"]);
+}
+
+function printDeploymentDetails(value: unknown) {
+  const root = asRecord(value);
+  const deployment = asRecord(root.deployment || root.data || root);
+  printHeader("Deployment");
+  printKV([
+    ["ID", stringValue(deployment.id)],
+    ["Project", stringValue(deployment.projectName || deployment.projectId)],
+    ["Build", stringValue(deployment.buildStatus)],
+    ["Status", stringValue(deployment.deploymentStatus || deployment.status)],
+    ["Domain", stringValue(deployment.domain)],
+    ["Branch", stringValue(deployment.branch)],
+    ["Commit", stringValue(deployment.commitSha).slice(0, 12) || "-"],
+    ["Message", stringValue(deployment.commitMessage) || "-"],
+    ["Created", shortDate(deployment.createdAt)],
+  ]);
+  const projectId = stringValue(deployment.projectId);
+  const deploymentId = stringValue(deployment.id);
+  if (projectId && deploymentId) print(`${bold("View")} ${cyan(`https://pxxl.app/dashboard/projects/${projectId}/deployments/${deploymentId}`)}`);
+}
+
+function printDeployResult(value: unknown, fallback: string) {
+  const root = asRecord(value);
+  printSuccess(stringValue(root.message) || fallback);
+  const projectId = stringValue(root.projectId || asRecord(root.project).id);
+  const deploymentId = stringValue(root.deploymentId || asRecord(root.deployment).id);
+  const domainName = stringValue(root.domainName || asRecord(root.deployment).domain || asRecord(root.project).domain);
+  const rows: [string, unknown][] = [];
+  if (projectId) rows.push(["Project ID", projectId]);
+  if (deploymentId) rows.push(["Deployment ID", deploymentId]);
+  if (domainName) rows.push(["Live URL", domainName.startsWith("http") ? domainName : `https://${domainName}`]);
+  if (projectId && deploymentId) rows.push(["Deployment", `https://pxxl.app/dashboard/projects/${projectId}/deployments/${deploymentId}`]);
+  if (rows.length) printKV(rows);
+}
+
 function printDomainStats(value: unknown, fallbackDomain: string) {
   const root = asRecord(value);
   const data = asRecord(root.data || root);
@@ -877,6 +1149,32 @@ function printResult(value: unknown, fallback: string) {
   if (status) rows.push(["Status", status]);
   if (url) rows.push(["URL", url]);
   if (rows.length) printKV(rows);
+}
+
+function projectRow(value: unknown): Record<string, string> {
+  const project = asRecord(value);
+  return {
+    name: stringValue(project.name || project.id),
+    framework: stringValue(project.framework || project.language) || "-",
+    status: stringValue(project.status) || "-",
+    domain: stringValue(project.domain || project.domainName || project.url) || "-",
+    id: stringValue(project.id),
+  };
+}
+
+function normalizeDeploymentRows(value: unknown): Record<string, string>[] {
+  const root = asRecord(value);
+  return arrayValue(root.deployments || asRecord(root.data).deployments || root.data || value).map((item) => {
+    const deployment = asRecord(item);
+    return {
+      project: stringValue(deployment.projectName || deployment.projectId) || "-",
+      status: stringValue(deployment.deploymentStatus || deployment.status) || "-",
+      build: stringValue(deployment.buildStatus) || "-",
+      domain: stringValue(deployment.domain) || "-",
+      created: shortDate(deployment.createdAt),
+      id: stringValue(deployment.id),
+    };
+  }).filter((row) => row.id);
 }
 
 function printNestedObject(title: string, value: unknown) {

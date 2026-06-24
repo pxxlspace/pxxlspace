@@ -30,7 +30,7 @@ test("sends bearer auth and parses CDN summary", async () => {
 });
 
 test("reads boilerplate manifest deploy defaults", async () => {
-  const manifest = await readBoilerplateManifest("express-bun-pxxl", process.cwd());
+  const manifest = await readBoilerplateManifest("express-bun", process.cwd());
   assert.equal(manifest.packageManager, "bun");
   assert.equal(manifest.framework, "express");
   assert.equal(manifest.startCommand, "bun src/server.js");
@@ -168,6 +168,7 @@ test("packages deploy zip with .pxxlignore", async () => {
     const files = unzipSync(archive);
     assert.ok(files["index.html"]);
     assert.equal(files[".env"], undefined);
+    assert.equal(files[".pxxlignore"], undefined);
     assert.equal(files["ignored.txt"], undefined);
     assert.equal(files["node_modules/x.js"], undefined);
   } finally {
@@ -260,6 +261,30 @@ test("project automation uses CLI-safe API routes", async () => {
     ["POST", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/envs/bulk"],
   ]);
   assert.deepEqual(calls[2].body, { vars: [{ key: "API_URL", value: "https://api.example.test", isSecret: true }] });
+});
+
+test("deploy marks archives as CLI deploy source", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "pxxl-test-"));
+  try {
+    await writeFile(join(dir, "package.json"), JSON.stringify({ scripts: { start: "node server.js" } }));
+    await writeFile(join(dir, "server.js"), "console.log('ok')");
+    await writeFile(join(dir, "pxxl.toml"), 'name = "cli-app"\ndomainChoice = "pxxl.pro"\nport = 3000\n');
+    const client = new PxxlClient({
+      apiKey: "pxxl_test",
+      fetchImpl: async (url, init) => {
+        assert.equal(url, "https://gateway.pxxl.app/api/v3/projects/spacedrop");
+        const form = init.body;
+        assert.equal(form.get("deploymentSource"), "clideploy");
+        assert.equal(form.get("sourceShape"), "clideploy");
+        assert.equal(form.get("name"), "cli-app");
+        return Response.json({ success: true, projectId: "proj_1", deploymentId: "dep_1" }, { status: 201 });
+      },
+    });
+    const result = await client.deploy({ cwd: dir });
+    assert.equal(result.projectId, "proj_1");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("domain invoice SDK methods stay out of CLI routes", async () => {

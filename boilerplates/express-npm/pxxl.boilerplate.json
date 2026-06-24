@@ -1,0 +1,13 @@
+{
+  "id": "express-npm",
+  "name": "Express",
+  "description": "A minimal Express API starter for deploying backend services, webhooks, and JSON APIs on Pxxl.",
+  "framework": "express",
+  "language": "javascript",
+  "displayName": "Express",
+  "family": "express",
+  "packageManager": "npm",
+  "buildCommand": "",
+  "startCommand": "npm run start",
+  "port": 3000
+}

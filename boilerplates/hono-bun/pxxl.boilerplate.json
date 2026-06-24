@@ -1,0 +1,13 @@
+{
+  "id": "hono-bun",
+  "name": "Hono",
+  "description": "A lightweight Hono API starter running on Bun.",
+  "framework": "hono",
+  "packageManager": "bun",
+  "language": "javascript",
+  "port": 3000,
+  "installCommand": "bun install",
+  "startCommand": "bun src/index.js",
+  "displayName": "Hono",
+  "family": "hono"
+}

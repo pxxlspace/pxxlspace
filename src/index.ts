@@ -239,11 +239,18 @@ export interface DeployConfig {
   startCommand?: string;
   baseDirectory?: string;
   entryFile?: string;
+  projectId?: string;
+  deploymentId?: string;
+  projectUrl?: string;
+  deploymentUrl?: string;
+  lastDeployedAt?: string;
 }
 
 export interface BoilerplateManifest extends DeployConfig {
   id: string;
   name?: string;
+  displayName?: string;
+  family?: string;
   description?: string;
 }
 
@@ -422,6 +429,24 @@ export class PxxlClient {
     return this.request(`/cli/projects${teamQuery(teamId)}`);
   }
 
+  async listDeployments(input: { projectId?: string; limit?: number; teamId?: string } = {}): Promise<unknown> {
+    const params = new URLSearchParams();
+    if (input.limit) params.set("limit", String(input.limit));
+    const teamId = input.teamId || this.teamId;
+    if (teamId) params.set("teamId", teamId);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    if (input.projectId) return this.request(`/cli/projects/${encodeURIComponent(input.projectId)}/deployments${suffix}`);
+    return this.request(`/cli/deployments${suffix}`);
+  }
+
+  async getDeployment(id: string): Promise<unknown> {
+    return this.request(`/cli/deployments/${encodeURIComponent(id)}`);
+  }
+
+  async deployDomainOptions(): Promise<unknown> {
+    return this.request("/cli/domains/deploy-options");
+  }
+
   async redeployProject(id: string, input: RedeployInput = {}): Promise<unknown> {
     return this.request(`/cli/projects/${encodeURIComponent(id)}/redeploy`, { method: "POST", body: JSON.stringify(input) });
   }
@@ -463,6 +488,8 @@ export class PxxlClient {
     form.append("name", requiredConfig(config.name, "name"));
     form.append("domainChoice", requiredConfig(config.domainChoice, "domainChoice"));
     form.append("environment", config.environment || "production");
+    form.append("sourceShape", "clideploy");
+    form.append("deploymentSource", "clideploy");
     for (const key of ["deployEnvironment", "port", "language", "framework", "packageManager", "installCommand", "buildCommand", "startCommand", "baseDirectory", "entryFile"] as const) {
       const value = config[key];
       if (value !== undefined && value !== null && value !== "") form.append(key, String(value));
@@ -524,6 +551,7 @@ export const defaultPxxlIgnore = [
   ".cache/**",
   ".config/pxxl",
   ".config/pxxl/**",
+  ".pxxlignore",
   "pxxl-source.zip",
 ];
 

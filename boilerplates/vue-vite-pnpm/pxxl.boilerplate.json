@@ -1,0 +1,14 @@
+{
+  "id": "vue-vite-pnpm",
+  "name": "Vue Vite",
+  "description": "A Vue frontend starter using Vite and pnpm.",
+  "framework": "vue",
+  "packageManager": "pnpm",
+  "language": "javascript",
+  "port": 4173,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
+  "startCommand": "pnpm start",
+  "displayName": "Vue Vite",
+  "family": "vue"
+}

@@ -1,9 +1,0 @@
-{
-  "id": "php-basic-pxxl",
-  "name": "PHP Basic",
-  "description": "A simple PHP starter for Pxxl.",
-  "framework": "php",
-  "language": "php",
-  "port": 8080,
-  "startCommand": "php -S 0.0.0.0:8080 index.php"
-}

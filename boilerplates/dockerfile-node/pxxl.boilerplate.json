@@ -1,0 +1,11 @@
+{
+  "id": "dockerfile-node",
+  "name": "Dockerfile Node",
+  "description": "A Dockerfile-based Node service starter for Pxxl.",
+  "framework": "dockerfile",
+  "language": "dockerfile",
+  "port": 3000,
+  "startCommand": "node server.js",
+  "displayName": "Dockerfile Node",
+  "family": "dockerfile"
+}

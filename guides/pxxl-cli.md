@@ -21,14 +21,14 @@ The API endpoint is fixed to the official Pxxl Gateway.
 ## Deploy
 
 ```bash
-pxxl init --new vite-react-pxxl --name my-app --domain pxxl.pro
+pxxl init --new vite-react-pnpm --name my-app --domain pxxl.pro
 pxxl deploy
 pxxl redeploy <project-id>
 pxxl pull <project-id> ./my-app
 pxxl env push <project-id> --file .env
 ```
 
-`pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary ZIP, and sends it to Pxxl SpaceDrop.
+`pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary ZIP, and sends it to Pxxl.
 `pxxl redeploy` triggers a new deployment for an existing project.
 `pxxl pull` clones the project repository and branch locally, or updates an existing git checkout with a fast-forward pull.
 `pxxl env push` reads a local `.env` file and writes those values to Pxxl project envs.
@@ -50,26 +50,15 @@ Use `--json` when you need the raw response for automation.
 ## Boilerplates
 
 ```bash
-pxxl init --new express-bun-pxxl --name my-api
-pxxl init --new hono-bun-pxxl --name edge-api
-pxxl init --new fastify-pnpm-pxxl --name fast-api
-pxxl init --new nextjs-pnpm-pxxl --name web-app
-pxxl init --new astro-npm-pxxl --name docs-site
-pxxl init --new vite-react-npm-pxxl --name react-app
-pxxl init --new vue-vite-pnpm-pxxl --name vue-app
-pxxl init --new sveltekit-pnpm-pxxl --name svelte-app
-pxxl init --new node-typescript-npm-pxxl --name ts-api
-pxxl init --new express-yarn-pxxl --name yarn-api
-pxxl init --new python-fastapi-pxxl --name fastapi-app
-pxxl init --new python-flask-pxxl --name flask-app
-pxxl init --new python-django-pxxl --name django-app
-pxxl init --new php-basic-pxxl --name php-app
-pxxl init --new go-http-pxxl --name go-api
-pxxl init --new rust-axum-pxxl --name rust-api
-pxxl init --new dockerfile-node-pxxl --name docker-app
+pxxl init --new
+pxxl init --new express-bun --name my-api
+pxxl init --new vite-react-pnpm --name react-app
+pxxl init --new php-basic --name php-app
 ```
 
-Each boilerplate includes a `pxxl.boilerplate.json` manifest. The CLI reads that manifest and writes matching `pxxl.toml` defaults for the package manager, framework, port, install command, build command, and start command.
+Interactive init lists clean framework names such as Express, Vite React, HTML Static, PHP, FastAPI, Go HTTP, and Rust Axum. When a framework has variants, the CLI asks for the package manager next.
+
+Each boilerplate includes a `pxxl.boilerplate.json` manifest. The CLI reads that manifest and writes matching `pxxl.toml` defaults for the package manager, framework, port, install command, build command, and start command. It creates a new folder by default for `--new`, validates the project name and selected Pxxl domain suffix, and can deploy the first version immediately.
 
 ## CDN
 

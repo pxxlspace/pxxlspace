@@ -1,0 +1,14 @@
+{
+  "id": "vite-react-npm",
+  "name": "Vite React",
+  "description": "A React app starter using Vite and npm.",
+  "framework": "vite",
+  "packageManager": "npm",
+  "language": "javascript",
+  "port": 4173,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "startCommand": "npm run start",
+  "displayName": "Vite React",
+  "family": "vite"
+}

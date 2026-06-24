@@ -1,0 +1,14 @@
+{
+  "id": "express-pnpm",
+  "name": "Express",
+  "description": "A minimal Express API starter for deploying backend services, webhooks, and JSON APIs on Pxxl.",
+  "framework": "express",
+  "language": "javascript",
+  "displayName": "Express",
+  "family": "express",
+  "packageManager": "pnpm",
+  "buildCommand": "",
+  "startCommand": "pnpm start",
+  "port": 3000,
+  "installCommand": "pnpm install --frozen-lockfile"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "vite-react-pnpm",
+  "name": "Vite React",
+  "description": "A deploy-ready React starter for Pxxl with Vite, custom domains, SSL, and global proxy routing.",
+  "framework": "vite",
+  "language": "javascript",
+  "displayName": "Vite React",
+  "family": "vite",
+  "packageManager": "pnpm",
+  "buildCommand": "npm run build",
+  "startCommand": "npm run start",
+  "outputDirectory": "dist"
+}

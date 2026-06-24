@@ -1,0 +1,13 @@
+{
+  "id": "fastify-pnpm",
+  "name": "Fastify",
+  "description": "A fast Node.js API starter using Fastify and pnpm.",
+  "framework": "fastify",
+  "packageManager": "pnpm",
+  "language": "javascript",
+  "port": 3000,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "startCommand": "node src/server.js",
+  "displayName": "Fastify",
+  "family": "fastify"
+}

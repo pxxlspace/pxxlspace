@@ -1,0 +1,14 @@
+{
+  "id": "astro-npm",
+  "name": "Astro",
+  "description": "A fast Astro site starter for Pxxl.",
+  "framework": "astro",
+  "packageManager": "npm",
+  "language": "javascript",
+  "port": 4321,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "startCommand": "npm run start",
+  "displayName": "Astro",
+  "family": "astro"
+}

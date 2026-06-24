@@ -1,0 +1,12 @@
+{
+  "id": "python-flask",
+  "name": "Flask",
+  "description": "A Flask starter for Python web apps on Pxxl.",
+  "framework": "flask",
+  "language": "python",
+  "port": 3000,
+  "installCommand": "pip install -r requirements.txt",
+  "startCommand": "gunicorn -b 0.0.0.0:3000 app:app",
+  "displayName": "Flask",
+  "family": "flask"
+}

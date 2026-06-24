@@ -1,6 +1,6 @@
-# HTML Static Starter for Pxxl
+# Vite React Starter for Pxxl
 
-A fast static gallery starter for image portfolios, product shots, and CDN-backed landing pages on Pxxl.
+A React app starter using Vite and npm.
 
 Deploy this starter on [Pxxl](https://pxxl.app) for custom domains, SSL, logs, global routing, and fast project setup. Read the [Pxxl docs](https://docs.pxxl.app) for CLI, deploy, domains, CDN, and database guides.
 
@@ -9,7 +9,7 @@ Deploy this starter on [Pxxl](https://pxxl.app) for custom domains, SSL, logs, g
 ```bash
 npm install -g @pxxlapp/pxxl
 pxxl login --api-key <your-api-key>
-pxxl init --new static-cdn-gallery
+pxxl init --new vite-react-npm
 ```
 
 The CLI creates a project folder, writes `pxxl.toml`, lets you choose an eligible Pxxl domain suffix, and can deploy the starter immediately.
@@ -17,7 +17,8 @@ The CLI creates a project folder, writes `pxxl.toml`, lets you choose an eligibl
 ## Local Development
 
 ```bash
-python3 -m http.server 4173
+npm install
+npm run dev
 ```
 
 ## Deploy Now

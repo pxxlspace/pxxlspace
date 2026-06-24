@@ -17,8 +17,8 @@ npm install -g @pxxlapp/pxxl
 
 ```bash
 pxxl login --api-key pxxl_...
-pxxl init --new vite-react-pxxl --name my-app --domain pxxl.pro
-pxxl init --new express-bun-pxxl --name my-api --domain pxxl.pro
+pxxl init --new vite-react-pnpm --name my-app --domain pxxl.pro
+pxxl init --new express-bun --name my-api --domain pxxl.pro
 pxxl deploy
 pxxl redeploy <project-id>
 pxxl pull <project-id> ./my-app
@@ -38,7 +38,7 @@ pxxl domains stats
 `pxxl login` validates the API key before saving it and prints the authenticated user, scope, and spaceship context. The CLI always uses the official Pxxl Gateway endpoint.
 CLI commands print readable terminal output by default. Add `--json` when you need raw API responses for scripts.
 
-`pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary deterministic ZIP, and deploys through Pxxl SpaceDrop.
+`pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary deterministic ZIP, and deploys on Pxxl.
 `pxxl pull` verifies the local git remote before updating an existing checkout, then refuses to pull into dirty working trees.
 `pxxl stats` and `pxxl usage` show deployment, project, artifact, and build-minute usage for the current personal or selected spaceship scope.
 `pxxl db create`, `pxxl db get`, database lifecycle commands, `pxxl team use`, `pxxl env push`, and `pxxl domains stats` become interactive when you omit the target value.
@@ -67,26 +67,14 @@ Database commands use the same managed database provisioning API as the dashboar
 
 ## Boilerplates
 
-- `static-cdn-gallery`: static HTML/CSS gallery.
-- `vite-react-pxxl`: Vite React with pnpm.
-- `vite-react-npm-pxxl`: Vite React with npm.
-- `express-api-pxxl`: Express API with npm.
-- `express-bun-pxxl`: Express API with Bun.
-- `express-yarn-pxxl`: Express API with Yarn.
-- `node-typescript-npm-pxxl`: TypeScript HTTP API with npm.
-- `hono-bun-pxxl`: Hono API with Bun.
-- `fastify-pnpm-pxxl`: Fastify API with pnpm.
-- `nextjs-pnpm-pxxl`: Next.js App Router with pnpm.
-- `astro-npm-pxxl`: Astro site with npm.
-- `vue-vite-pnpm-pxxl`: Vue app with Vite and pnpm.
-- `sveltekit-pnpm-pxxl`: SvelteKit app with pnpm.
-- `python-fastapi-pxxl`: FastAPI Python API.
-- `python-flask-pxxl`: Flask Python API.
-- `python-django-pxxl`: Django Python app.
-- `php-basic-pxxl`: Basic PHP app.
-- `go-http-pxxl`: Go HTTP service.
-- `rust-axum-pxxl`: Rust Axum API.
-- `dockerfile-node-pxxl`: Dockerfile-based Node service.
+Run `pxxl init --new` to choose a framework first, then choose a package manager when that framework has variants.
+
+- Express: npm, pnpm, Bun, Yarn.
+- Vite React: npm, pnpm, Bun, Yarn.
+- Astro, Next.js, Vue Vite, SvelteKit, Fastify, Hono, Node TypeScript.
+- FastAPI, Flask, Django, PHP, HTML Static, Go HTTP, Rust Axum, Dockerfile Node.
+
+Direct IDs still work for scripts, for example `express-bun`, `express-npm`, `vite-react-pnpm`, `php-basic`, or `static-cdn-gallery`.
 
 ## Useful Links
 

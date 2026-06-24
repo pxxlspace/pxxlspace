@@ -1,0 +1,14 @@
+{
+  "id": "vite-react-yarn",
+  "name": "Vite React",
+  "description": "A React app starter using Vite and npm.",
+  "framework": "vite",
+  "packageManager": "yarn",
+  "language": "javascript",
+  "port": 4173,
+  "installCommand": "yarn install --frozen-lockfile",
+  "buildCommand": "yarn build",
+  "startCommand": "yarn start",
+  "displayName": "Vite React",
+  "family": "vite"
+}

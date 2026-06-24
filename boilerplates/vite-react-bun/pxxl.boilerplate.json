@@ -1,0 +1,14 @@
+{
+  "id": "vite-react-bun",
+  "name": "Vite React",
+  "description": "A React app starter using Vite and npm.",
+  "framework": "vite",
+  "packageManager": "bun",
+  "language": "javascript",
+  "port": 4173,
+  "installCommand": "bun install",
+  "buildCommand": "bun run build",
+  "startCommand": "bun run start",
+  "displayName": "Vite React",
+  "family": "vite"
+}

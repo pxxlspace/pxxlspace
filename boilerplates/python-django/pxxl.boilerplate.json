@@ -1,0 +1,12 @@
+{
+  "id": "python-django",
+  "name": "Django",
+  "description": "A minimal Django starter for Pxxl.",
+  "framework": "django",
+  "language": "python",
+  "port": 3000,
+  "installCommand": "pip install -r requirements.txt",
+  "startCommand": "gunicorn -b 0.0.0.0:3000 config.wsgi:application",
+  "displayName": "Django",
+  "family": "django"
+}
