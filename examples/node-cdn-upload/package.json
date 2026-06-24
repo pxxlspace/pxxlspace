@@ -6,6 +6,6 @@
     "upload": "node upload.mjs"
   },
   "dependencies": {
-    "@pxxl/cdn": "file:../../sdks/node/pxxl-cdn"
+    "pxxl": "file:../.."
   }
 }

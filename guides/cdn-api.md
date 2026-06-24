@@ -50,5 +50,5 @@ curl -L https://gateway.pxxl.app/api/v3/cdn/assets/<asset-id>/download \
 
 ## SDKs
 
-- Node: `public/sdks/node/pxxl-cdn`
-- Go: `public/sdks/go/pxxl`
+- Node: root package `pxxl`
+- Go: `sdks/go/pxxl`

@@ -1,0 +1,39 @@
+{
+  "name": "pxxl",
+  "version": "0.1.0",
+  "description": "Official Pxxl CLI and SDK for deploys, CDN assets, and domain reseller workflows.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "pxxl": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "boilerplates",
+    "guides",
+    "skills",
+    "README.md",
+    "readme.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "ignore": "^7.0.5",
+    "smol-toml": "^1.7.0"
+  }
+}

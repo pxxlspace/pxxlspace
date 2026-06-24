@@ -1,60 +1,62 @@
-# Pxxl.app - Deploy Your Projects Faster
+# Pxxl CLI and SDK
 
-This repository contains public Pxxl developer resources: official CDN SDKs, upload examples, boilerplates, and agent-safe integration instructions.
+Official open-source CLI and SDKs for Pxxl deploys, CDN assets, and domain reseller workflows.
 
-## Public Developer Resources
+## Install
 
-- `public/sdks/node/pxxl-cdn` - official `@pxxl/cdn` Node SDK.
-- `public/sdks/go/pxxl` - official Go module for CDN uploads and asset management.
-- `public/examples` - small end-to-end upload examples for Node.js and Go.
-- `public/boilerplates` - Pxxl-ready starter projects for static sites, React, and Express APIs.
-- `public/guides/cdn-api.md` - CDN API-key upload guide.
-- `public/skills/pxxl-cdn/SKILL.md` - safe instructions for agents integrating Pxxl CDN.
+```bash
+npm install -g pxxl
+```
 
-## Overview
-Pxxl.app is a powerful deployment platform that enables developers to deploy web applications instantly with zero configuration 1 . The platform provides enterprise-grade hosting infrastructure, continuous deployment, and automatic scaling for modern web applications 1 .
+## CLI
 
-## Key Features
-### 🚀 Instant Deployment
-- Zero Configuration : Deploy any framework directly from your repository with automated builds 1
-- Zero-Downtime Updates : Seamless deployments without service interruption 1
-- One-Push Deployment : Your application goes live globally with a single push 1
-### 🔗 Git Integration
-- Repository Linking : Connect your Git repository and let Pxxl automatically configure your project environment 1
-- Automated Builds : Continuous integration with every commit 1
-- Multi-Framework Support : Works with all modern web frameworks and technologies 1
-### 🌐 Enterprise-Grade Infrastructure
-- Global CDN : Applications deploy across high-performance CDN networks 1
-- Automatic Scaling : Built-in scaling capabilities to handle traffic spikes 1
-- Security : Enterprise-grade security measures 1
-### 🎛️ Developer Experience
-- Intuitive Dashboard : Fine-tune deployment settings and optimize performance through an easy-to-use interface 1
-- Real-time Collaboration : Built-in collaboration features for development teams 1
-- Comprehensive Tooling : Everything developers need in one platform 1
-## How It Works
-1. Connect Your Code : Link your Git repository to Pxxl.app 1
-2. Customize & Control : Configure deployment settings through the intuitive dashboard 1
-3. Go Live Instantly : Push your code and deploy globally in seconds 1
-## What Developers Are Saying
-"Pxxl's UI makes everything easier for me and the fact that it supports all new technologies was ground breaking, used Pxxl for about 3 of my products and never experienced any issues." 1
+```bash
+pxxl login --api-key pxxl_...
+pxxl init --new vite-react-pxxl --name my-app --domain pxxl.pro
+pxxl deploy
+pxxl cdn upload ./logo.png
+pxxl domain search pxxl.cv
+pxxl domain tlds --search cv
+```
 
-— Victor Jack (@iamvictorjack)
+`pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary deterministic ZIP, and deploys through Pxxl SpaceDrop.
 
-"Pxxl stands out with its speed, accuracy, and security. I've been using it since the MVP stage, and the recent updates have made building demo MVPs for startups completely seamless. It's a solid platform I'd recommend any day!" 1
+## Node SDK
 
-— Okunade-Praise Peculiar (@flameztechPxxl)
+```ts
+import { PxxlClient } from "pxxl";
 
-"Pxxl is a game-changer for hosting. It's fast, affordable, and developer-friendly. It is everything I need in one place." 1
+const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY });
 
-— Whakee (@whakeee)
+const domains = await pxxl.searchDomains({ query: "pxxl.cv" });
+const tlds = await pxxl.listTLDs();
+const asset = await pxxl.uploadAsset({
+  file: new Blob(["hello"]),
+  fileName: "hello.txt",
+  visibility: "public",
+});
+```
 
-## Why Choose Pxxl.app?
-- Speed : Lightning-fast deployments and performance 1
-- Simplicity : No complex configuration required 1
-- Reliability : Enterprise-grade infrastructure without the complexity 1
-- Developer-Friendly : Built by developers, for developers 1
-- Comprehensive : All deployment needs in one platform 1
-## Getting Started
-Visit pxxl.app to start deploying your applications instantly with zero configuration 1 .
+Domain search returns availability, prices, renewal pricing, and active promo fields such as `.cv` bonus amounts when the API returns them.
 
-Experience the future of web deployment with Pxxl.app - where CODE • DEPLOY • SHIP becomes reality.
+## Repo Layout
+
+- `src`: Node SDK and `pxxl` CLI.
+- `sdks/go/pxxl`: Go SDK.
+- `examples`: Node and Go examples.
+- `boilerplates`: Pxxl-ready starters for `pxxl init --new`.
+- `guides`: API and publishing guides.
+- `skills`: safe agent instructions for Pxxl integrations.
+
+## Publish to npm
+
+```bash
+npm login
+npm test
+npm run build
+npm pack --dry-run
+npm version patch
+npm publish --access public
+```
+
+Use npm 2FA/provenance where available, and smoke test with `npm install -g pxxl && pxxl --help`.

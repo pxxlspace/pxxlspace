@@ -13,17 +13,17 @@ Use this skill when a user wants to upload files to Pxxl CDN, generate CDN uploa
 
 ## Node
 
-Use `@pxxl/cdn`:
+Use the `pxxl` package:
 
 ```ts
-import { PxxlCDN } from "@pxxl/cdn";
+import { PxxlClient } from "pxxl";
 
-const cdn = new PxxlCDN({ apiKey: process.env.PXXL_API_KEY! });
+const cdn = new PxxlClient({ apiKey: process.env.PXXL_API_KEY! });
 ```
 
 ## Go
 
-Use `github.com/pxxlspace/pxxlspace/public/sdks/go/pxxl`:
+Use `github.com/pxxlspace/pxxlspace/sdks/go/pxxl`:
 
 ```go
 client, err := pxxl.NewClient(os.Getenv("PXXL_API_KEY"))

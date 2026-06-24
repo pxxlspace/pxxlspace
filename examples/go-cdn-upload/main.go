@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pxxlspace/pxxlspace/public/sdks/go/pxxl"
+	"github.com/pxxlspace/pxxlspace/sdks/go/pxxl"
 )
 
 func main() {

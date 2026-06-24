@@ -3,7 +3,7 @@
 Official Go client for Pxxl CDN uploads.
 
 ```bash
-go get github.com/pxxlspace/pxxlspace/public/sdks/go/pxxl
+go get github.com/pxxlspace/pxxlspace/sdks/go/pxxl
 ```
 
 ```go

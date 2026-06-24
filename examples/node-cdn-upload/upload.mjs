@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { PxxlCDN } from "@pxxl/cdn";
+import { PxxlClient } from "pxxl";
 
 const filePath = process.argv[2];
 if (!filePath) {
@@ -14,7 +14,7 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const cdn = new PxxlCDN({ apiKey, baseUrl: process.env.PXXL_API_URL });
+const cdn = new PxxlClient({ apiKey, baseUrl: process.env.PXXL_API_URL });
 const bytes = await readFile(filePath);
 const asset = await cdn.uploadAsset({
   file: new Blob([bytes]),
