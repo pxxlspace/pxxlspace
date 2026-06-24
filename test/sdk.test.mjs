@@ -139,17 +139,19 @@ test("reads pxxl.toml", async () => {
 });
 
 test("auth config honors PXXL_API_KEY override", async () => {
-  await saveAuthConfig("stored_key");
-  const original = process.env.PXXL_API_KEY;
-  process.env.PXXL_API_KEY = "env_key";
-  try {
-    const config = await readAuthConfig();
-    assert.equal(config.apiKey, "env_key");
-  } finally {
-    if (original === undefined) delete process.env.PXXL_API_KEY;
-    else process.env.PXXL_API_KEY = original;
-    await clearAuthConfig();
-  }
+  await withTempConfig(async () => {
+    await saveAuthConfig("stored_key");
+    const original = process.env.PXXL_API_KEY;
+    process.env.PXXL_API_KEY = "env_key";
+    try {
+      const config = await readAuthConfig();
+      assert.equal(config.apiKey, "env_key");
+    } finally {
+      if (original === undefined) delete process.env.PXXL_API_KEY;
+      else process.env.PXXL_API_KEY = original;
+      await clearAuthConfig();
+    }
+  });
 });
 
 test("database requests include selected team context", async () => {
@@ -172,17 +174,19 @@ test("database requests include selected team context", async () => {
 });
 
 test("team selection persists without dropping credentials", async () => {
-  await saveAuthConfig("stored_key", "https://stored.test/api/v3");
-  await saveTeamSelection("team_123");
-  const config = await readAuthConfig();
-  assert.equal(config.apiKey, "stored_key");
-  assert.equal("baseUrl" in config, false);
-  assert.equal(config.selectedTeamId, "team_123");
-  await saveTeamSelection(undefined);
-  const cleared = await readAuthConfig();
-  assert.equal(cleared.selectedTeamId, undefined);
-  assert.equal(cleared.apiKey, "stored_key");
-  await clearAuthConfig();
+  await withTempConfig(async () => {
+    await saveAuthConfig("stored_key", "https://stored.test/api/v3");
+    await saveTeamSelection("team_123");
+    const config = await readAuthConfig();
+    assert.equal(config.apiKey, "stored_key");
+    assert.equal("baseUrl" in config, false);
+    assert.equal(config.selectedTeamId, "team_123");
+    await saveTeamSelection(undefined);
+    const cleared = await readAuthConfig();
+    assert.equal(cleared.selectedTeamId, undefined);
+    assert.equal(cleared.apiKey, "stored_key");
+    await clearAuthConfig();
+  });
 });
 
 test("project automation uses CLI-safe API routes", async () => {
@@ -221,3 +225,16 @@ test("domain invoice SDK methods stay out of CLI routes", async () => {
   const result = await client.listDomainInvoices();
   assert.equal(result.invoices[0].id, "inv_1");
 });
+
+async function withTempConfig(fn) {
+  const original = process.env.XDG_CONFIG_HOME;
+  const dir = await mkdtemp(join(tmpdir(), "pxxl-config-test-"));
+  process.env.XDG_CONFIG_HOME = dir;
+  try {
+    await fn();
+  } finally {
+    if (original === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = original;
+    await rm(dir, { recursive: true, force: true });
+  }
+}
