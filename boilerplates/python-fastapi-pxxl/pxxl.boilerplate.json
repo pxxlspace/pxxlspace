@@ -1,0 +1,10 @@
+{
+  "id": "python-fastapi-pxxl",
+  "name": "Python FastAPI",
+  "description": "A FastAPI starter for Python APIs on Pxxl.",
+  "framework": "fastapi",
+  "language": "python",
+  "port": 3000,
+  "installCommand": "pip install -r requirements.txt",
+  "startCommand": "uvicorn main:app --host 0.0.0.0 --port 3000"
+}

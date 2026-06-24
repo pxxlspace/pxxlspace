@@ -72,10 +72,21 @@ Database commands use the same managed database provisioning API as the dashboar
 - `vite-react-npm-pxxl`: Vite React with npm.
 - `express-api-pxxl`: Express API with npm.
 - `express-bun-pxxl`: Express API with Bun.
+- `express-yarn-pxxl`: Express API with Yarn.
+- `node-typescript-npm-pxxl`: TypeScript HTTP API with npm.
 - `hono-bun-pxxl`: Hono API with Bun.
 - `fastify-pnpm-pxxl`: Fastify API with pnpm.
 - `nextjs-pnpm-pxxl`: Next.js App Router with pnpm.
 - `astro-npm-pxxl`: Astro site with npm.
+- `vue-vite-pnpm-pxxl`: Vue app with Vite and pnpm.
+- `sveltekit-pnpm-pxxl`: SvelteKit app with pnpm.
+- `python-fastapi-pxxl`: FastAPI Python API.
+- `python-flask-pxxl`: Flask Python API.
+- `python-django-pxxl`: Django Python app.
+- `php-basic-pxxl`: Basic PHP app.
+- `go-http-pxxl`: Go HTTP service.
+- `rust-axum-pxxl`: Rust Axum API.
+- `dockerfile-node-pxxl`: Dockerfile-based Node service.
 
 ## Useful Links
 

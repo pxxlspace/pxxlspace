@@ -1,0 +1,16 @@
+{
+  "name": "sveltekit-pxxl",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "start": "node build"
+  },
+  "dependencies": {
+    "@sveltejs/adapter-node": "^5.3.3",
+    "@sveltejs/kit": "^2.48.5",
+    "svelte": "^5.46.0",
+    "vite": "^7.2.7"
+  },
+  "devDependencies": {}
+}

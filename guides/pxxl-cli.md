@@ -56,6 +56,17 @@ pxxl init --new fastify-pnpm-pxxl --name fast-api
 pxxl init --new nextjs-pnpm-pxxl --name web-app
 pxxl init --new astro-npm-pxxl --name docs-site
 pxxl init --new vite-react-npm-pxxl --name react-app
+pxxl init --new vue-vite-pnpm-pxxl --name vue-app
+pxxl init --new sveltekit-pnpm-pxxl --name svelte-app
+pxxl init --new node-typescript-npm-pxxl --name ts-api
+pxxl init --new express-yarn-pxxl --name yarn-api
+pxxl init --new python-fastapi-pxxl --name fastapi-app
+pxxl init --new python-flask-pxxl --name flask-app
+pxxl init --new python-django-pxxl --name django-app
+pxxl init --new php-basic-pxxl --name php-app
+pxxl init --new go-http-pxxl --name go-api
+pxxl init --new rust-axum-pxxl --name rust-api
+pxxl init --new dockerfile-node-pxxl --name docker-app
 ```
 
 Each boilerplate includes a `pxxl.boilerplate.json` manifest. The CLI reads that manifest and writes matching `pxxl.toml` defaults for the package manager, framework, port, install command, build command, and start command.

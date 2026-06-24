@@ -1,0 +1,11 @@
+{
+  "id": "express-yarn-pxxl",
+  "name": "Express + Yarn",
+  "description": "A minimal Express API starter using Yarn.",
+  "framework": "express",
+  "packageManager": "yarn",
+  "language": "javascript",
+  "port": 3000,
+  "installCommand": "yarn install --frozen-lockfile",
+  "startCommand": "yarn start"
+}

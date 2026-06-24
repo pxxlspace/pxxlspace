@@ -1,0 +1,10 @@
+{
+  "id": "rust-axum-pxxl",
+  "name": "Rust Axum",
+  "description": "A Rust Axum API starter for Pxxl.",
+  "framework": "axum",
+  "language": "rust",
+  "port": 3000,
+  "buildCommand": "cargo build --release",
+  "startCommand": "./target/release/rust-axum-pxxl"
+}

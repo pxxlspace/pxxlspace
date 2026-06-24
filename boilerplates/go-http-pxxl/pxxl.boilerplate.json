@@ -1,0 +1,10 @@
+{
+  "id": "go-http-pxxl",
+  "name": "Go HTTP",
+  "description": "A standard-library Go HTTP service starter for Pxxl.",
+  "framework": "go",
+  "language": "go",
+  "port": 3000,
+  "buildCommand": "go build -o server .",
+  "startCommand": "./server"
+}

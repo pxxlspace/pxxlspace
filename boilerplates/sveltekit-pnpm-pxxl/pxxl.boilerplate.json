@@ -1,0 +1,12 @@
+{
+  "id": "sveltekit-pnpm-pxxl",
+  "name": "SvelteKit + pnpm",
+  "description": "A SvelteKit app starter using the Node adapter.",
+  "framework": "sveltekit",
+  "packageManager": "pnpm",
+  "language": "javascript",
+  "port": 3000,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
+  "startCommand": "pnpm start"
+}
