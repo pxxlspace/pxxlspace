@@ -63,6 +63,9 @@ async function main() {
     return print("Logged out.");
   }
   if (command === "init") return initProject(args);
+  if ((command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") && teamCommandCanRunWithoutAuth(args[0])) {
+    return teams(undefined, args);
+  }
 
   const client = await authedClient();
   if (command === "whoami") return printJSON(await client.whoami());
@@ -162,10 +165,14 @@ async function domains(client: PxxlClient, args: string[]) {
   throw new Error(`Unknown domain command: ${command || ""}`);
 }
 
-async function teams(client: PxxlClient, args: string[]) {
+async function teams(client: PxxlClient | undefined, args: string[]) {
   const command = args.shift();
-  if (command === "list" || !command) return printJSON(await client.listTeams());
+  if (command === "list" || !command) {
+    if (!client) throw new Error("Run `pxxl login --api-key <key>` or set PXXL_API_KEY.");
+    return printJSON(await client.listTeams());
+  }
   if (command === "get" || command === "show") {
+    if (!client) throw new Error("Run `pxxl login --api-key <key>` or set PXXL_API_KEY.");
     const id = required(args.shift(), "team id");
     return printJSON(await client.getTeam(id));
   }
@@ -183,6 +190,10 @@ async function teams(client: PxxlClient, args: string[]) {
     return print("Cleared selected spaceship.");
   }
   throw new Error(`Unknown team command: ${command}`);
+}
+
+function teamCommandCanRunWithoutAuth(command: string | undefined): boolean {
+  return command === "current" || command === "clear" || command === "use" || command === "switch";
 }
 
 async function databases(client: PxxlClient, args: string[]) {
