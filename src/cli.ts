@@ -28,7 +28,7 @@ import {
 } from "./index.js";
 
 const run = promisify(execFile);
-const cliVersion = "0.1.6";
+const cliVersion = "0.1.7";
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
 const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}
@@ -41,8 +41,8 @@ ${magenta("╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚════
 const usage = `${logo}
 
 ${bold("Go live on Pxxl in seconds!")} ${dim(`v${cliVersion}`)}
-${bold("Website")} ${cyan("https://pxxl.app")}
-${bold("Docs")}    ${cyan("https://docs.pxxl.app")}
+${bold("Website")} ${link("https://pxxl.app")}
+${bold("Docs")}    ${link("https://docs.pxxl.app")}
 
 ${bold("Account")}
   ${cyan("pxxl login")} --api-key <key>       Validate and save a Pxxl API key
@@ -928,7 +928,7 @@ function printAsset(value: unknown) {
     ["ID", asset.id],
   ]);
   const url = stringValue(asRecord(value).publicUrl);
-  if (url) print(`${bold("URL")} ${cyan(url)}`);
+  if (url) print(`${bold("URL")} ${link(url)}`);
 }
 
 function printAssets(value: unknown) {
@@ -1084,7 +1084,7 @@ function printDeploymentDetails(value: unknown) {
   ]);
   const projectId = stringValue(deployment.projectId);
   const deploymentId = stringValue(deployment.id);
-  if (projectId && deploymentId) print(`${bold("View")} ${cyan(`https://pxxl.app/dashboard/projects/${projectId}/deployments/${deploymentId}`)}`);
+  if (projectId && deploymentId) print(`${bold("View")} ${link(`https://pxxl.app/dashboard/projects/${projectId}/deployments/${deploymentId}`)}`);
 }
 
 function printDeployResult(value: unknown, fallback: string) {
@@ -1096,8 +1096,11 @@ function printDeployResult(value: unknown, fallback: string) {
   const rows: [string, unknown][] = [];
   if (projectId) rows.push(["Project ID", projectId]);
   if (deploymentId) rows.push(["Deployment ID", deploymentId]);
-  if (domainName) rows.push(["Live URL", domainName.startsWith("http") ? domainName : `https://${domainName}`]);
-  if (projectId && deploymentId) rows.push(["Deployment", `https://pxxl.app/dashboard/projects/${projectId}/deployments/${deploymentId}`]);
+  if (domainName) {
+    const liveUrl = domainName.startsWith("http") ? domainName : `https://${domainName}`;
+    rows.push(["Live URL", link(liveUrl)]);
+  }
+  if (projectId && deploymentId) rows.push(["Deployment", link(`https://pxxl.app/dashboard/projects/${projectId}/deployments/${deploymentId}`)]);
   if (rows.length) printKV(rows);
 }
 
@@ -1373,6 +1376,11 @@ function magenta(value: string): string {
 
 function cyan(value: string): string {
   return color(36, value);
+}
+
+function link(url: string, label = url): string {
+  if (process.env.NO_COLOR || !process.stdout.isTTY) return cyan(label);
+  return `\u001b]8;;${url}\u0007${cyan(label)}\u001b]8;;\u0007`;
 }
 
 main().catch((error) => {
