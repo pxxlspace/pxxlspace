@@ -27,6 +27,7 @@ import {
 } from "./index.js";
 
 const run = promisify(execFile);
+const cliVersion = "0.1.5";
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
 const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}
@@ -38,7 +39,9 @@ ${magenta("╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚════
 
 const usage = `${logo}
 
-${bold("pxxl")} ${dim("official Pxxl CLI")}
+${bold("Go live on Pxxl in seconds!")} ${dim(`v${cliVersion}`)}
+${bold("Website")} ${cyan("https://pxxl.app")}
+${bold("Docs")}    ${cyan("https://docs.pxxl.app")}
 
 ${bold("Account")}
   ${cyan("pxxl login")} --api-key <key>       Validate and save a Pxxl API key
@@ -91,6 +94,7 @@ ${bold("Environment")}
 async function main() {
   const args = process.argv.slice(2);
   const command = args.shift();
+  if (command === "version" || command === "--version" || command === "-v") return print(cliVersion);
   if (!command || command === "help" || command === "--help" || command === "-h") return print(usage);
 
   if (command === "login") return login(args);
