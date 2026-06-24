@@ -260,7 +260,7 @@ test("project automation uses CLI-safe API routes", async () => {
     ["POST", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/redeploy"],
     ["POST", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/envs/bulk"],
   ]);
-  assert.deepEqual(calls[2].body, { vars: [{ key: "API_URL", value: "https://api.example.test", isSecret: true }] });
+  assert.deepEqual(calls[2].body, { vars: [{ key: "API_URL", value: "https://api.example.test", isSecret: true }], replace: false });
 });
 
 test("deploy marks archives as CLI deploy source", async () => {
@@ -268,7 +268,7 @@ test("deploy marks archives as CLI deploy source", async () => {
   try {
     await writeFile(join(dir, "package.json"), JSON.stringify({ scripts: { start: "node server.js" } }));
     await writeFile(join(dir, "server.js"), "console.log('ok')");
-    await writeFile(join(dir, "pxxl.toml"), 'name = "cli-app"\ndomainChoice = "pxxl.pro"\nport = 3000\n');
+    await writeFile(join(dir, "pxxl.toml"), 'name = "cli-app"\ndomainChoice = "pxxl.pro"\nprojectId = "proj_existing"\nport = 3000\n');
     const client = new PxxlClient({
       apiKey: "pxxl_test",
       fetchImpl: async (url, init) => {
@@ -276,11 +276,13 @@ test("deploy marks archives as CLI deploy source", async () => {
         const form = init.body;
         assert.equal(form.get("deploymentSource"), "clideploy");
         assert.equal(form.get("sourceShape"), "clideploy");
+        assert.equal(form.get("projectId"), "proj_existing");
+        assert.equal(form.get("commitMessage"), "ship local changes");
         assert.equal(form.get("name"), "cli-app");
         return Response.json({ success: true, projectId: "proj_1", deploymentId: "dep_1" }, { status: 201 });
       },
     });
-    const result = await client.deploy({ cwd: dir });
+    const result = await client.deploy({ cwd: dir, commitMessage: "ship local changes" });
     assert.equal(result.projectId, "proj_1");
   } finally {
     await rm(dir, { recursive: true, force: true });

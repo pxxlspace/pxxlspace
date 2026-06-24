@@ -244,6 +244,7 @@ export interface DeployConfig {
   projectUrl?: string;
   deploymentUrl?: string;
   lastDeployedAt?: string;
+  commitMessage?: string;
 }
 
 export interface BoilerplateManifest extends DeployConfig {
@@ -425,12 +426,20 @@ export class PxxlClient {
     return this.request(`/cli/projects/${encodeURIComponent(id)}`);
   }
 
-  async listProjects(teamId = this.teamId): Promise<unknown> {
-    return this.request(`/cli/projects${teamQuery(teamId)}`);
+  async listProjects(input: { teamId?: string; page?: number; limit?: number } | string = {}): Promise<unknown> {
+    const options = typeof input === "string" ? { teamId: input } : input;
+    const params = new URLSearchParams();
+    if (options.page) params.set("page", String(options.page));
+    if (options.limit) params.set("limit", String(options.limit));
+    const teamId = options.teamId || this.teamId;
+    if (teamId) params.set("teamId", teamId);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return this.request(`/cli/projects${suffix}`);
   }
 
-  async listDeployments(input: { projectId?: string; limit?: number; teamId?: string } = {}): Promise<unknown> {
+  async listDeployments(input: { projectId?: string; page?: number; limit?: number; teamId?: string } = {}): Promise<unknown> {
     const params = new URLSearchParams();
+    if (input.page) params.set("page", String(input.page));
     if (input.limit) params.set("limit", String(input.limit));
     const teamId = input.teamId || this.teamId;
     if (teamId) params.set("teamId", teamId);
@@ -451,9 +460,9 @@ export class PxxlClient {
     return this.request(`/cli/projects/${encodeURIComponent(id)}/redeploy`, { method: "POST", body: JSON.stringify(input) });
   }
 
-  async pushProjectEnv(id: string, vars: EnvVarInput[], options: { global?: boolean } = {}): Promise<unknown> {
+  async pushProjectEnv(id: string, vars: EnvVarInput[], options: { global?: boolean; replace?: boolean } = {}): Promise<unknown> {
     const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs/bulk` : `/cli/projects/${encodeURIComponent(id)}/envs/bulk`;
-    return this.request(path, { method: "POST", body: JSON.stringify({ vars }) });
+    return this.request(path, { method: "POST", body: JSON.stringify({ vars, replace: Boolean(options.replace) }) });
   }
 
   async listProjectEnv(id: string, options: { global?: boolean } = {}): Promise<unknown> {
@@ -485,12 +494,18 @@ export class PxxlClient {
     const archiveBytes = archive instanceof Uint8Array ? archive : new Uint8Array(archive);
     const archivePart = archiveBytes.buffer.slice(archiveBytes.byteOffset, archiveBytes.byteOffset + archiveBytes.byteLength) as ArrayBuffer;
     form.append("file", new Blob([archivePart]), basename(input.archivePath || "pxxl-source.zip"));
-    form.append("name", requiredConfig(config.name, "name"));
-    form.append("domainChoice", requiredConfig(config.domainChoice, "domainChoice"));
+    if (config.projectId) form.append("projectId", config.projectId);
+    if (config.projectId) {
+      if (config.name) form.append("name", config.name);
+      if (config.domainChoice) form.append("domainChoice", config.domainChoice);
+    } else {
+      form.append("name", requiredConfig(config.name, "name"));
+      form.append("domainChoice", requiredConfig(config.domainChoice, "domainChoice"));
+    }
     form.append("environment", config.environment || "production");
     form.append("sourceShape", "clideploy");
     form.append("deploymentSource", "clideploy");
-    for (const key of ["deployEnvironment", "port", "language", "framework", "packageManager", "installCommand", "buildCommand", "startCommand", "baseDirectory", "entryFile"] as const) {
+    for (const key of ["deployEnvironment", "port", "language", "framework", "packageManager", "installCommand", "buildCommand", "startCommand", "baseDirectory", "entryFile", "commitMessage"] as const) {
       const value = config[key];
       if (value !== undefined && value !== null && value !== "") form.append(key, String(value));
     }

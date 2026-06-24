@@ -28,7 +28,7 @@ import {
 } from "./index.js";
 
 const run = promisify(execFile);
-const cliVersion = "0.1.7";
+const cliVersion = "0.1.8";
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
 const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}
@@ -55,6 +55,7 @@ ${bold("Account")}
 ${bold("Deploy")}
   ${cyan("pxxl init")} --new <starter>        Create a Pxxl-ready project
   ${cyan("pxxl deploy")}                     Package this directory and deploy on Pxxl
+  ${cyan("pxxl deploy")} -m "message"        Deploy with a custom commit message
   ${cyan("pxxl redeploy")} <project-id>       Trigger a fresh deployment
   ${cyan("pxxl pull")} <project-id> [folder]  Clone or update the attached Git repo
   ${cyan("pxxl projects list")}               List projects
@@ -64,7 +65,8 @@ ${bold("Deploy")}
 
 ${bold("Project Config")}
   ${cyan("pxxl env list")} <project-id>       List project env names
-  ${cyan("pxxl env push")} <project-id>       Push a local .env file
+  ${cyan("pxxl env push")} [project-id]       Push a local .env file
+  ${cyan("pxxl env push")} --force            Replace remote envs with local .env
 
 ${bold("CDN")}
   ${cyan("pxxl cdn summary")}                 Show CDN usage summary
@@ -211,6 +213,7 @@ async function deploy(client: PxxlClient, args: string[]) {
   if (flagValue(args, "--name")) config.name = flagValue(args, "--name");
   if (flagValue(args, "--domain")) config.domainChoice = normalizeDomainChoice(flagValue(args, "--domain"));
   if (flagValue(args, "--port")) config.port = Number(flagValue(args, "--port"));
+  if (flagValue(args, "--message") || flagValue(args, "-m")) config.commitMessage = flagValue(args, "--message") || flagValue(args, "-m");
   const cwd = resolve(flagValue(args, "--dir") || ".");
   const archive = await createProjectZip(cwd);
   print(`Created Pxxl deploy archive (${archive.length} bytes, sha256 ${sha256Hex(archive).slice(0, 16)}...)`);
@@ -232,9 +235,7 @@ async function redeploy(client: PxxlClient, args: string[]) {
 async function projects(client: PxxlClient, args: string[]) {
   const command = args.shift() || "list";
   if (command === "list" || command === "ls") {
-    const result = await spinner("Fetching projects", () => client.listProjects(flagValue(args, "--team")));
-    if (wantsJSON(args)) return printJSON(result);
-    return printProjects(result);
+    return pagedProjects(client, args);
   }
   if (command === "get" || command === "show") {
     const id = await resolveProjectId(client, args.shift(), args);
@@ -248,9 +249,7 @@ async function projects(client: PxxlClient, args: string[]) {
 async function deployments(client: PxxlClient, args: string[]) {
   const command = args.shift() || "recent";
   if (command === "recent" || command === "list" || command === "ls") {
-    const result = await spinner("Fetching deployments", () => client.listDeployments({ projectId: flagValue(args, "--project"), limit: Number(flagValue(args, "--limit") || 20), teamId: flagValue(args, "--team") }));
-    if (wantsJSON(args)) return printJSON(result);
-    return printDeployments(result);
+    return pagedDeployments(client, args);
   }
   if (command === "get" || command === "show") {
     const id = await resolveDeploymentId(client, args.shift(), args);
@@ -300,14 +299,15 @@ async function envs(client: PxxlClient, args: string[]) {
     return printEnvList(result);
   }
   if (command === "push") {
-    const id = await resolveProjectId(client, args.shift(), args);
+    const id = await resolveProjectIdFromArgsOrConfig(client, args.shift(), args);
     const file = flagValue(args, "--file") || flagValue(args, "-f") || ".env";
     const secret = (flagValue(args, "--secret") || "true").toLowerCase() !== "false";
     const vars = parseDotEnv(await readFile(resolve(file), "utf8"), secret);
     if (vars.length === 0) throw new Error(`No environment variables found in ${file}`);
-    const result = await spinner("Pushing environment variables", () => client.pushProjectEnv(id, vars, { global: args.includes("--global") }));
+    const replace = args.includes("--force") || args.includes("--replace");
+    const result = await spinner(replace ? "Replacing environment variables" : "Pushing environment variables", () => client.pushProjectEnv(id, vars, { global: args.includes("--global"), replace }));
     if (wantsJSON(args)) return printJSON(result);
-    return printResult(result, `Pushed ${vars.length} environment variable${vars.length === 1 ? "" : "s"}`);
+    return printResult(result, `${replace ? "Replaced" : "Pushed"} ${vars.length} environment variable${vars.length === 1 ? "" : "s"}`);
   }
   throw new Error(`Unknown env command: ${command || ""}`);
 }
@@ -750,15 +750,48 @@ async function resolveDomainName(client: PxxlClient, domain: string | undefined,
   return promptSelect("Choose domain", domains.map((row) => ({ label: row.domain || "-", value: row.domain || "" })).filter((option) => option.value));
 }
 
+async function resolveProjectIdFromArgsOrConfig(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
+  if (id) return id;
+  const config = await readPxxlToml(resolve(flagValue(args, "--dir") || "."));
+  if (config.projectId) return config.projectId;
+  return resolveProjectId(client, undefined, args);
+}
+
 async function resolveProjectId(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
   if (id) return id;
-  const result = await spinner("Fetching projects", () => client.listProjects(flagValue(args, "--team")));
+  const result = await spinner("Fetching projects", () => client.listProjects({ teamId: flagValue(args, "--team"), page: 1, limit: 10 }));
   const root = asRecord(result);
   const projects = arrayValue(root.projects || asRecord(root.data).projects || root.data).map(asRecord);
   return promptSelect("Choose project", projects.map((project) => ({
     label: `${stringValue(project.name || project.id)} ${dim(stringValue(project.status || project.framework))}`,
     value: stringValue(project.id),
   })).filter((option) => option.value));
+}
+
+async function pagedProjects(client: PxxlClient, args: string[]) {
+  let page = Number(flagValue(args, "--page") || 1);
+  const limit = Number(flagValue(args, "--limit") || 10);
+  while (true) {
+    const result = await spinner(`Fetching projects page ${page}`, () => client.listProjects({ teamId: flagValue(args, "--team"), page, limit }));
+    if (wantsJSON(args)) return printJSON(result);
+    printProjects(result);
+    const info = pageInfo(result);
+    if (!isInteractive() || page >= info.totalPages || !(await promptConfirm(`Show next page (${page + 1}/${info.totalPages})?`, false))) return;
+    page += 1;
+  }
+}
+
+async function pagedDeployments(client: PxxlClient, args: string[]) {
+  let page = Number(flagValue(args, "--page") || 1);
+  const limit = Number(flagValue(args, "--limit") || 10);
+  while (true) {
+    const result = await spinner(`Fetching deployments page ${page}`, () => client.listDeployments({ projectId: flagValue(args, "--project"), page, limit, teamId: flagValue(args, "--team") }));
+    if (wantsJSON(args)) return printJSON(result);
+    printDeployments(result);
+    const info = pageInfo(result);
+    if (!isInteractive() || page >= info.totalPages || !(await promptConfirm(`Show next page (${page + 1}/${info.totalPages})?`, false))) return;
+    page += 1;
+  }
 }
 
 async function resolveDeploymentId(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
@@ -1041,6 +1074,7 @@ function printProjects(value: unknown) {
   printHeader("Projects");
   if (!projects.length) return print(dim("No projects found."));
   printTable("", projects, ["name", "framework", "status", "domain", "id"]);
+  printPageInfo(value);
 }
 
 function printProjectDetails(value: unknown) {
@@ -1065,6 +1099,7 @@ function printDeployments(value: unknown) {
   printHeader("Deployments");
   if (!deployments.length) return print(dim("No deployments found."));
   printTable("", deployments, ["project", "status", "build", "domain", "created", "id"]);
+  printPageInfo(value);
 }
 
 function printDeploymentDetails(value: unknown) {
@@ -1152,6 +1187,24 @@ function printResult(value: unknown, fallback: string) {
   if (status) rows.push(["Status", status]);
   if (url) rows.push(["URL", url]);
   if (rows.length) printKV(rows);
+}
+
+function pageInfo(value: unknown): { page: number; limit: number; total: number; totalPages: number } {
+  const root = asRecord(value);
+  const data = asRecord(root.data);
+  return {
+    page: numberValue(root.page || data.page) || 1,
+    limit: numberValue(root.limit || data.limit) || 10,
+    total: numberValue(root.total || data.total),
+    totalPages: numberValue(root.totalPages || data.totalPages) || 1,
+  };
+}
+
+function printPageInfo(value: unknown) {
+  const info = pageInfo(value);
+  if (info.total || info.totalPages > 1) {
+    print(dim(`Page ${info.page}/${info.totalPages} · ${info.total} total · ${info.limit} per page`));
+  }
 }
 
 function projectRow(value: unknown): Record<string, string> {
