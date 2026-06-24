@@ -39,9 +39,8 @@ test("reads boilerplate manifest deploy defaults", async () => {
 test("uploads CDN multipart file without forcing json content type", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",
-    baseUrl: "https://example.test/api/v3/",
     fetchImpl: async (url, init) => {
-      assert.equal(url, "https://example.test/api/v3/cdn/assets");
+      assert.equal(url, "https://gateway.pxxl.app/api/v3/cdn/assets");
       assert.equal(init.method, "POST");
       assert.equal(init.headers.get("Content-Type"), null);
       assert.ok(init.body instanceof FormData);
@@ -51,6 +50,19 @@ test("uploads CDN multipart file without forcing json content type", async () =>
   });
   const asset = await client.uploadAsset({ file: new Blob(["test"]), fileName: "logo.png", visibility: "private" });
   assert.equal(asset.id, "asset_1");
+});
+
+test("whoami uses the API-key compatible CLI identity route", async () => {
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    fetchImpl: async (url, init) => {
+      assert.equal(url, "https://gateway.pxxl.app/api/v3/cli/whoami");
+      assert.equal(init.headers.get("Authorization"), "Bearer pxxl_test");
+      return Response.json({ success: true, user: { id: "user_1", email: "user@example.test" }, authMethod: "api_key" });
+    },
+  });
+  const result = await client.whoami();
+  assert.equal(result.user.email, "user@example.test");
 });
 
 test("searches domains and preserves promo pricing fields", async () => {
@@ -127,7 +139,7 @@ test("reads pxxl.toml", async () => {
 });
 
 test("auth config honors PXXL_API_KEY override", async () => {
-  await saveAuthConfig("stored_key", "https://stored.test/api/v3");
+  await saveAuthConfig("stored_key");
   const original = process.env.PXXL_API_KEY;
   process.env.PXXL_API_KEY = "env_key";
   try {
@@ -164,7 +176,7 @@ test("team selection persists without dropping credentials", async () => {
   await saveTeamSelection("team_123");
   const config = await readAuthConfig();
   assert.equal(config.apiKey, "stored_key");
-  assert.equal(config.baseUrl, "https://stored.test/api/v3");
+  assert.equal("baseUrl" in config, false);
   assert.equal(config.selectedTeamId, "team_123");
   await saveTeamSelection(undefined);
   const cleared = await readAuthConfig();

@@ -13,9 +13,10 @@ pxxl --help
 pxxl login --api-key pxxl_...
 ```
 
-The CLI stores credentials at `~/.config/pxxl/config.json` with file mode `0600`.
-`PXXL_API_KEY` and `PXXL_API_URL` override the stored config.
+The CLI validates the key before saving it, then stores credentials at `~/.config/pxxl/config.json` with file mode `0600`.
+`PXXL_API_KEY` overrides the stored key.
 `PXXL_TEAM_ID` overrides the selected spaceship/team for scoped commands.
+The API endpoint is fixed to the official Pxxl Gateway.
 
 ## Deploy
 
@@ -32,7 +33,7 @@ pxxl env push <project-id> --file .env
 `pxxl pull` clones the project repository and branch locally, or updates an existing git checkout with a fast-forward pull.
 `pxxl env push` reads a local `.env` file and writes those values to Pxxl project envs.
 
-Use an API key with `scope=all` or `scope=deploy` and `permission=read_write`.
+Use an API key with `scope=all` or `scope=deploy` and `permission=read_write` for deploy and redeploy. Use `scope=project`, `scope=env`, or `scope=all` for environment variable reads and writes.
 
 ## Boilerplates
 
@@ -69,7 +70,7 @@ pxxl team clear
 
 The selected spaceship is stored in your local Pxxl config. Use `PXXL_TEAM_ID` to override it for scripts and CI.
 
-Use an API key with `scope=team`, `scope=database`, `scope=deploy`, or `scope=all` to list teams.
+Use an API key with `scope=team`, `scope=database`, or `scope=all` to list teams.
 
 ## Databases
 

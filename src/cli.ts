@@ -7,6 +7,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
+  PXXL_API_BASE_URL,
   PxxlClient,
   clearAuthConfig,
   configPath,
@@ -25,39 +26,48 @@ import {
 
 const run = promisify(execFile);
 
-const usage = `pxxl
+const usage = `${bold("pxxl")} ${dim("official Pxxl CLI")}
 
-Usage:
-  pxxl login --api-key <key> [--api-url <url>]
-  pxxl logout
-  pxxl whoami
-  pxxl init [--new <boilerplate>] [--name <project>] [--domain <tld>] [--dir <path>]
-  pxxl deploy [--name <project>] [--domain <tld>] [--port <port>]
-  pxxl redeploy <project-id> [--commit <sha>] [--message <text>]
-  pxxl pull <project-id> [.|./folder] [--force]
-  pxxl env list <project-id> [--global]
-  pxxl env push <project-id> [--file .env] [--global] [--secret=false]
-  pxxl status
-  pxxl cdn summary
-  pxxl cdn list
-  pxxl cdn usage
-  pxxl cdn upload <file> [--private]
-  pxxl cdn download <asset-id> <output-file>
-  pxxl cdn delete <asset-id>
-  pxxl team list
-  pxxl team use <team-id>
-  pxxl team current
-  pxxl team clear
-  pxxl db list
-  pxxl db create --name <name> --type <postgres|mysql|redis|...>
-  pxxl db get <database-id>
-  pxxl db start|stop|restart|delete <database-id>
-  pxxl db stats|tables <database-id>
+${bold("Account")}
+  ${cyan("pxxl login")} --api-key <key>       Validate and save a Pxxl API key
+  ${cyan("pxxl logout")}                     Remove local credentials
+  ${cyan("pxxl whoami")}                     Show the active account and API key scope
+  ${cyan("pxxl status")}                     Same as whoami
 
-Environment:
-  PXXL_API_KEY overrides stored credentials.
-  PXXL_API_URL overrides the API base URL.
-  PXXL_TEAM_ID overrides the selected spaceship/team for scoped commands.
+${bold("Deploy")}
+  ${cyan("pxxl init")} --new <starter>        Create a Pxxl-ready project
+  ${cyan("pxxl deploy")}                     Zip this directory and deploy with SpaceDrop
+  ${cyan("pxxl redeploy")} <project-id>       Trigger a fresh deployment
+  ${cyan("pxxl pull")} <project-id> [folder]  Clone or update the attached Git repo
+
+${bold("Project Config")}
+  ${cyan("pxxl env list")} <project-id>       List project env names
+  ${cyan("pxxl env push")} <project-id>       Push a local .env file
+
+${bold("CDN")}
+  ${cyan("pxxl cdn summary")}                 Show CDN usage summary
+  ${cyan("pxxl cdn list")}                    List assets
+  ${cyan("pxxl cdn upload")} <file>           Upload an asset
+  ${cyan("pxxl cdn download")} <id> <file>    Download an asset
+  ${cyan("pxxl cdn delete")} <id>             Delete an asset
+
+${bold("Spaceships")}
+  ${cyan("pxxl team list")}                   List teams
+  ${cyan("pxxl team use")} <team-id>          Select a team for scoped commands
+  ${cyan("pxxl team current")}                Show selected team
+  ${cyan("pxxl team clear")}                  Clear selected team
+
+${bold("Databases")}
+  ${cyan("pxxl db list")}                     List databases
+  ${cyan("pxxl db create")} --name <name> --type <type>
+  ${cyan("pxxl db get")} <database-id>
+  ${cyan("pxxl db start|stop|restart|delete")} <database-id>
+  ${cyan("pxxl db stats|tables")} <database-id>
+
+${bold("Environment")}
+  ${dim("PXXL_API_KEY")} overrides stored credentials.
+  ${dim("PXXL_TEAM_ID")} overrides the selected spaceship/team for scoped commands.
+  API endpoint: ${dim(PXXL_API_BASE_URL)}
 `;
 
 async function main() {
@@ -76,8 +86,7 @@ async function main() {
   }
 
   const client = await authedClient();
-  if (command === "whoami") return printJSON(await client.whoami());
-  if (command === "status") return printJSON(await client.whoami());
+  if (command === "whoami" || command === "status") return printIdentity(await client.whoami());
   if (command === "deploy") return deploy(client, args);
   if (command === "redeploy") return redeploy(client, args);
   if (command === "pull") return pullProject(client, args);
@@ -92,8 +101,12 @@ async function main() {
 async function login(args: string[]) {
   const apiKey = flagValue(args, "--api-key") || flagValue(args, "-k");
   if (!apiKey) throw new Error("pxxl login requires --api-key <key>");
-  await saveAuthConfig(apiKey, flagValue(args, "--api-url") || process.env.PXXL_API_URL);
-  print(`Saved Pxxl credentials to ${configPath()}`);
+  if (args.includes("--api-url")) throw new Error("Custom API URLs are not supported. Pxxl CLI uses the official Gateway endpoint.");
+  const client = new PxxlClient({ apiKey });
+  const identity = await client.whoami();
+  await saveAuthConfig(apiKey);
+  printSuccess(`Saved Pxxl credentials to ${configPath()}`);
+  printIdentity(identity);
 }
 
 async function initProject(args: string[]) {
@@ -149,9 +162,16 @@ async function pullProject(client: PxxlClient, args: string[]) {
   const project = ((response.project || response.data || response) as Record<string, unknown>);
   const githubUrl = stringValue(project.githubUrl);
   const branch = stringValue(project.githubBranch) || "main";
+  assertSafeGitBranch(branch);
   if (!githubUrl) throw new Error("This project does not have a Git repository attached. SpaceDrop projects cannot be pulled with git.");
   const destination = resolve(destinationArg || await promptDestination(project.name ? String(project.name) : id));
   if (await isGitRepo(destination)) {
+    const origin = (await run("git", ["-C", destination, "remote", "get-url", "origin"], { maxBuffer: 1024 * 1024 })).stdout.trim();
+    if (!sameGitRemote(origin, githubUrl)) {
+      throw new Error(`Refusing to update ${destination}: git origin (${origin}) does not match Pxxl project repo (${githubUrl}).`);
+    }
+    const status = (await run("git", ["-C", destination, "status", "--porcelain"], { maxBuffer: 1024 * 1024 })).stdout.trim();
+    if (status) throw new Error(`Refusing to pull into ${destination}: working tree has local changes.`);
     print(`Updating existing git repo in ${destination}`);
     await run("git", ["-C", destination, "fetch", "origin", branch], { maxBuffer: 1024 * 1024 * 10 });
     await run("git", ["-C", destination, "checkout", branch], { maxBuffer: 1024 * 1024 * 10 });
@@ -300,7 +320,7 @@ async function databases(client: PxxlClient, args: string[]) {
 async function authedClient(): Promise<PxxlClient> {
   const config = await readAuthConfig();
   if (!config.apiKey) throw new Error("Run `pxxl login --api-key <key>` or set PXXL_API_KEY.");
-  return new PxxlClient({ apiKey: config.apiKey, baseUrl: process.env.PXXL_API_URL || config.baseUrl, teamId: config.selectedTeamId });
+  return new PxxlClient({ apiKey: config.apiKey, teamId: config.selectedTeamId });
 }
 
 function flagValue(args: string[], name: string): string | undefined {
@@ -374,12 +394,61 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function assertSafeGitBranch(branch: string) {
+  if (!branch || branch.startsWith("-") || /[\s\x00-\x1f\x7f]/.test(branch) || branch.includes("..") || /[~^:?*[\\]/.test(branch)) {
+    throw new Error(`Refusing unsafe git branch name from project metadata: ${branch || "(empty)"}`);
+  }
+}
+
+function sameGitRemote(a: string, b: string): boolean {
+  return normalizeGitRemote(a) === normalizeGitRemote(b);
+}
+
+function normalizeGitRemote(value: string): string {
+  return value.trim().replace(/^git@github\.com:/, "https://github.com/").replace(/\.git$/, "").replace(/\/+$/, "").toLowerCase();
+}
+
+function printIdentity(value: unknown) {
+  const data = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const user = (data.user && typeof data.user === "object" ? data.user : {}) as Record<string, unknown>;
+  print(`${green("Authenticated")} ${dim("via")} ${String(data.authMethod || "api_key")}`);
+  if (user.email || user.id) print(`  ${bold("User")}        ${String(user.email || user.id)}`);
+  if (data.apiKeyScope) print(`  ${bold("Scope")}       ${String(data.apiKeyScope)}:${String(data.apiKeyPermission || "read")}`);
+  if (data.teamId) print(`  ${bold("Spaceship")}   ${String(data.teamId)}`);
+  print(`  ${bold("Endpoint")}    ${PXXL_API_BASE_URL}`);
+}
+
 function printJSON(value: unknown) {
   print(JSON.stringify(value, null, 2));
 }
 
+function printSuccess(value: string) {
+  print(`${green("✓")} ${value}`);
+}
+
 function print(value: string) {
   process.stdout.write(`${value}\n`);
+}
+
+function color(code: number, value: string): string {
+  if (process.env.NO_COLOR || !process.stdout.isTTY) return value;
+  return `\u001b[${code}m${value}\u001b[0m`;
+}
+
+function bold(value: string): string {
+  return color(1, value);
+}
+
+function dim(value: string): string {
+  return color(2, value);
+}
+
+function green(value: string): string {
+  return color(32, value);
+}
+
+function cyan(value: string): string {
+  return color(36, value);
 }
 
 main().catch((error) => {

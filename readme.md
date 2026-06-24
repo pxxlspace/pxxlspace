@@ -30,7 +30,10 @@ pxxl db create --name app-db --type postgres
 pxxl db list
 ```
 
+`pxxl login` validates the API key before saving it and prints the authenticated user, scope, and spaceship context. The CLI always uses the official Pxxl Gateway endpoint.
+
 `pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary deterministic ZIP, and deploys through Pxxl SpaceDrop.
+`pxxl pull` verifies the local git remote before updating an existing checkout, then refuses to pull into dirty working trees.
 
 ## Node SDK
 

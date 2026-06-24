@@ -14,7 +14,7 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const cdn = new PxxlClient({ apiKey, baseUrl: process.env.PXXL_API_URL });
+const cdn = new PxxlClient({ apiKey });
 const bytes = await readFile(filePath);
 const asset = await cdn.uploadAsset({
   file: new Blob([bytes]),

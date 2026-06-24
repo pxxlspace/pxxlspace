@@ -8,9 +8,13 @@ import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
+export const PXXL_API_BASE_URL = "https://gateway.pxxl.app/api/v3";
+export const MAX_DEPLOY_FILES = 12000;
+export const MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024;
 
 export interface PxxlClientOptions {
   apiKey?: string;
+  /** @deprecated The public SDK always uses the official Pxxl API base URL. */
   baseUrl?: string;
   teamId?: string;
   fetchImpl?: typeof fetch;
@@ -258,13 +262,13 @@ export class PxxlClient {
 
   constructor(options: PxxlClientOptions = {}) {
     this.apiKey = (options.apiKey || "").trim() || undefined;
-    this.baseUrl = (options.baseUrl || "https://gateway.pxxl.app/api/v3").replace(/\/+$/, "");
+    this.baseUrl = PXXL_API_BASE_URL;
     this.teamId = (options.teamId || "").trim() || undefined;
     this.fetchImpl = options.fetchImpl || fetch;
   }
 
   async whoami(): Promise<unknown> {
-    return this.request("/me");
+    return this.request("/cli/whoami");
   }
 
   async summary(): Promise<CDNSummary> {
@@ -491,12 +495,13 @@ export async function createProjectZip(cwd: string): Promise<Uint8Array> {
     // no local ignore file
   }
   const files: Record<string, Uint8Array> = {};
-  await collectFiles(root, root, matcher, files);
+  const limits = { count: 0, bytes: 0 };
+  await collectFiles(root, root, matcher, files, limits);
   if (Object.keys(files).length === 0) throw new Error("No deployable files found after applying .pxxlignore");
   return zipSync(files, { level: 6, mtime: new Date(Date.UTC(1980, 0, 1)) });
 }
 
-async function collectFiles(root: string, dir: string, matcher: ReturnType<typeof ignore>, files: Record<string, Uint8Array>) {
+async function collectFiles(root: string, dir: string, matcher: ReturnType<typeof ignore>, files: Record<string, Uint8Array>, limits: { count: number; bytes: number }) {
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     const full = join(dir, entry.name);
@@ -504,12 +509,16 @@ async function collectFiles(root: string, dir: string, matcher: ReturnType<typeo
     if (!rel || matcher.ignores(rel) || matcher.ignores(`${rel}/`)) continue;
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
-      await collectFiles(root, full, matcher, files);
+      await collectFiles(root, full, matcher, files, limits);
       continue;
     }
     if (!entry.isFile()) continue;
     if (looksSensitive(rel)) throw new Error(`Refusing to package sensitive file: ${rel}`);
     const bytes = await readFile(full);
+    limits.count += 1;
+    limits.bytes += bytes.byteLength;
+    if (limits.count > MAX_DEPLOY_FILES) throw new Error(`Refusing to package more than ${MAX_DEPLOY_FILES} files. Add entries to .pxxlignore.`);
+    if (limits.bytes > MAX_DEPLOY_SOURCE_BYTES) throw new Error(`Refusing to package more than ${Math.round(MAX_DEPLOY_SOURCE_BYTES / 1024 / 1024)} MiB of source files. Add entries to .pxxlignore.`);
     files[rel] = new Uint8Array(bytes);
   }
 }
@@ -566,30 +575,30 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-export async function saveAuthConfig(apiKey: string, baseUrl?: string) {
+export async function saveAuthConfig(apiKey: string, _baseUrl?: string) {
   const existing = await readStoredAuthConfig();
   const path = configPath();
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify({ ...existing, apiKey, baseUrl: baseUrl || existing.baseUrl || "https://gateway.pxxl.app/api/v3" }, null, 2), { mode: 0o600 });
+  const { baseUrl: _ignored, ...rest } = existing;
+  await writeFile(path, JSON.stringify({ ...rest, apiKey }, null, 2), { mode: 0o600 });
   await chmod(path, 0o600).catch(() => undefined);
 }
 
 export async function saveTeamSelection(teamId?: string) {
   const existing = await readStoredAuthConfig();
   const next = { ...existing, selectedTeamId: teamId || undefined };
-  if (!next.apiKey && !next.baseUrl && !next.selectedTeamId) return clearAuthConfig();
+  const { baseUrl: _ignored, ...stored } = next;
+  if (!stored.apiKey && !stored.selectedTeamId) return clearAuthConfig();
   const path = configPath();
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify(next, null, 2), { mode: 0o600 });
+  await writeFile(path, JSON.stringify(stored, null, 2), { mode: 0o600 });
   await chmod(path, 0o600).catch(() => undefined);
 }
 
-export async function readAuthConfig(): Promise<{ apiKey?: string; baseUrl?: string; selectedTeamId?: string }> {
+export async function readAuthConfig(): Promise<{ apiKey?: string; selectedTeamId?: string }> {
   const stored = await readStoredAuthConfig();
   return {
-    ...stored,
     apiKey: process.env.PXXL_API_KEY || stored.apiKey,
-    baseUrl: process.env.PXXL_API_URL || stored.baseUrl,
     selectedTeamId: process.env.PXXL_TEAM_ID || stored.selectedTeamId,
   };
 }
