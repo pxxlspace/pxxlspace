@@ -101,6 +101,37 @@ test("searches domains and preserves promo pricing fields", async () => {
   assert.equal(result.results[0].bonusAmount, 2000);
 });
 
+test("lists domains and fetches CLI domain stats with team context", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, auth: init.headers.get("Authorization") });
+      if (url.includes("/stats")) return Response.json({ success: true, domain: "example.com", data: { analytics: { pageViews: 10 } } });
+      return Response.json({ success: true, domains: ["example.com"], total: 1 });
+    },
+  });
+  const domains = await client.listDomains();
+  const stats = await client.domainStats("example.com", { timeframe: "30d" });
+  assert.equal(domains.domains[0], "example.com");
+  assert.equal(stats.domain, "example.com");
+  assert.deepEqual(calls.map((call) => call.url), [
+    "https://gateway.pxxl.app/api/v3/cli/domains?teamId=team_123",
+    "https://gateway.pxxl.app/api/v3/cli/domains/example.com/stats?timeframe=30d&teamId=team_123",
+  ]);
+});
+
+test("network failures explain connectivity", async () => {
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    fetchImpl: async () => {
+      throw new TypeError("fetch failed");
+    },
+  });
+  await assert.rejects(() => client.whoami(), /Could not reach Pxxl Gateway.*Check your internet connection/);
+});
+
 test("lists TLD prices", async () => {
   const client = new PxxlClient({
     fetchImpl: async (url) => {

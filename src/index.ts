@@ -119,6 +119,16 @@ export interface DomainSearchInput {
   type?: string;
 }
 
+export interface DomainSummary {
+  id?: string;
+  name?: string;
+  domain?: string;
+  status?: string;
+  type?: string;
+  projectId?: string | null;
+  createdAt?: string;
+}
+
 export interface TeamSummary {
   id: string;
   name: string;
@@ -335,6 +345,19 @@ export class PxxlClient {
     return this.request("/domains/search", { method: "POST", body: JSON.stringify(input) });
   }
 
+  async listDomains(teamId = this.teamId): Promise<{ domains: Array<DomainSummary | string>; total?: number; success?: boolean }> {
+    return this.request(`/cli/domains${teamQuery(teamId)}`);
+  }
+
+  async domainStats(domain: string, input: { timeframe?: string; teamId?: string } = {}): Promise<unknown> {
+    const params = new URLSearchParams();
+    if (input.timeframe) params.set("timeframe", input.timeframe);
+    const teamId = input.teamId || this.teamId;
+    if (teamId) params.set("teamId", teamId);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return this.request(`/cli/domains/${encodeURIComponent(domain)}/stats${suffix}`);
+  }
+
   async listTeams(): Promise<{ teams: TeamSummary[]; total: number }> {
     return this.request("/teams");
   }
@@ -395,6 +418,10 @@ export class PxxlClient {
     return this.request(`/cli/projects/${encodeURIComponent(id)}`);
   }
 
+  async listProjects(teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/projects${teamQuery(teamId)}`);
+  }
+
   async redeployProject(id: string, input: RedeployInput = {}): Promise<unknown> {
     return this.request(`/cli/projects/${encodeURIComponent(id)}/redeploy`, { method: "POST", body: JSON.stringify(input) });
   }
@@ -453,7 +480,13 @@ export class PxxlClient {
     const headers = new Headers(init.headers);
     if (this.apiKey) headers.set("Authorization", `Bearer ${this.apiKey}`);
     if (!init.skipContentType && init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-    const response = await this.fetchImpl(`${this.baseUrl}${path}`, { ...init, headers });
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}${path}`, { ...init, headers });
+    } catch (error) {
+      const cause = error instanceof Error && error.message ? ` (${error.message})` : "";
+      throw new PxxlAPIError(`Could not reach Pxxl Gateway${cause}. Check your internet connection and try again.`, 0, { cause: error instanceof Error ? error.message : String(error) });
+    }
     if (!response.ok) {
       let details: unknown = null;
       try {

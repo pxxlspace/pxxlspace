@@ -30,6 +30,9 @@ pxxl team list
 pxxl team use <team-id>
 pxxl db create --name app-db --type postgres
 pxxl db list
+pxxl db get
+pxxl domains list
+pxxl domains stats
 ```
 
 `pxxl login` validates the API key before saving it and prints the authenticated user, scope, and spaceship context. The CLI always uses the official Pxxl Gateway endpoint.
@@ -38,6 +41,7 @@ CLI commands print readable terminal output by default. Add `--json` when you ne
 `pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary deterministic ZIP, and deploys through Pxxl SpaceDrop.
 `pxxl pull` verifies the local git remote before updating an existing checkout, then refuses to pull into dirty working trees.
 `pxxl stats` and `pxxl usage` show deployment, project, artifact, and build-minute usage for the current personal or selected spaceship scope.
+`pxxl db create`, `pxxl db get`, database lifecycle commands, `pxxl team use`, `pxxl env push`, and `pxxl domains stats` become interactive when you omit the target value.
 
 ## Node SDK
 

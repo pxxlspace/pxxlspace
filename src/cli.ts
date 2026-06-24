@@ -4,10 +4,9 @@ import { access, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promi
 import { execFile } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { basename, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
-  PXXL_API_BASE_URL,
   PxxlClient,
   clearAuthConfig,
   configPath,
@@ -22,13 +21,24 @@ import {
   type CDNVisibility,
   type DatabaseSummary,
   type DeployConfig,
+  type DomainSummary,
   type EnvVarInput,
   type TeamSummary,
 } from "./index.js";
 
 const run = promisify(execFile);
+const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
+const timeframes = ["24h", "48h", "72h", "7d", "30d"];
+const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}
+${magenta("██╔══██╗╚██╗██╔╝╚██╗██╔╝██║     ")}
+${magenta("██████╔╝ ╚███╔╝  ╚███╔╝ ██║     ")}
+${magenta("██╔═══╝  ██╔██╗  ██╔██╗ ██║     ")}
+${magenta("██║     ██╔╝ ██╗██╔╝ ██╗███████╗")}
+${magenta("╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝")}`;
 
-const usage = `${bold("pxxl")} ${dim("official Pxxl CLI")}
+const usage = `${logo}
+
+${bold("pxxl")} ${dim("official Pxxl CLI")}
 
 ${bold("Account")}
   ${cyan("pxxl login")} --api-key <key>       Validate and save a Pxxl API key
@@ -57,16 +67,20 @@ ${bold("CDN")}
 
 ${bold("Spaceships")}
   ${cyan("pxxl team list")}                   List teams
-  ${cyan("pxxl team use")} <team-id>          Select a team for scoped commands
+  ${cyan("pxxl team use")} [team-id]          Select a team for scoped commands
   ${cyan("pxxl team current")}                Show selected team
   ${cyan("pxxl team clear")}                  Clear selected team
 
 ${bold("Databases")}
   ${cyan("pxxl db list")}                     List databases
-  ${cyan("pxxl db create")} --name <name> --type <type>
-  ${cyan("pxxl db get")} <database-id>
-  ${cyan("pxxl db start|stop|restart|delete")} <database-id>
-  ${cyan("pxxl db stats|tables")} <database-id>
+  ${cyan("pxxl db create")} [--name <name>] [--type <type>]
+  ${cyan("pxxl db get")} [database-id]
+  ${cyan("pxxl db start|stop|restart|delete")} [database-id]
+  ${cyan("pxxl db stats|tables")} [database-id]
+
+${bold("Domains")}
+  ${cyan("pxxl domains list")}                List domains available for stats
+  ${cyan("pxxl domains stats")} [domain]      Show proxy stats for a domain
 
 ${bold("Environment")}
   ${dim("PXXL_API_KEY")} overrides stored credentials.
@@ -85,7 +99,7 @@ async function main() {
     return print("Logged out.");
   }
   if (command === "init") return initProject(args);
-  if ((command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") && teamCommandCanRunWithoutAuth(args[0])) {
+  if ((command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") && teamCommandCanRunWithoutAuth(args)) {
     return teams(undefined, args);
   }
 
@@ -98,6 +112,7 @@ async function main() {
   if (command === "pull") return pullProject(client, args);
   if (command === "env" || command === "envs") return envs(client, args);
   if (command === "cdn") return cdn(client, args);
+  if (command === "domain" || command === "domains") return domains(client, args);
   if (command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") return teams(client, args);
   if (command === "db" || command === "database" || command === "databases") return databases(client, args);
 
@@ -139,13 +154,18 @@ async function usageOverview(client: PxxlClient, args: string[]) {
 }
 
 async function initProject(args: string[]) {
-  const boilerplate = flagValue(args, "--new");
+  let boilerplate = flagValue(args, "--new");
+  if (args.includes("--new") && !boilerplate) {
+    const options = await listBoilerplateNames();
+    boilerplate = await promptSelect("Choose a boilerplate", options.map((name) => ({ label: name, value: name })));
+  }
   const dir = resolve(flagValue(args, "--dir") || ".");
   const manifest = boilerplate ? await readBoilerplateManifest(boilerplate) : undefined;
   if (boilerplate) await copyBoilerplate(boilerplate, dir);
+  const defaultName = basename(dir).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "");
   const config: DeployConfig = {
-    name: flagValue(args, "--name") || basename(dir).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, ""),
-    domainChoice: normalizeDomainChoice(flagValue(args, "--domain") || "pxxl.pro"),
+    name: flagValue(args, "--name") || (isInteractive() ? await promptText("Project name", defaultName) : defaultName),
+    domainChoice: normalizeDomainChoice(flagValue(args, "--domain") || (isInteractive() ? await promptText("Domain suffix", "pxxl.pro") : "pxxl.pro")),
     environment: "production",
     deployEnvironment: "prod",
     port: Number(flagValue(args, "--port") || manifest?.port || 3000),
@@ -217,13 +237,13 @@ async function pullProject(client: PxxlClient, args: string[]) {
 async function envs(client: PxxlClient, args: string[]) {
   const command = args.shift();
   if (command === "list") {
-    const id = required(args.shift(), "project id");
+    const id = await resolveProjectId(client, args.shift(), args);
     const result = await spinner("Fetching environment variables", () => client.listProjectEnv(id, { global: args.includes("--global") }));
     if (wantsJSON(args)) return printJSON(result);
     return printEnvList(result);
   }
   if (command === "push") {
-    const id = required(args.shift(), "project id");
+    const id = await resolveProjectId(client, args.shift(), args);
     const file = flagValue(args, "--file") || flagValue(args, "-f") || ".env";
     const secret = (flagValue(args, "--secret") || "true").toLowerCase() !== "false";
     const vars = parseDotEnv(await readFile(resolve(file), "utf8"), secret);
@@ -278,6 +298,23 @@ async function cdn(client: PxxlClient, args: string[]) {
   throw new Error(`Unknown CDN command: ${command}`);
 }
 
+async function domains(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "list";
+  if (command === "list" || command === "ls") {
+    const result = await spinner("Fetching domains", () => client.listDomains(flagValue(args, "--team")));
+    if (wantsJSON(args)) return printJSON(result);
+    return printDomains(result);
+  }
+  if (command === "stats") {
+    const domain = await resolveDomainName(client, args.shift(), args);
+    const timeframe = flagValue(args, "--timeframe") || await maybePromptSelect("Choose timeframe", timeframes, "30d");
+    const result = await spinner(`Fetching stats for ${domain}`, () => client.domainStats(domain, { timeframe, teamId: flagValue(args, "--team") }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printDomainStats(result, domain);
+  }
+  throw new Error(`Unknown domains command: ${command}`);
+}
+
 async function teams(client: PxxlClient | undefined, args: string[]) {
   const command = args.shift();
   if (command === "list" || !command) {
@@ -294,7 +331,9 @@ async function teams(client: PxxlClient | undefined, args: string[]) {
     return printTeam(result.team);
   }
   if (command === "use" || command === "switch") {
-    const id = required(args.shift(), "team id");
+    const provided = args.shift();
+    if (!provided && !client) throw new Error("Run `pxxl login --api-key <key>` or set PXXL_API_KEY.");
+    const id = provided || await resolveTeamId(client as PxxlClient, undefined, args);
     await saveTeamSelection(id);
     return printSuccess(`Using spaceship ${id}`);
   }
@@ -310,8 +349,9 @@ async function teams(client: PxxlClient | undefined, args: string[]) {
   throw new Error(`Unknown team command: ${command}`);
 }
 
-function teamCommandCanRunWithoutAuth(command: string | undefined): boolean {
-  return command === "current" || command === "clear" || command === "use" || command === "switch";
+function teamCommandCanRunWithoutAuth(args: string[]): boolean {
+  const command = args[0];
+  return command === "current" || command === "clear" || ((command === "use" || command === "switch") && Boolean(args[1]));
 }
 
 async function databases(client: PxxlClient, args: string[]) {
@@ -322,14 +362,14 @@ async function databases(client: PxxlClient, args: string[]) {
     return printDatabases(result);
   }
   if (command === "get" || command === "show") {
-    const id = required(args.shift(), "database id");
+    const id = await resolveDatabaseId(client, args.shift(), args);
     const result = await spinner("Fetching database", () => client.getDatabase(id, flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
-    return printDatabase(result.database);
+    return printDatabaseDetails(result.database);
   }
   if (command === "create") {
-    const name = required(flagValue(args, "--name") || flagValue(args, "-n"), "database name");
-    const type = required(flagValue(args, "--type") || flagValue(args, "-t"), "database type");
+    const name = flagValue(args, "--name") || flagValue(args, "-n") || await promptText("Database name");
+    const type = flagValue(args, "--type") || flagValue(args, "-t") || await promptSelect("Database type", databaseTypes.map((value) => ({ label: value, value })));
     const result = await client.createDatabase({
       name,
       type,
@@ -352,37 +392,38 @@ async function databases(client: PxxlClient, args: string[]) {
     return printDatabase(result.database, "Database updated");
   }
   if (command === "delete" || command === "remove") {
-    const id = required(args.shift(), "database id");
+    const id = await resolveDatabaseId(client, args.shift(), args);
+    if (!args.includes("--yes") && !await promptConfirm(`Delete database ${id}?`, false)) return print(dim("Cancelled."));
     const result = await spinner("Deleting database", () => client.deleteDatabase(id, flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
     return printResult(result, `Deleted database ${id}`);
   }
   if (command === "start") {
-    const id = required(args.shift(), "database id");
+    const id = await resolveDatabaseId(client, args.shift(), args);
     const result = await spinner("Starting database", () => client.startDatabase(id, flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
     return printResult(result, `Started database ${id}`);
   }
   if (command === "stop") {
-    const id = required(args.shift(), "database id");
+    const id = await resolveDatabaseId(client, args.shift(), args);
     const result = await spinner("Stopping database", () => client.stopDatabase(id, flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
     return printResult(result, `Stopped database ${id}`);
   }
   if (command === "restart") {
-    const id = required(args.shift(), "database id");
+    const id = await resolveDatabaseId(client, args.shift(), args);
     const result = await spinner("Restarting database", () => client.restartDatabase(id, flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
     return printResult(result, `Restarted database ${id}`);
   }
   if (command === "stats") {
-    const id = required(args.shift(), "database id");
+    const id = await resolveDatabaseId(client, args.shift(), args);
     const result = await spinner("Fetching database stats", () => client.databaseStats(id, flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
     return printNestedObject("Database stats", result);
   }
   if (command === "tables") {
-    const id = required(args.shift(), "database id");
+    const id = await resolveDatabaseId(client, args.shift(), args);
     const result = await spinner("Fetching database tables", () => client.databaseTables(id, flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
     return printNestedObject("Database tables", result);
@@ -426,13 +467,99 @@ function parseDotEnv(raw: string, secret: boolean): EnvVarInput[] {
 }
 
 async function promptDestination(defaultName: string): Promise<string> {
+  return promptText("Where should Pxxl pull this project?", defaultName);
+}
+
+async function promptText(label: string, defaultValue = ""): Promise<string> {
+  if (!isInteractive()) {
+    if (defaultValue) return defaultValue;
+    throw new Error(`${label} is required. Pass it as a CLI argument or run in an interactive terminal.`);
+  }
   const rl = createInterface({ input, output });
   try {
-    const answer = await rl.question(`Where should Pxxl pull this project? (${defaultName}) `);
-    return answer.trim() || defaultName;
+    const suffix = defaultValue ? ` (${defaultValue})` : "";
+    const answer = await rl.question(`${label}${suffix}: `);
+    const value = answer.trim() || defaultValue;
+    if (!value) throw new Error(`${label} is required.`);
+    return value;
   } finally {
     rl.close();
   }
+}
+
+async function promptConfirm(label: string, defaultValue: boolean): Promise<boolean> {
+  if (!isInteractive()) return defaultValue;
+  const suffix = defaultValue ? "Y/n" : "y/N";
+  const answer = (await promptText(`${label} [${suffix}]`, defaultValue ? "yes" : "no")).toLowerCase();
+  return ["y", "yes", "true", "1"].includes(answer);
+}
+
+async function promptSelect<T extends string>(label: string, options: Array<{ label: string; value: T }>): Promise<T> {
+  if (!options.length) throw new Error(`No options available for ${label}.`);
+  if (!isInteractive()) throw new Error(`${label} is required. Pass a value as a CLI argument or run in an interactive terminal.`);
+  print(`\n${bold(label)}`);
+  options.forEach((option, index) => print(`  ${cyan(String(index + 1).padStart(2, " "))}. ${option.label}`));
+  while (true) {
+    const answer = await promptText("Select", "1");
+    const index = Number(answer) - 1;
+    if (Number.isInteger(index) && options[index]) return options[index].value;
+    const match = options.find((option) => option.value === answer || option.label.toLowerCase() === answer.toLowerCase());
+    if (match) return match.value;
+    print(red("Invalid selection. Try again."));
+  }
+}
+
+async function maybePromptSelect<T extends string>(label: string, values: T[], defaultValue: T): Promise<T> {
+  if (!isInteractive()) return defaultValue;
+  return promptSelect(label, values.map((value) => ({ label: value, value })));
+}
+
+function isInteractive(): boolean {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+}
+
+async function listBoilerplateNames(): Promise<string[]> {
+  const root = resolve(dirname(new URL(import.meta.url).pathname), "..", "boilerplates");
+  const entries = await readdir(root, { withFileTypes: true });
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+}
+
+async function resolveDatabaseId(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
+  if (id) return id;
+  const result = await spinner("Fetching databases", () => client.listDatabases(flagValue(args, "--team")));
+  const databases = arrayValue(asRecord(result).databases || asRecord(result).data).map(asRecord);
+  return promptSelect("Choose database", databases.map((db) => ({
+    label: `${stringValue(db.name || db.id)} ${dim(`${stringValue(db.type)} ${stringValue(db.status)}`)}`,
+    value: stringValue(db.id),
+  })).filter((option) => option.value));
+}
+
+async function resolveTeamId(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
+  if (id) return id;
+  const result = await spinner("Fetching spaceships", () => client.listTeams());
+  const teams = arrayValue(asRecord(result).teams || asRecord(result).data).map(asRecord);
+  return promptSelect("Choose spaceship", teams.map((team) => ({
+    label: `${stringValue(team.name || team.id)} ${dim(stringValue(team.myRole || team.status))}`,
+    value: stringValue(team.id),
+  })).filter((option) => option.value));
+}
+
+async function resolveDomainName(client: PxxlClient, domain: string | undefined, args: string[]): Promise<string> {
+  if (domain) return domain;
+  const result = await spinner("Fetching domains", () => client.listDomains(flagValue(args, "--team")));
+  const domains = normalizeDomainRows(result);
+  return promptSelect("Choose domain", domains.map((row) => ({ label: row.domain || "-", value: row.domain || "" })).filter((option) => option.value));
+}
+
+async function resolveProjectId(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
+  if (id) return id;
+  const result = await spinner("Fetching projects", () => client.listProjects(flagValue(args, "--team")));
+  const root = asRecord(result);
+  const projects = arrayValue(root.projects || asRecord(root.data).projects || root.data).map(asRecord);
+  return promptSelect("Choose project", projects.map((project) => ({
+    label: `${stringValue(project.name || project.id)} ${dim(stringValue(project.status || project.framework))}`,
+    value: stringValue(project.id),
+  })).filter((option) => option.value));
 }
 
 async function ensureCloneDestination(destination: string, force: boolean) {
@@ -654,7 +781,7 @@ function printDatabases(value: unknown) {
   const rows = arrayValue(root.databases || root.data || value).map(databaseRow);
   printHeader("Databases");
   if (!rows.length) return print(dim("No databases found."));
-  printTable("", rows, ["name", "type", "status", "host", "port", "id"]);
+  printTable("", rows, ["id", "name", "type", "status"]);
 }
 
 function printDatabase(database: DatabaseSummary, title = "Database") {
@@ -668,6 +795,56 @@ function printDatabase(database: DatabaseSummary, title = "Database") {
     ["Port", row.port],
     ["ID", row.id],
   ]);
+}
+
+function printDatabaseDetails(database: DatabaseSummary) {
+  const db = asRecord(database);
+  printHeader("Database");
+  printKV([
+    ["ID", stringValue(db.id)],
+    ["Name", stringValue(db.name || db.actualDatabaseName)],
+    ["Type", stringValue(db.type)],
+    ["Status", stringValue(db.status)],
+    ["Database URL", stringValue(db.databaseUrl || db.externalUrl || db.externalDbUrl || db.external_db_url) || "-"],
+    ["Username", stringValue(db.dbUser || db.username) || "-"],
+    ["Database", stringValue(db.dbName || db.database || db.actualDatabaseName) || "-"],
+    ["Password", stringValue(db.dbPassword || db.password) || "-"],
+    ["Root password", stringValue(db.rootPassword) || "-"],
+    ["Host", stringValue(db.proxyHost || db.routeKey) || "-"],
+    ["Port", db.proxyPort || db.port ? String(db.proxyPort || db.port) : "-"],
+    ["Provisioning", stringValue(db.provisioningMode) || "-"],
+    ["Storage", `${formatBytes(numberValue(db.storageUsedBytes))} / ${formatBytes(numberValue(db.storageLimitBytes))}`],
+    ["Created", shortDate(db.createdAt)],
+  ]);
+}
+
+function printDomains(value: unknown) {
+  const rows = normalizeDomainRows(value);
+  printHeader("Domains");
+  if (!rows.length) return print(dim("No domains found."));
+  printTable("", rows, ["domain", "status", "type", "id"]);
+}
+
+function printDomainStats(value: unknown, fallbackDomain: string) {
+  const root = asRecord(value);
+  const data = asRecord(root.data || root);
+  const analytics = asRecord(data.analytics);
+  const observability = asRecord(data.observability);
+  const domain = stringValue(root.domain) || fallbackDomain;
+  printHeader(`Domain stats: ${domain}`);
+  printKV([
+    ["Available", data.available === false || root.available === false ? "No" : "Yes"],
+    ["Timeframe", stringValue(data.timeframe) || "-"],
+    ["Requests", numberValue(analytics.pageViews || observability.edgeRequests)],
+    ["Bandwidth", formatBytes(numberValue(analytics.bandwidthBytes || observability.bandwidthBytes))],
+    ["Avg latency", `${numberValue(analytics.avgLatencyMs || observability.avgLatencyMs).toFixed(0)}ms`],
+    ["Blocked", numberValue(analytics.blockedRequests || observability.blockedRequests)],
+    ["Errors", numberValue(analytics.errorRequests || observability.errorRequests)],
+  ]);
+  const topCountries = arrayValue(analytics.topCountries || data.topCountries).slice(0, 8).map(locationRow);
+  if (topCountries.length) printTable("Top countries", topCountries, ["name", "requests"]);
+  const topCities = arrayValue(analytics.topCities || data.topCities).slice(0, 8).map(locationRow);
+  if (topCities.length) printTable("Top cities", topCities, ["name", "requests"]);
 }
 
 function printEnvList(value: unknown) {
@@ -738,6 +915,30 @@ function databaseRow(value: unknown) {
     host: stringValue(db.proxyHost || db.routeKey || db.externalUrl) || "-",
     port: db.proxyPort || db.port ? String(db.proxyPort || db.port) : "-",
     id: stringValue(db.id),
+  };
+}
+
+function normalizeDomainRows(value: unknown): Record<string, string>[] {
+  const root = asRecord(value);
+  return arrayValue(root.domains || root.data || value).map((item) => {
+    if (typeof item === "string") {
+      return { domain: item, status: "-", type: "-", id: "-" };
+    }
+    const domain = asRecord(item);
+    return {
+      domain: stringValue(domain.domain || domain.name || domain.hostname || domain.id),
+      status: stringValue(domain.status) || "-",
+      type: stringValue(domain.type) || "-",
+      id: stringValue(domain.id) || "-",
+    };
+  }).filter((row) => row.domain);
+}
+
+function locationRow(value: unknown): Record<string, string> {
+  const row = asRecord(value);
+  return {
+    name: stringValue(row.name || row.country || row.city || row.region || row.code) || "-",
+    requests: String(numberValue(row.requests || row.count || row.value)),
   };
 }
 
@@ -862,6 +1063,10 @@ function green(value: string): string {
 
 function red(value: string): string {
   return color(31, value);
+}
+
+function magenta(value: string): string {
+  return color(35, value);
 }
 
 function cyan(value: string): string {

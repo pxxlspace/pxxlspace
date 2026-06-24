@@ -100,5 +100,17 @@ pxxl db delete <database-id>
 ```
 
 Database commands accept `--team <team-id>` or use the selected spaceship from `pxxl team use`.
+Run `pxxl db create`, `pxxl db get`, `pxxl db start`, `pxxl db stop`, `pxxl db restart`, `pxxl db stats`, `pxxl db tables`, or `pxxl db delete` without an ID to pick from an interactive list.
+`pxxl db list` shows only ID, name, type, and status. `pxxl db get` shows connection details including database URL, username, database name, password, host, and port.
 
 Use an API key with `scope=database` or `scope=all`. Listing and read operations work with `permission=read`; create/update/lifecycle/delete require `permission=read_write`.
+
+## Domains
+
+```bash
+pxxl domains list
+pxxl domains stats
+pxxl domains stats example.com --timeframe 30d
+```
+
+Domain stats use the same Gateway proxy analytics source as the dashboard. If you omit the domain, the CLI fetches your available domains and lets you select one.
