@@ -22,6 +22,8 @@ pxxl init --new express-bun-pxxl --name my-api --domain pxxl.pro
 pxxl deploy
 pxxl redeploy <project-id>
 pxxl pull <project-id> ./my-app
+pxxl stats
+pxxl usage
 pxxl env push <project-id> --file .env
 pxxl cdn upload ./logo.png
 pxxl team list
@@ -31,9 +33,11 @@ pxxl db list
 ```
 
 `pxxl login` validates the API key before saving it and prints the authenticated user, scope, and spaceship context. The CLI always uses the official Pxxl Gateway endpoint.
+CLI commands print readable terminal output by default. Add `--json` when you need raw API responses for scripts.
 
 `pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary deterministic ZIP, and deploys through Pxxl SpaceDrop.
 `pxxl pull` verifies the local git remote before updating an existing checkout, then refuses to pull into dirty working trees.
+`pxxl stats` and `pxxl usage` show deployment, project, artifact, and build-minute usage for the current personal or selected spaceship scope.
 
 ## Node SDK
 

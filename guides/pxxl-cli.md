@@ -35,6 +35,18 @@ pxxl env push <project-id> --file .env
 
 Use an API key with `scope=all` or `scope=deploy` and `permission=read_write` for deploy and redeploy. Use `scope=project`, `scope=env`, or `scope=all` for environment variable reads and writes.
 
+## Stats and Usage
+
+```bash
+pxxl stats
+pxxl usage
+pxxl stats --team <team-id>
+pxxl usage --json
+```
+
+`pxxl stats` and `pxxl usage` use CLI-safe API-key routes and print readable summaries by default: project counts, deployment counts, build minutes, artifact storage, top projects, and recent deployments.
+Use `--json` when you need the raw response for automation.
+
 ## Boilerplates
 
 ```bash

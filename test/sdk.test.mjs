@@ -65,6 +65,24 @@ test("whoami uses the API-key compatible CLI identity route", async () => {
   assert.equal(result.user.email, "user@example.test");
 });
 
+test("stats and usage use CLI-safe API-key routes with team context", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, auth: init.headers.get("Authorization") });
+      return Response.json({ success: true, data: { summary: { totalProjects: 2 } } });
+    },
+  });
+  await client.stats();
+  await client.platformUsage();
+  assert.deepEqual(calls, [
+    { url: "https://gateway.pxxl.app/api/v3/cli/stats?teamId=team_123", auth: "Bearer pxxl_test" },
+    { url: "https://gateway.pxxl.app/api/v3/cli/usage?teamId=team_123", auth: "Bearer pxxl_test" },
+  ]);
+});
+
 test("searches domains and preserves promo pricing fields", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",

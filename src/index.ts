@@ -271,6 +271,14 @@ export class PxxlClient {
     return this.request("/cli/whoami");
   }
 
+  async stats(teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/stats${teamQuery(teamId)}`);
+  }
+
+  async platformUsage(teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/usage${teamQuery(teamId)}`);
+  }
+
   async summary(): Promise<CDNSummary> {
     const response = await this.request<{ data: CDNSummary }>("/cdn/summary");
     return response.data;
