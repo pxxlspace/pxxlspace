@@ -122,11 +122,18 @@ export interface DeployConfig {
   port?: number;
   language?: string;
   framework?: string;
+  packageManager?: string;
   installCommand?: string;
   buildCommand?: string;
   startCommand?: string;
   baseDirectory?: string;
   entryFile?: string;
+}
+
+export interface BoilerplateManifest extends DeployConfig {
+  id: string;
+  name?: string;
+  description?: string;
 }
 
 export interface DeployInput extends DeployConfig {
@@ -228,7 +235,7 @@ export class PxxlClient {
     form.append("name", requiredConfig(config.name, "name"));
     form.append("domainChoice", requiredConfig(config.domainChoice, "domainChoice"));
     form.append("environment", config.environment || "production");
-    for (const key of ["deployEnvironment", "port", "language", "framework", "installCommand", "buildCommand", "startCommand", "baseDirectory", "entryFile"] as const) {
+    for (const key of ["deployEnvironment", "port", "language", "framework", "packageManager", "installCommand", "buildCommand", "startCommand", "baseDirectory", "entryFile"] as const) {
       const value = config[key];
       if (value !== undefined && value !== null && value !== "") form.append(key, String(value));
     }
@@ -340,6 +347,15 @@ export async function copyBoilerplate(name: string, destination: string, repoRoo
   const src = join(repoRoot, "boilerplates", name);
   if (!(await exists(src))) throw new Error(`Unknown boilerplate: ${name}`);
   await copyDirectory(src, destination);
+}
+
+export async function readBoilerplateManifest(name: string, repoRoot = resolve(dirname(new URL(import.meta.url).pathname), "..")): Promise<BoilerplateManifest | undefined> {
+  try {
+    const data = await readFile(join(repoRoot, "boilerplates", name, "pxxl.boilerplate.json"), "utf8");
+    return JSON.parse(data) as BoilerplateManifest;
+  } catch {
+    return undefined;
+  }
 }
 
 async function copyDirectory(src: string, dest: string) {

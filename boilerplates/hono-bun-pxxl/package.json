@@ -1,0 +1,13 @@
+{
+  "name": "hono-bun-pxxl",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.js",
+    "start": "bun src/index.js"
+  },
+  "dependencies": {
+    "hono": "^4.6.10"
+  }
+}

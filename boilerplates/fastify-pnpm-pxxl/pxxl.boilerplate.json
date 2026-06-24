@@ -1,0 +1,11 @@
+{
+  "id": "fastify-pnpm-pxxl",
+  "name": "Fastify + pnpm",
+  "description": "A fast Node.js API starter using Fastify and pnpm.",
+  "framework": "fastify",
+  "packageManager": "pnpm",
+  "language": "javascript",
+  "port": 3000,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "startCommand": "node src/server.js"
+}

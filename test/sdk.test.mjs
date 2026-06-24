@@ -8,6 +8,7 @@ import {
   PxxlAPIError,
   PxxlClient,
   createProjectZip,
+  readBoilerplateManifest,
   readPxxlToml,
   saveAuthConfig,
   readAuthConfig,
@@ -25,6 +26,13 @@ test("sends bearer auth and parses CDN summary", async () => {
   });
   const summary = await client.summary();
   assert.equal(summary.totalFiles, 1);
+});
+
+test("reads boilerplate manifest deploy defaults", async () => {
+  const manifest = await readBoilerplateManifest("express-bun-pxxl", process.cwd());
+  assert.equal(manifest.packageManager, "bun");
+  assert.equal(manifest.framework, "express");
+  assert.equal(manifest.startCommand, "bun src/server.js");
 });
 
 test("uploads CDN multipart file without forcing json content type", async () => {

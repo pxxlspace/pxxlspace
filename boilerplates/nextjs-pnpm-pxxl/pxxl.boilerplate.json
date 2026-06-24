@@ -1,0 +1,12 @@
+{
+  "id": "nextjs-pnpm-pxxl",
+  "name": "Next.js + pnpm",
+  "description": "A minimal Next.js App Router starter for Pxxl.",
+  "framework": "nextjs",
+  "packageManager": "pnpm",
+  "language": "javascript",
+  "port": 3000,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
+  "startCommand": "pnpm start"
+}

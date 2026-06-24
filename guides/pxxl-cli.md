@@ -27,6 +27,19 @@ pxxl deploy
 
 Use an API key with `scope=all` or `scope=deploy` and `permission=read_write`.
 
+## Boilerplates
+
+```bash
+pxxl init --new express-bun-pxxl --name my-api
+pxxl init --new hono-bun-pxxl --name edge-api
+pxxl init --new fastify-pnpm-pxxl --name fast-api
+pxxl init --new nextjs-pnpm-pxxl --name web-app
+pxxl init --new astro-npm-pxxl --name docs-site
+pxxl init --new vite-react-npm-pxxl --name react-app
+```
+
+Each boilerplate includes a `pxxl.boilerplate.json` manifest. The CLI reads that manifest and writes matching `pxxl.toml` defaults for the package manager, framework, port, install command, build command, and start command.
+
 ## CDN
 
 ```bash

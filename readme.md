@@ -13,6 +13,7 @@ npm install -g pxxl
 ```bash
 pxxl login --api-key pxxl_...
 pxxl init --new vite-react-pxxl --name my-app --domain pxxl.pro
+pxxl init --new express-bun-pxxl --name my-api --domain pxxl.pro
 pxxl deploy
 pxxl cdn upload ./logo.png
 pxxl domain search pxxl.cv
@@ -47,6 +48,18 @@ Domain search returns availability, prices, renewal pricing, and active promo fi
 - `boilerplates`: Pxxl-ready starters for `pxxl init --new`.
 - `guides`: API and publishing guides.
 - `skills`: safe agent instructions for Pxxl integrations.
+
+## Boilerplates
+
+- `static-cdn-gallery`: static HTML/CSS gallery.
+- `vite-react-pxxl`: Vite React with pnpm.
+- `vite-react-npm-pxxl`: Vite React with npm.
+- `express-api-pxxl`: Express API with npm.
+- `express-bun-pxxl`: Express API with Bun.
+- `hono-bun-pxxl`: Hono API with Bun.
+- `fastify-pnpm-pxxl`: Fastify API with pnpm.
+- `nextjs-pnpm-pxxl`: Next.js App Router with pnpm.
+- `astro-npm-pxxl`: Astro site with npm.
 
 ## Publish to npm
 

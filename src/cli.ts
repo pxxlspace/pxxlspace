@@ -8,6 +8,7 @@ import {
   configPath,
   copyBoilerplate,
   createProjectZip,
+  readBoilerplateManifest,
   readAuthConfig,
   saveAuthConfig,
   sha256Hex,
@@ -72,13 +73,22 @@ async function login(args: string[]) {
 async function initProject(args: string[]) {
   const boilerplate = flagValue(args, "--new");
   const dir = resolve(flagValue(args, "--dir") || ".");
+  const manifest = boilerplate ? await readBoilerplateManifest(boilerplate) : undefined;
   if (boilerplate) await copyBoilerplate(boilerplate, dir);
   const config: DeployConfig = {
     name: flagValue(args, "--name") || basename(dir).toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, ""),
     domainChoice: normalizeDomainChoice(flagValue(args, "--domain") || "pxxl.pro"),
     environment: "production",
     deployEnvironment: "prod",
-    port: Number(flagValue(args, "--port") || 3000),
+    port: Number(flagValue(args, "--port") || manifest?.port || 3000),
+    language: manifest?.language,
+    framework: manifest?.framework,
+    packageManager: manifest?.packageManager,
+    installCommand: manifest?.installCommand,
+    buildCommand: manifest?.buildCommand,
+    startCommand: manifest?.startCommand,
+    baseDirectory: manifest?.baseDirectory,
+    entryFile: manifest?.entryFile,
   };
   await writeDefaultPxxlFiles(dir, config);
   print(`Initialized Pxxl project in ${dir}`);
