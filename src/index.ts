@@ -198,6 +198,24 @@ export interface EnvVarInput {
   isSecret?: boolean;
 }
 
+export interface EnvDiffRow {
+  key: string;
+  status: "same" | "changed" | "missing_remote" | "missing_local" | string;
+  local: boolean;
+  remote: boolean;
+  same: boolean;
+  localHash?: string;
+  remoteHash?: string;
+}
+
+export interface EnvDiffResult {
+  success?: boolean;
+  projectId: string;
+  scope: string;
+  counts: Record<string, number>;
+  diff: EnvDiffRow[];
+}
+
 export interface RedeployInput {
   commitSha?: string;
   commitMessage?: string;
@@ -366,6 +384,10 @@ export class PxxlClient {
     return this.request(`/cli/domains/${encodeURIComponent(domain)}/stats${suffix}`);
   }
 
+  async checkDomain(domain: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(domain)}/check${teamQuery(teamId)}`);
+  }
+
   async listTeams(): Promise<{ teams: TeamSummary[]; total: number }> {
     return this.request("/teams");
   }
@@ -452,6 +474,23 @@ export class PxxlClient {
     return this.request(`/cli/deployments/${encodeURIComponent(id)}`);
   }
 
+  async projectLogs(id: string, input: { lines?: number; live?: boolean; since?: string } = {}): Promise<unknown> {
+    const params = new URLSearchParams();
+    if (input.lines) params.set(input.live ? "tail" : "lines", String(input.lines));
+    if (input.since) params.set("since", input.since);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    const path = input.live ? "live-logs" : "logs";
+    return this.request(`/cli/projects/${encodeURIComponent(id)}/${path}${suffix}`);
+  }
+
+  async deploymentLogs(id: string, input: { build?: boolean; since?: string } = {}): Promise<unknown> {
+    const params = new URLSearchParams();
+    if (input.since) params.set("since", input.since);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    const path = input.build === false ? "logs" : "build-logs";
+    return this.request(`/cli/deployments/${encodeURIComponent(id)}/${path}${suffix}`);
+  }
+
   async deployDomainOptions(): Promise<unknown> {
     return this.request("/cli/domains/deploy-options");
   }
@@ -463,6 +502,11 @@ export class PxxlClient {
   async pushProjectEnv(id: string, vars: EnvVarInput[], options: { global?: boolean; replace?: boolean } = {}): Promise<unknown> {
     const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs/bulk` : `/cli/projects/${encodeURIComponent(id)}/envs/bulk`;
     return this.request(path, { method: "POST", body: JSON.stringify({ vars, replace: Boolean(options.replace) }) });
+  }
+
+  async diffProjectEnv(id: string, vars: EnvVarInput[], options: { global?: boolean } = {}): Promise<EnvDiffResult> {
+    const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs/diff` : `/cli/projects/${encodeURIComponent(id)}/envs/diff`;
+    return this.request(path, { method: "POST", body: JSON.stringify({ vars }) });
   }
 
   async listProjectEnv(id: string, options: { global?: boolean } = {}): Promise<unknown> {

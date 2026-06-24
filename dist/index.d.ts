@@ -174,6 +174,22 @@ export interface EnvVarInput {
     value: string;
     isSecret?: boolean;
 }
+export interface EnvDiffRow {
+    key: string;
+    status: "same" | "changed" | "missing_remote" | "missing_local" | string;
+    local: boolean;
+    remote: boolean;
+    same: boolean;
+    localHash?: string;
+    remoteHash?: string;
+}
+export interface EnvDiffResult {
+    success?: boolean;
+    projectId: string;
+    scope: string;
+    counts: Record<string, number>;
+    diff: EnvDiffRow[];
+}
 export interface RedeployInput {
     commitSha?: string;
     commitMessage?: string;
@@ -283,6 +299,7 @@ export declare class PxxlClient {
         timeframe?: string;
         teamId?: string;
     }): Promise<unknown>;
+    checkDomain(domain: string, teamId?: string | undefined): Promise<unknown>;
     listTeams(): Promise<{
         teams: TeamSummary[];
         total: number;
@@ -331,12 +348,24 @@ export declare class PxxlClient {
         teamId?: string;
     }): Promise<unknown>;
     getDeployment(id: string): Promise<unknown>;
+    projectLogs(id: string, input?: {
+        lines?: number;
+        live?: boolean;
+        since?: string;
+    }): Promise<unknown>;
+    deploymentLogs(id: string, input?: {
+        build?: boolean;
+        since?: string;
+    }): Promise<unknown>;
     deployDomainOptions(): Promise<unknown>;
     redeployProject(id: string, input?: RedeployInput): Promise<unknown>;
     pushProjectEnv(id: string, vars: EnvVarInput[], options?: {
         global?: boolean;
         replace?: boolean;
     }): Promise<unknown>;
+    diffProjectEnv(id: string, vars: EnvVarInput[], options?: {
+        global?: boolean;
+    }): Promise<EnvDiffResult>;
     listProjectEnv(id: string, options?: {
         global?: boolean;
     }): Promise<unknown>;

@@ -122,6 +122,51 @@ test("lists domains and fetches CLI domain stats with team context", async () =>
   ]);
 });
 
+test("checks domains through the CLI-safe domain route", async () => {
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url, init) => {
+      assert.equal(url, "https://gateway.pxxl.app/api/v3/cli/domains/example.com/check?teamId=team_123");
+      assert.equal(init.headers.get("Authorization"), "Bearer pxxl_test");
+      return Response.json({ success: true, domain: "example.com", status: "available" });
+    },
+  });
+  const result = await client.checkDomain("example.com");
+  assert.equal(result.status, "available");
+});
+
+test("diffs env vars without requesting remote secret values", async () => {
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    fetchImpl: async (url, init) => {
+      assert.equal(url, "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/envs/diff");
+      assert.equal(init.method, "POST");
+      assert.deepEqual(JSON.parse(init.body), { vars: [{ key: "API_KEY", value: "local", isSecret: true }] });
+      return Response.json({ success: true, projectId: "proj_1", scope: "app", counts: { changed: 1 }, diff: [{ key: "API_KEY", status: "changed", local: true, remote: true, same: false }] });
+    },
+  });
+  const result = await client.diffProjectEnv("proj_1", [{ key: "API_KEY", value: "local", isSecret: true }]);
+  assert.equal(result.diff[0].status, "changed");
+});
+
+test("fetches project and deployment logs through CLI-safe routes", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    fetchImpl: async (url) => {
+      calls.push(url);
+      return Response.json({ success: true, logs: [] });
+    },
+  });
+  await client.projectLogs("proj_1", { lines: 50, live: true, since: "1h" });
+  await client.deploymentLogs("dep_1", { build: true, since: "1h" });
+  assert.deepEqual(calls, [
+    "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/live-logs?tail=50&since=1h",
+    "https://gateway.pxxl.app/api/v3/cli/deployments/dep_1/build-logs?since=1h",
+  ]);
+});
+
 test("network failures explain connectivity", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",

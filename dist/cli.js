@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { access, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
+import { resolve4, resolve6, resolveCname, resolveNs } from "node:dns/promises";
+import { platform } from "node:os";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
-import { PxxlClient, clearAuthConfig, configPath, copyBoilerplate, createProjectZip, readPxxlToml, readBoilerplateManifest, readAuthConfig, saveAuthConfig, saveTeamSelection, sha256Hex, writeDefaultPxxlFiles, } from "./index.js";
+import { PXXL_API_BASE_URL, PxxlClient, clearAuthConfig, configPath, copyBoilerplate, createProjectZip, readPxxlToml, readBoilerplateManifest, readAuthConfig, saveAuthConfig, saveTeamSelection, sha256Hex, writeDefaultPxxlFiles, } from "./index.js";
 const run = promisify(execFile);
 const cliVersion = "0.1.8";
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
@@ -31,6 +33,8 @@ ${bold("Account")}
   ${cyan("pxxl usage")}                      Show usage for the current scope
 
 ${bold("Deploy")}
+  ${cyan("pxxl doctor")}                     Check auth, git, config, package manager, and deploy issues
+  ${cyan("pxxl inspect")}                    Show detected framework, runtime, env files, and deploy size
   ${cyan("pxxl init")} --new <starter>        Create a Pxxl-ready project
   ${cyan("pxxl deploy")}                     Package this directory and deploy on Pxxl
   ${cyan("pxxl deploy")} -m "message"        Deploy with a custom commit message
@@ -40,9 +44,14 @@ ${bold("Deploy")}
   ${cyan("pxxl projects get")} [project-id]   Show project details
   ${cyan("pxxl deployments recent")}          Show recent deployments
   ${cyan("pxxl deployments get")} [id]        Show deployment details
+  ${cyan("pxxl logs")}                       Fetch recent project/deployment logs
+  ${cyan("pxxl logs")} --since 1h             Fetch recent logs by time window
+  ${cyan("pxxl logs")} --follow               Poll live project logs
+  ${cyan("pxxl open")}                       Open the current dashboard, deployment, or live URL
 
 ${bold("Project Config")}
   ${cyan("pxxl env list")} <project-id>       List project env names
+  ${cyan("pxxl env diff")} [project-id]       Compare local .env with encrypted remote envs
   ${cyan("pxxl env push")} [project-id]       Push a local .env file
   ${cyan("pxxl env push")} --force            Replace remote envs with local .env
 
@@ -68,6 +77,8 @@ ${bold("Databases")}
 
 ${bold("Domains")}
   ${cyan("pxxl domains list")}                List domains available for stats
+  ${cyan("pxxl domains check")} <domain>      Check DNS, ownership, SSL, and proxy route
+  ${cyan("pxxl domains connect")}             Interactive custom domain setup
   ${cyan("pxxl domains stats")} [domain]      Show proxy stats for a domain
 
 ${bold("Environment")}
@@ -90,6 +101,12 @@ async function main() {
     }
     if (command === "init")
         return initProject(args);
+    if (command === "doctor")
+        return doctor(args);
+    if (command === "inspect")
+        return inspectProject(args);
+    if (command === "open")
+        return openCurrent(args);
     if ((command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") && teamCommandCanRunWithoutAuth(args)) {
         return teams(undefined, args);
     }
@@ -110,6 +127,8 @@ async function main() {
         return deployments(client, args);
     if (command === "pull")
         return pullProject(client, args);
+    if (command === "logs" || command === "log")
+        return logs(client, args);
     if (command === "env" || command === "envs")
         return envs(client, args);
     if (command === "cdn")
@@ -156,6 +175,84 @@ async function usageOverview(client, args) {
     if (wantsJSON(args))
         return printJSON(result);
     printUsageOverview(result, "Pxxl usage");
+}
+async function doctor(args) {
+    const cwd = resolve(flagValue(args, "--dir") || ".");
+    const checks = [];
+    const add = (check, ok, detail, warn = false) => checks.push({ check, status: ok ? green("ok") : warn ? cyan("warn") : red("fail"), detail });
+    const config = await readAuthConfig();
+    if (config.apiKey) {
+        try {
+            const identity = await new PxxlClient({ apiKey: config.apiKey, teamId: config.selectedTeamId }).whoami();
+            const user = asRecord(asRecord(identity).user);
+            add("auth", true, stringValue(user.email || user.id) || "API key is valid");
+        }
+        catch (error) {
+            add("auth", false, error instanceof Error ? error.message : "Invalid API key");
+        }
+    }
+    else {
+        add("auth", false, "Run pxxl login --api-key <key> or set PXXL_API_KEY", true);
+    }
+    try {
+        const response = await fetch(`${PXXL_API_BASE_URL}/cli/whoami`, { method: "GET" });
+        const reachable = response.status < 500;
+        add("internet", reachable, reachable ? `Pxxl Gateway is reachable (HTTP ${response.status})` : `Gateway returned HTTP ${response.status}`, !reachable);
+    }
+    catch {
+        add("internet", false, "Could not reach Pxxl Gateway. Check your internet connection.");
+    }
+    const git = await gitState(cwd);
+    add("git", git.inside && git.clean, git.detail, git.inside && !git.clean);
+    add("pxxl.toml", await exists(resolve(cwd, "pxxl.toml")), (await exists(resolve(cwd, "pxxl.toml"))) ? "Found project config" : "Missing pxxl.toml; run pxxl init", true);
+    add(".pxxlignore", await exists(resolve(cwd, ".pxxlignore")), (await exists(resolve(cwd, ".pxxlignore"))) ? "Found deploy ignore file" : "Missing .pxxlignore; run pxxl init", true);
+    const inspection = await analyzeLocalProject(cwd);
+    add("package manager", Boolean(inspection.packageManager), inspection.packageManager || "No lockfile/package manager detected", !inspection.packageManager);
+    add("framework", Boolean(inspection.framework), inspection.framework || "No framework detected", true);
+    add("build command", Boolean(inspection.buildCommand || inspection.scripts.build), inspection.buildCommand || inspection.scripts.build || "No build command detected", !inspection.buildCommand && !inspection.scripts.build);
+    add("start command", Boolean(inspection.startCommand), inspection.startCommand || "No start command detected", !inspection.startCommand);
+    add("env files", true, inspection.envFiles.length ? inspection.envFiles.join(", ") : "No local env files found");
+    add("deploy archive", inspection.archiveError ? false : true, inspection.archiveError || formatBytes(inspection.deploySizeBytes));
+    if (wantsJSON(args))
+        return printJSON({ checks, inspection });
+    printHeader("Pxxl doctor");
+    printTable("", checks, ["check", "status", "detail"]);
+}
+async function inspectProject(args) {
+    const cwd = resolve(flagValue(args, "--dir") || ".");
+    const inspection = await analyzeLocalProject(cwd);
+    if (wantsJSON(args))
+        return printJSON(inspection);
+    printHeader("Pxxl inspect");
+    printKV([
+        ["Directory", cwd],
+        ["Framework", inspection.framework || "-"],
+        ["Package manager", inspection.packageManager || "-"],
+        ["Runtime", inspection.runtime || "-"],
+        ["Install", inspection.installCommand || "-"],
+        ["Build", inspection.buildCommand || "-"],
+        ["Start", inspection.startCommand || "-"],
+        ["Env files", inspection.envFiles.length ? inspection.envFiles.join(", ") : "-"],
+        ["Deploy size", inspection.archiveError ? red(inspection.archiveError) : formatBytes(inspection.deploySizeBytes)],
+    ]);
+    const configRows = Object.entries(inspection.config).filter(([, value]) => value !== undefined && value !== "");
+    if (configRows.length)
+        printKV(configRows.map(([key, value]) => [labelize(key), primitive(value)]));
+}
+async function openCurrent(args) {
+    const cwd = resolve(flagValue(args, "--dir") || ".");
+    const config = await readPxxlToml(cwd);
+    let url = flagValue(args, "--url");
+    if (!url && args.includes("--deployment"))
+        url = config.deploymentUrl;
+    if (!url && (args.includes("--live") || args.includes("--domain")))
+        url = config.projectUrl;
+    if (!url && config.projectId)
+        url = `https://pxxl.app/dashboard/projects/${config.projectId}`;
+    if (!url)
+        url = config.projectUrl || config.deploymentUrl || "https://pxxl.app/dashboard";
+    await openUrl(url);
+    print(`${bold("Opened")} ${link(url)}`);
 }
 async function initProject(args) {
     let boilerplate = flagValue(args, "--new");
@@ -296,8 +393,19 @@ async function envs(client, args) {
             return printJSON(result);
         return printEnvList(result);
     }
+    if (command === "diff") {
+        const id = await resolveProjectIdFromArgsOrConfig(client, firstValueArg(args), args);
+        const file = flagValue(args, "--file") || flagValue(args, "-f") || ".env";
+        const vars = parseDotEnv(await readFile(resolve(file), "utf8"), true);
+        if (vars.length === 0)
+            throw new Error(`No environment variables found in ${file}`);
+        const result = await spinner("Comparing environment variables", () => client.diffProjectEnv(id, vars, { global: args.includes("--global") }));
+        if (wantsJSON(args))
+            return printJSON(result);
+        return printEnvDiff(result);
+    }
     if (command === "push") {
-        const id = await resolveProjectIdFromArgsOrConfig(client, args.shift(), args);
+        const id = await resolveProjectIdFromArgsOrConfig(client, firstValueArg(args), args);
         const file = flagValue(args, "--file") || flagValue(args, "-f") || ".env";
         const secret = (flagValue(args, "--secret") || "true").toLowerCase() !== "false";
         const vars = parseDotEnv(await readFile(resolve(file), "utf8"), secret);
@@ -375,7 +483,67 @@ async function domains(client, args) {
             return printJSON(result);
         return printDomainStats(result, domain);
     }
+    if (command === "check") {
+        const domain = required(args.shift(), "domain");
+        const [remote, dns] = await Promise.all([
+            spinner(`Checking ${domain} on Pxxl`, () => client.checkDomain(domain, flagValue(args, "--team"))),
+            checkDNS(domain),
+        ]);
+        if (wantsJSON(args))
+            return printJSON({ ...asRecord(remote), dns });
+        return printDomainCheck(remote, dns);
+    }
+    if (command === "connect") {
+        const domain = firstValueArg(args) || await promptText("Domain");
+        const projectId = await resolveProjectIdFromArgsOrConfig(client, flagValue(args, "--project"), args).catch(() => "");
+        const remote = await spinner(`Checking ${domain}`, () => client.checkDomain(domain, flagValue(args, "--team")));
+        if (wantsJSON(args))
+            return printJSON(remote);
+        printDomainCheck(remote, await checkDNS(domain));
+        printHeader("DNS setup");
+        printKV([
+            ["A record", "@ -> 193.181.212.65"],
+            ["WWW", `www -> ${domain}`],
+            ["Project", projectId || "Choose the project in the dashboard after DNS resolves"],
+        ]);
+        print(`${bold("Dashboard")} ${link(projectId ? `https://pxxl.app/dashboard/projects/${projectId}/domains` : "https://pxxl.app/dashboard/domains")}`);
+        return;
+    }
     throw new Error(`Unknown domains command: ${command}`);
+}
+function firstValueArg(args) {
+    return args.find((arg, index) => {
+        if (arg.startsWith("-"))
+            return false;
+        const previous = args[index - 1];
+        return !previous || !previous.startsWith("-");
+    });
+}
+async function logs(client, args) {
+    const cwd = resolve(flagValue(args, "--dir") || ".");
+    const config = await readPxxlToml(cwd);
+    const lines = Number(flagValue(args, "--lines") || flagValue(args, "-n") || 100);
+    const since = flagValue(args, "--since");
+    const projectId = flagValue(args, "--project") || flagValue(args, "--project-id") || config.projectId;
+    const deploymentId = flagValue(args, "--deployment") || flagValue(args, "--deployment-id") || (!projectId ? config.deploymentId : undefined);
+    const fetchLogs = async () => {
+        if (deploymentId)
+            return client.deploymentLogs(deploymentId, { build: true, since });
+        if (projectId)
+            return client.projectLogs(projectId, { lines, live: args.includes("--live") || args.includes("--follow"), since });
+        throw new Error("No project or deployment found. Pass --project <id>, --deployment <id>, or run inside a folder with pxxl.toml.");
+    };
+    if (args.includes("--follow")) {
+        while (true) {
+            const result = await fetchLogs();
+            printLogs(result, since);
+            await new Promise((resolveTimer) => setTimeout(resolveTimer, 3000));
+        }
+    }
+    const result = await spinner("Fetching logs", fetchLogs);
+    if (wantsJSON(args))
+        return printJSON(result);
+    printLogs(result, since);
 }
 async function teams(client, args) {
     const command = args.shift();
@@ -506,6 +674,164 @@ async function databases(client, args) {
         return printNestedObject("Database tables", result);
     }
     throw new Error(`Unknown database command: ${command || ""}`);
+}
+async function analyzeLocalProject(cwd) {
+    const config = await readPxxlToml(cwd);
+    const packageJson = await readPackageJson(cwd);
+    const scripts = asRecord(packageJson.scripts);
+    const deps = { ...asRecord(packageJson.dependencies), ...asRecord(packageJson.devDependencies) };
+    const packageManager = config.packageManager || await detectPackageManager(cwd);
+    const framework = config.framework || detectFramework(deps, cwd);
+    const runtime = config.language || detectRuntime(framework, deps, cwd);
+    const startCommand = config.startCommand || await detectStartCommand(cwd, framework, packageManager, scripts);
+    const buildCommand = config.buildCommand || stringValue(scripts.build) || "";
+    const installCommand = config.installCommand || defaultInstallCommand(packageManager);
+    const envFiles = (await Promise.all([".env", ".env.local", ".env.production", ".env.development"].map(async (file) => await exists(resolve(cwd, file)) ? file : ""))).filter(Boolean);
+    let deploySizeBytes = 0;
+    let archiveError = "";
+    try {
+        deploySizeBytes = (await createProjectZip(cwd)).byteLength;
+    }
+    catch (error) {
+        archiveError = error instanceof Error ? error.message : String(error);
+    }
+    return {
+        directory: cwd,
+        framework,
+        packageManager,
+        runtime,
+        installCommand,
+        buildCommand,
+        startCommand,
+        envFiles,
+        deploySizeBytes,
+        archiveError,
+        scripts: Object.fromEntries(Object.entries(scripts).map(([key, value]) => [key, stringValue(value)])),
+        config,
+    };
+}
+async function readPackageJson(cwd) {
+    try {
+        return JSON.parse(await readFile(resolve(cwd, "package.json"), "utf8"));
+    }
+    catch {
+        return {};
+    }
+}
+async function detectPackageManager(cwd) {
+    if (await exists(resolve(cwd, "bun.lockb")) || await exists(resolve(cwd, "bun.lock")))
+        return "bun";
+    if (await exists(resolve(cwd, "pnpm-lock.yaml")))
+        return "pnpm";
+    if (await exists(resolve(cwd, "yarn.lock")))
+        return "yarn";
+    if (await exists(resolve(cwd, "package-lock.json")))
+        return "npm";
+    if (await exists(resolve(cwd, "package.json")))
+        return "npm";
+    return "";
+}
+function detectFramework(deps, cwd) {
+    const names = Object.keys(deps);
+    if (names.includes("@tanstack/react-start") || names.includes("@tanstack/start"))
+        return "tanstack-start";
+    if (names.includes("@tanstack/react-router"))
+        return "tanstack-router";
+    if (names.includes("next"))
+        return "nextjs";
+    if (names.includes("astro"))
+        return "astro";
+    if (names.includes("vite") || names.includes("@vitejs/plugin-react"))
+        return "vite";
+    if (names.includes("express"))
+        return "express";
+    if (names.includes("fastify"))
+        return "fastify";
+    if (names.includes("hono"))
+        return "hono";
+    if (cwd.endsWith(".php"))
+        return "php";
+    return "";
+}
+function detectRuntime(framework, deps, cwd) {
+    if (framework === "php" || cwd.endsWith(".php"))
+        return "php";
+    if (framework || Object.keys(deps).length)
+        return "node";
+    return "static";
+}
+async function detectStartCommand(cwd, framework, packageManager, scripts) {
+    const serverFiles = ["dist/server.js", "dist/server/index.js", ".output/server/index.mjs", ".output/server/index.js", "server.js"];
+    for (const file of serverFiles) {
+        if (await exists(resolve(cwd, file)))
+            return `node ${file}`;
+    }
+    if (stringValue(scripts.start))
+        return packageManager === "bun" ? "bun start" : `${packageManager || "npm"} run start`;
+    if (framework === "nextjs")
+        return `${packageManager || "npm"} run start`;
+    if (framework === "astro" || framework === "vite")
+        return stringValue(scripts.preview) ? `${packageManager || "npm"} run preview` : "";
+    return "";
+}
+function defaultInstallCommand(packageManager) {
+    if (packageManager === "bun")
+        return "bun install";
+    if (packageManager === "pnpm")
+        return "pnpm install --frozen-lockfile";
+    if (packageManager === "yarn")
+        return "yarn install --frozen-lockfile";
+    if (packageManager === "npm")
+        return "npm ci";
+    return "";
+}
+async function gitState(cwd) {
+    try {
+        await run("git", ["-C", cwd, "rev-parse", "--is-inside-work-tree"], { maxBuffer: 1024 * 1024 });
+        const status = (await run("git", ["-C", cwd, "status", "--porcelain"], { maxBuffer: 1024 * 1024 })).stdout.trim();
+        return { inside: true, clean: !status, detail: status ? "Working tree has local changes" : "Working tree is clean" };
+    }
+    catch {
+        return { inside: false, clean: false, detail: "Not inside a git repository" };
+    }
+}
+async function exists(path) {
+    try {
+        await access(path);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+async function openUrl(url) {
+    const os = platform();
+    if (os === "darwin")
+        return run("open", [url]);
+    if (os === "win32")
+        return run("cmd", ["/c", "start", "", url]);
+    return run("xdg-open", [url]);
+}
+async function checkDNS(domain) {
+    const clean = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    const [a, aaaa, cname, ns] = await Promise.all([
+        resolve4(clean).catch(() => []),
+        resolve6(clean).catch(() => []),
+        resolveCname(clean).catch(() => []),
+        resolveNs(clean).catch(() => []),
+    ]);
+    let ssl = "unknown";
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(`https://${clean}`, { method: "HEAD", signal: controller.signal });
+        clearTimeout(timer);
+        ssl = response.ok || response.status < 500 ? "reachable" : `http_${response.status}`;
+    }
+    catch {
+        ssl = "not_reachable";
+    }
+    return { a, aaaa, cname, ns, ssl };
 }
 async function authedClient() {
     const config = await readAuthConfig();
@@ -1208,6 +1534,127 @@ function printEnvList(value) {
     if (!vars.length)
         return print(dim("No environment variables found."));
     printTable("", vars, ["key", "secret", "scope"]);
+}
+function printEnvDiff(value) {
+    const root = asRecord(value);
+    const counts = asRecord(root.counts);
+    const rows = arrayValue(root.diff).map((item) => {
+        const row = asRecord(item);
+        return {
+            key: stringValue(row.key),
+            status: envStatusLabel(stringValue(row.status)),
+            local: row.local ? "yes" : "no",
+            remote: row.remote ? "yes" : "no",
+        };
+    });
+    printHeader(`Environment diff (${stringValue(root.scope) || "app"})`);
+    printKV([
+        ["Same", numberValue(counts.same)],
+        ["Changed", numberValue(counts.changed)],
+        ["Missing remote", numberValue(counts.missingRemote)],
+        ["Missing local", numberValue(counts.missingLocal)],
+    ]);
+    if (!rows.length)
+        return print(dim("No variables to compare."));
+    printTable("", rows, ["key", "status", "local", "remote"]);
+    print(dim("Remote values are decrypted and compared on Pxxl servers, but secret values are never printed by the CLI."));
+}
+function printDomainCheck(value, dns) {
+    const root = asRecord(value);
+    const checks = asRecord(root.checks);
+    const proxy = asRecord(root.proxy);
+    const domain = stringValue(root.domain);
+    const dnsRow = asRecord(dns);
+    printHeader(`Domain check: ${domain}`);
+    printKV([
+        ["Status", domainStatusLabel(stringValue(root.status))],
+        ["Message", stringValue(root.message)],
+        ["Used on Pxxl", checks.used ? "yes" : "no"],
+        ["Owned by you", checks.owned ? "yes" : "no"],
+        ["Proxy route", proxy.routeExists ? `${stringValue(proxy.status) || "exists"}` : "none"],
+        ["SSL", proxy.sslEnabled ? "enabled" : stringValue(dnsRow.ssl) || "-"],
+        ["A", arrayValue(dnsRow.a).join(", ") || "-"],
+        ["AAAA", arrayValue(dnsRow.aaaa).join(", ") || "-"],
+        ["CNAME", arrayValue(dnsRow.cname).join(", ") || "-"],
+        ["NS", arrayValue(dnsRow.ns).slice(0, 4).join(", ") || "-"],
+    ]);
+    const instructions = asRecord(root.dnsInstructions);
+    const apex = asRecord(instructions.apex);
+    if (apex.value) {
+        printHeader("Expected DNS");
+        printKV([
+            ["A @", stringValue(apex.value)],
+            ["CNAME www", domain || "your apex domain"],
+        ]);
+    }
+}
+function printLogs(value, since) {
+    const root = asRecord(value);
+    printHeader(`Logs${since ? ` since ${since}` : ""}`);
+    let logs = normalizeLogRows(root.logs || root.buildLogs || root.data || value);
+    const cutoff = since ? sinceCutoff(since) : undefined;
+    if (cutoff) {
+        logs = logs.filter((row) => {
+            if (!row.timestamp)
+                return true;
+            const date = new Date(row.timestamp);
+            return Number.isNaN(date.getTime()) || date >= cutoff;
+        });
+    }
+    if (!logs.length)
+        return print(dim("No logs found."));
+    for (const row of logs.slice(-300)) {
+        const type = row.type === "error" ? red(row.type) : row.type === "warning" ? cyan(row.type) : dim(row.type || "info");
+        const ts = row.timestamp ? `${dim(row.timestamp)} ` : "";
+        print(`${ts}${type} ${row.content}`);
+    }
+}
+function sinceCutoff(value) {
+    const match = value.trim().match(/^(\d+)(m|h|d)$/i);
+    if (!match)
+        return undefined;
+    const amount = Number(match[1]);
+    const unit = match[2]?.toLowerCase();
+    const ms = unit === "m" ? amount * 60_000 : unit === "h" ? amount * 3_600_000 : amount * 86_400_000;
+    return new Date(Date.now() - ms);
+}
+function normalizeLogRows(value) {
+    if (typeof value === "string") {
+        return value.split(/\r?\n/).filter(Boolean).map((line) => ({ timestamp: "", type: "info", content: line }));
+    }
+    return arrayValue(value).flatMap((item) => {
+        if (typeof item === "string")
+            return [{ timestamp: "", type: "info", content: item }];
+        const row = asRecord(item);
+        const content = stringValue(row.content || row.message || row.line || row.log);
+        if (!content)
+            return [];
+        return [{
+                timestamp: stringValue(row.timestamp || row.time || row.createdAt),
+                type: stringValue(row.type || row.level) || "info",
+                content,
+            }];
+    });
+}
+function envStatusLabel(value) {
+    if (value === "same")
+        return green("same");
+    if (value === "changed")
+        return cyan("changed");
+    if (value === "missing_remote")
+        return red("missing_remote");
+    if (value === "missing_local")
+        return cyan("missing_local");
+    return value || "-";
+}
+function domainStatusLabel(value) {
+    if (value === "available")
+        return green("available");
+    if (value === "owned")
+        return cyan("owned");
+    if (value === "taken" || value === "blocked")
+        return red(value);
+    return value || "-";
 }
 function printResult(value, fallback) {
     const root = asRecord(value);

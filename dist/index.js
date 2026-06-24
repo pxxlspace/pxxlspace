@@ -102,6 +102,9 @@ export class PxxlClient {
         const suffix = params.size ? `?${params.toString()}` : "";
         return this.request(`/cli/domains/${encodeURIComponent(domain)}/stats${suffix}`);
     }
+    async checkDomain(domain, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(domain)}/check${teamQuery(teamId)}`);
+    }
     async listTeams() {
         return this.request("/teams");
     }
@@ -179,6 +182,24 @@ export class PxxlClient {
     async getDeployment(id) {
         return this.request(`/cli/deployments/${encodeURIComponent(id)}`);
     }
+    async projectLogs(id, input = {}) {
+        const params = new URLSearchParams();
+        if (input.lines)
+            params.set(input.live ? "tail" : "lines", String(input.lines));
+        if (input.since)
+            params.set("since", input.since);
+        const suffix = params.size ? `?${params.toString()}` : "";
+        const path = input.live ? "live-logs" : "logs";
+        return this.request(`/cli/projects/${encodeURIComponent(id)}/${path}${suffix}`);
+    }
+    async deploymentLogs(id, input = {}) {
+        const params = new URLSearchParams();
+        if (input.since)
+            params.set("since", input.since);
+        const suffix = params.size ? `?${params.toString()}` : "";
+        const path = input.build === false ? "logs" : "build-logs";
+        return this.request(`/cli/deployments/${encodeURIComponent(id)}/${path}${suffix}`);
+    }
     async deployDomainOptions() {
         return this.request("/cli/domains/deploy-options");
     }
@@ -188,6 +209,10 @@ export class PxxlClient {
     async pushProjectEnv(id, vars, options = {}) {
         const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs/bulk` : `/cli/projects/${encodeURIComponent(id)}/envs/bulk`;
         return this.request(path, { method: "POST", body: JSON.stringify({ vars, replace: Boolean(options.replace) }) });
+    }
+    async diffProjectEnv(id, vars, options = {}) {
+        const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs/diff` : `/cli/projects/${encodeURIComponent(id)}/envs/diff`;
+        return this.request(path, { method: "POST", body: JSON.stringify({ vars }) });
     }
     async listProjectEnv(id, options = {}) {
         const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs` : `/cli/projects/${encodeURIComponent(id)}/envs`;
