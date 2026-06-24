@@ -172,3 +172,40 @@ test("team selection persists without dropping credentials", async () => {
   assert.equal(cleared.apiKey, "stored_key");
   await clearAuthConfig();
 });
+
+test("project automation uses CLI-safe API routes", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    fetchImpl: async (url, init = {}) => {
+      calls.push({ url, method: init.method || "GET", body: init.body ? JSON.parse(init.body) : undefined });
+      if (url.endsWith("/cli/projects/proj_1")) {
+        return Response.json({ project: { id: "proj_1", name: "web", githubUrl: "https://github.com/pxxlspace/web", githubBranch: "main" } });
+      }
+      return Response.json({ success: true });
+    },
+  });
+  await client.getProject("proj_1");
+  await client.redeployProject("proj_1", { commitSha: "abcdef1", commitMessage: "manual" });
+  await client.pushProjectEnv("proj_1", [{ key: "API_URL", value: "https://api.example.test", isSecret: true }]);
+
+  assert.deepEqual(calls.map((call) => [call.method, call.url]), [
+    ["GET", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1"],
+    ["POST", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/redeploy"],
+    ["POST", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/envs/bulk"],
+  ]);
+  assert.deepEqual(calls[2].body, { vars: [{ key: "API_URL", value: "https://api.example.test", isSecret: true }] });
+});
+
+test("domain invoice SDK methods stay out of CLI routes", async () => {
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url) => {
+      assert.equal(url, "https://gateway.pxxl.app/api/v3/cli/domainprovider/invoices?teamId=team_123");
+      return Response.json({ error: false, invoices: [{ id: "inv_1", status: "pending", grandTotal: 10 }] });
+    },
+  });
+  const result = await client.listDomainInvoices();
+  assert.equal(result.invoices[0].id, "inv_1");
+});

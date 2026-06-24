@@ -1,6 +1,11 @@
 # Pxxl CLI and SDK
 
-Official open-source CLI and SDKs for Pxxl deploys, CDN assets, and domain reseller workflows.
+Official CLI and SDK for Pxxl deploys, CDN assets, managed databases, teams, and domain reseller workflows.
+
+- GitHub: [pxxlspace/pxxlspace](https://github.com/pxxlspace/pxxlspace)
+- Docs: [docs.pxxl.app](https://docs.pxxl.app)
+- Deploy on Pxxl: [pxxl.app](https://pxxl.app)
+- Dashboard: [pxxl.app/dashboard](https://pxxl.app/dashboard)
 
 ## Install
 
@@ -15,9 +20,10 @@ pxxl login --api-key pxxl_...
 pxxl init --new vite-react-pxxl --name my-app --domain pxxl.pro
 pxxl init --new express-bun-pxxl --name my-api --domain pxxl.pro
 pxxl deploy
+pxxl redeploy <project-id>
+pxxl pull <project-id> ./my-app
+pxxl env push <project-id> --file .env
 pxxl cdn upload ./logo.png
-pxxl domain search pxxl.cv
-pxxl domain tlds --search cv
 pxxl team list
 pxxl team use <team-id>
 pxxl db create --name app-db --type postgres
@@ -35,6 +41,7 @@ const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY });
 
 const domains = await pxxl.searchDomains({ query: "pxxl.cv" });
 const tlds = await pxxl.listTLDs();
+const invoices = await pxxl.listDomainInvoices();
 const teams = await pxxl.listTeams();
 const database = await pxxl.createDatabase({ name: "app-db", type: "postgres" });
 const asset = await pxxl.uploadAsset({
@@ -46,15 +53,6 @@ const asset = await pxxl.uploadAsset({
 
 Domain search returns availability, prices, renewal pricing, and active promo fields such as `.cv` bonus amounts when the API returns them.
 Database commands use the same managed database provisioning API as the dashboard. Use `pxxl team use <team-id>` or `PXXL_TEAM_ID` to create/list databases inside a spaceship.
-
-## Repo Layout
-
-- `src`: Node SDK and `pxxl` CLI.
-- `sdks/go/pxxl`: Go SDK.
-- `examples`: Node and Go examples.
-- `boilerplates`: Pxxl-ready starters for `pxxl init --new`.
-- `guides`: API and publishing guides.
-- `skills`: safe agent instructions for Pxxl integrations.
 
 ## Boilerplates
 
@@ -68,15 +66,10 @@ Database commands use the same managed database provisioning API as the dashboar
 - `nextjs-pnpm-pxxl`: Next.js App Router with pnpm.
 - `astro-npm-pxxl`: Astro site with npm.
 
-## Publish to npm
+## Useful Links
 
-```bash
-npm login
-npm test
-npm run build
-npm pack --dry-run
-npm version patch
-npm publish --access public
-```
-
-Use npm 2FA/provenance where available, and smoke test with `npm install -g @pxxlapp/pxxl && pxxl --help`.
+- CLI docs: [docs.pxxl.app/api/pxxl-cli](https://docs.pxxl.app/api/pxxl-cli)
+- Deploy guide: [docs.pxxl.app/api/pxxl-deploy](https://docs.pxxl.app/api/pxxl-deploy)
+- CDN guide: [docs.pxxl.app/api/cdn](https://docs.pxxl.app/api/cdn)
+- Database API: [docs.pxxl.app/api/database-api](https://docs.pxxl.app/api/database-api)
+- Domain reseller SDK: [docs.pxxl.app/api/domain-reseller-sdk](https://docs.pxxl.app/api/domain-reseller-sdk)

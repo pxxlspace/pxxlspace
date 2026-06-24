@@ -1,15 +1,6 @@
 # Pxxl Domain Reseller API Guide
 
-Use the `pxxl` SDK or CLI to search domains, fetch TLD pricing, and display active promotions.
-
-## CLI
-
-```bash
-pxxl login --api-key pxxl_...
-pxxl domain search pxxl.cv
-pxxl domain tlds
-pxxl domain tlds --search cv
-```
+Use the `pxxl` SDK to search domains, fetch TLD pricing, inspect invoices, and display active promotions.
 
 Domain search uses Pxxl's public, rate-limited search path. It returns availability, provider status, USD/NGN registration and renewal prices, minimum registration periods, and active promo fields such as `.cv` bonus amounts.
 
@@ -22,6 +13,9 @@ const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY });
 
 const search = await pxxl.searchDomains({ query: "mybrand.cv" });
 const prices = await pxxl.listTLDs();
+const invoices = await pxxl.listDomainInvoices();
+const invoice = await pxxl.getDomainInvoice("invoice_id");
+const payment = await pxxl.getDomainInvoicePaymentUrl("invoice_id");
 ```
 
 ## Rate Limits

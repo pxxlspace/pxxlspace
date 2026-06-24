@@ -163,6 +163,54 @@ export interface UpdateDatabaseInput {
   teamId?: string;
 }
 
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  status?: string;
+  projectType?: string;
+  githubUrl?: string | null;
+  githubBranch?: string | null;
+  baseDirectory?: string | null;
+  installCommand?: string | null;
+  buildCommand?: string | null;
+  startCommand?: string | null;
+  framework?: string;
+  language?: string;
+}
+
+export interface EnvVarInput {
+  key: string;
+  value: string;
+  isSecret?: boolean;
+}
+
+export interface RedeployInput {
+  commitSha?: string;
+  commitMessage?: string;
+}
+
+export interface DomainInvoice {
+  id: string;
+  userId?: string;
+  teamId?: string | null;
+  type?: string;
+  status: string;
+  domains?: unknown;
+  total?: number;
+  taxAmount?: number;
+  totalNgn?: number;
+  taxAmountNgn?: number;
+  totalUsd?: number;
+  taxAmountUsd?: number;
+  currency?: string;
+  paymentUrl?: string | null;
+  expiresAt?: string;
+  paidAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  grandTotal?: number;
+}
+
 export interface DeployConfig {
   name?: string;
   domainChoice?: string;
@@ -329,6 +377,40 @@ export class PxxlClient {
 
   async databaseTables(id: string, teamId = this.teamId): Promise<unknown> {
     return this.request(`/databases/${encodeURIComponent(id)}/tables${teamQuery(teamId)}`);
+  }
+
+  async getProject(id: string): Promise<{ project?: ProjectSummary; data?: ProjectSummary; success?: boolean } & Record<string, unknown>> {
+    return this.request(`/cli/projects/${encodeURIComponent(id)}`);
+  }
+
+  async redeployProject(id: string, input: RedeployInput = {}): Promise<unknown> {
+    return this.request(`/cli/projects/${encodeURIComponent(id)}/redeploy`, { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async pushProjectEnv(id: string, vars: EnvVarInput[], options: { global?: boolean } = {}): Promise<unknown> {
+    const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs/bulk` : `/cli/projects/${encodeURIComponent(id)}/envs/bulk`;
+    return this.request(path, { method: "POST", body: JSON.stringify({ vars }) });
+  }
+
+  async listProjectEnv(id: string, options: { global?: boolean } = {}): Promise<unknown> {
+    const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs` : `/cli/projects/${encodeURIComponent(id)}/envs`;
+    return this.request(path);
+  }
+
+  async listDomainInvoices(teamId = this.teamId): Promise<{ invoices: DomainInvoice[]; error?: boolean }> {
+    return this.request(`/cli/domainprovider/invoices${teamQuery(teamId)}`);
+  }
+
+  async getDomainInvoice(id: string, teamId = this.teamId): Promise<{ invoice: DomainInvoice; registrations?: unknown[]; grandTotal?: number; error?: boolean }> {
+    return this.request(`/cli/domainprovider/invoice/${encodeURIComponent(id)}${teamQuery(teamId)}`);
+  }
+
+  async getDomainInvoicePaymentUrl(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domainprovider/invoice/${encodeURIComponent(id)}/payment-url${teamQuery(teamId)}`);
+  }
+
+  async cancelDomainInvoice(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domainprovider/invoice/${encodeURIComponent(id)}/cancel${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
   }
 
   async deploy(input: DeployInput): Promise<unknown> {

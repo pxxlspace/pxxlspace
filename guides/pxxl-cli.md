@@ -22,9 +22,15 @@ The CLI stores credentials at `~/.config/pxxl/config.json` with file mode `0600`
 ```bash
 pxxl init --new vite-react-pxxl --name my-app --domain pxxl.pro
 pxxl deploy
+pxxl redeploy <project-id>
+pxxl pull <project-id> ./my-app
+pxxl env push <project-id> --file .env
 ```
 
 `pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary ZIP, and sends it to Pxxl SpaceDrop.
+`pxxl redeploy` triggers a new deployment for an existing project.
+`pxxl pull` clones the project repository and branch locally, or updates an existing git checkout with a fast-forward pull.
+`pxxl env push` reads a local `.env` file and writes those values to Pxxl project envs.
 
 Use an API key with `scope=all` or `scope=deploy` and `permission=read_write`.
 
@@ -51,16 +57,6 @@ pxxl cdn delete <asset-id>
 ```
 
 Use `scope=cdn` or `scope=all`.
-
-## Domains
-
-```bash
-pxxl domain search pxxl.cv
-pxxl domain tlds
-pxxl domain tlds --search cv
-```
-
-Domain search returns availability, prices, renewal pricing, transfer pricing, restrictions, and promo fields when the API has an active promotion.
 
 ## Teams / Spaceships
 

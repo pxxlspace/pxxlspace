@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { createInterface } from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
 import { basename, resolve } from "node:path";
+import { promisify } from "node:util";
 import {
   PxxlClient,
   clearAuthConfig,
@@ -16,7 +20,10 @@ import {
   writeDefaultPxxlFiles,
   type CDNVisibility,
   type DeployConfig,
+  type EnvVarInput,
 } from "./index.js";
+
+const run = promisify(execFile);
 
 const usage = `pxxl
 
@@ -26,6 +33,10 @@ Usage:
   pxxl whoami
   pxxl init [--new <boilerplate>] [--name <project>] [--domain <tld>] [--dir <path>]
   pxxl deploy [--name <project>] [--domain <tld>] [--port <port>]
+  pxxl redeploy <project-id> [--commit <sha>] [--message <text>]
+  pxxl pull <project-id> [.|./folder] [--force]
+  pxxl env list <project-id> [--global]
+  pxxl env push <project-id> [--file .env] [--global] [--secret=false]
   pxxl status
   pxxl cdn summary
   pxxl cdn list
@@ -33,9 +44,6 @@ Usage:
   pxxl cdn upload <file> [--private]
   pxxl cdn download <asset-id> <output-file>
   pxxl cdn delete <asset-id>
-  pxxl domain tlds
-  pxxl domain tlds --search <query>
-  pxxl domain search <query> [--type <category>]
   pxxl team list
   pxxl team use <team-id>
   pxxl team current
@@ -71,8 +79,10 @@ async function main() {
   if (command === "whoami") return printJSON(await client.whoami());
   if (command === "status") return printJSON(await client.whoami());
   if (command === "deploy") return deploy(client, args);
+  if (command === "redeploy") return redeploy(client, args);
+  if (command === "pull") return pullProject(client, args);
+  if (command === "env" || command === "envs") return envs(client, args);
   if (command === "cdn") return cdn(client, args);
-  if (command === "domain" || command === "domains") return domains(client, args);
   if (command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") return teams(client, args);
   if (command === "db" || command === "database" || command === "databases") return databases(client, args);
 
@@ -122,6 +132,56 @@ async function deploy(client: PxxlClient, args: string[]) {
   printJSON(result);
 }
 
+async function redeploy(client: PxxlClient, args: string[]) {
+  const id = required(args.shift(), "project id");
+  const result = await client.redeployProject(id, {
+    commitSha: flagValue(args, "--commit") || flagValue(args, "--sha"),
+    commitMessage: flagValue(args, "--message") || flagValue(args, "-m"),
+  });
+  printJSON(result);
+}
+
+async function pullProject(client: PxxlClient, args: string[]) {
+  const id = required(args.shift(), "project id");
+  const destinationArg = args.find((arg) => !arg.startsWith("-"));
+  const force = args.includes("--force");
+  const response = await client.getProject(id);
+  const project = ((response.project || response.data || response) as Record<string, unknown>);
+  const githubUrl = stringValue(project.githubUrl);
+  const branch = stringValue(project.githubBranch) || "main";
+  if (!githubUrl) throw new Error("This project does not have a Git repository attached. SpaceDrop projects cannot be pulled with git.");
+  const destination = resolve(destinationArg || await promptDestination(project.name ? String(project.name) : id));
+  if (await isGitRepo(destination)) {
+    print(`Updating existing git repo in ${destination}`);
+    await run("git", ["-C", destination, "fetch", "origin", branch], { maxBuffer: 1024 * 1024 * 10 });
+    await run("git", ["-C", destination, "checkout", branch], { maxBuffer: 1024 * 1024 * 10 });
+    await run("git", ["-C", destination, "pull", "--ff-only", "origin", branch], { maxBuffer: 1024 * 1024 * 10 });
+  } else {
+    await ensureCloneDestination(destination, force);
+    print(`Cloning ${githubUrl}#${branch} into ${destination}`);
+    await run("git", ["clone", "--branch", branch, "--single-branch", githubUrl, destination], { maxBuffer: 1024 * 1024 * 10 });
+  }
+  print(`Pulled ${project.name || id} into ${destination}`);
+}
+
+async function envs(client: PxxlClient, args: string[]) {
+  const command = args.shift();
+  if (command === "list") {
+    const id = required(args.shift(), "project id");
+    return printJSON(await client.listProjectEnv(id, { global: args.includes("--global") }));
+  }
+  if (command === "push") {
+    const id = required(args.shift(), "project id");
+    const file = flagValue(args, "--file") || flagValue(args, "-f") || ".env";
+    const secret = (flagValue(args, "--secret") || "true").toLowerCase() !== "false";
+    const vars = parseDotEnv(await readFile(resolve(file), "utf8"), secret);
+    if (vars.length === 0) throw new Error(`No environment variables found in ${file}`);
+    const result = await client.pushProjectEnv(id, vars, { global: args.includes("--global") });
+    return printJSON(result);
+  }
+  throw new Error(`Unknown env command: ${command || ""}`);
+}
+
 async function cdn(client: PxxlClient, args: string[]) {
   const command = args.shift();
   if (!command || command === "help") return print(usage);
@@ -149,20 +209,6 @@ async function cdn(client: PxxlClient, args: string[]) {
     return printJSON(asset);
   }
   throw new Error(`Unknown CDN command: ${command}`);
-}
-
-async function domains(client: PxxlClient, args: string[]) {
-  const command = args.shift();
-  if (command === "tlds") {
-    const search = flagValue(args, "--search") || flagValue(args, "-s");
-    return printJSON(search ? await client.searchTLDs(search) : await client.listTLDs());
-  }
-  if (command === "popular") return printJSON(await client.popularTLDs());
-  if (command === "search") {
-    const query = required(args.shift(), "domain query");
-    return printJSON(await client.searchDomains({ query, type: flagValue(args, "--type") }));
-  }
-  throw new Error(`Unknown domain command: ${command || ""}`);
 }
 
 async function teams(client: PxxlClient | undefined, args: string[]) {
@@ -271,6 +317,61 @@ function normalizeDomainChoice(value?: string): string | undefined {
 function required(value: string | undefined, label: string): string {
   if (!value) throw new Error(`Missing ${label}`);
   return value;
+}
+
+function parseDotEnv(raw: string, secret: boolean): EnvVarInput[] {
+  return raw.split(/\r?\n/).flatMap((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return [];
+    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match) return [];
+    const key = match[1] || "";
+    let value = (match[2] || "").trim();
+    if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    return [{ key, value, isSecret: secret }];
+  });
+}
+
+async function promptDestination(defaultName: string): Promise<string> {
+  const rl = createInterface({ input, output });
+  try {
+    const answer = await rl.question(`Where should Pxxl pull this project? (${defaultName}) `);
+    return answer.trim() || defaultName;
+  } finally {
+    rl.close();
+  }
+}
+
+async function ensureCloneDestination(destination: string, force: boolean) {
+  try {
+    const entries = await readdir(destination);
+    if (entries.length > 0 && !force) {
+      throw new Error(`${destination} is not empty. Choose another folder or pass --force.`);
+    }
+    if (entries.length > 0 && force) {
+      throw new Error(`${destination} is not empty and is not a git repo. Refusing to overwrite files.`);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      await mkdir(destination, { recursive: true });
+      return;
+    }
+    throw error;
+  }
+  await access(destination);
+}
+
+async function isGitRepo(destination: string): Promise<boolean> {
+  try {
+    await access(resolve(destination, ".git"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function printJSON(value: unknown) {
