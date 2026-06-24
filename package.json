@@ -12,7 +12,7 @@
     }
   },
   "bin": {
-    "pxxl": "./dist/cli.js"
+    "pxxl": "dist/cli.js"
   },
   "files": [
     "dist",
