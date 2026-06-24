@@ -1,0 +1,12 @@
+{
+  "name": "express-api-pxxl-boilerplate",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}

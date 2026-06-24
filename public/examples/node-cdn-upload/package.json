@@ -1,0 +1,11 @@
+{
+  "name": "pxxl-node-cdn-upload-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "upload": "node upload.mjs"
+  },
+  "dependencies": {
+    "@pxxl/cdn": "file:../../sdks/node/pxxl-cdn"
+  }
+}

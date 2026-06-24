@@ -1,4 +1,16 @@
 # Pxxl.app - Deploy Your Projects Faster
+
+This repository contains public Pxxl developer resources: official CDN SDKs, upload examples, boilerplates, and agent-safe integration instructions.
+
+## Public Developer Resources
+
+- `public/sdks/node/pxxl-cdn` - official `@pxxl/cdn` Node SDK.
+- `public/sdks/go/pxxl` - official Go module for CDN uploads and asset management.
+- `public/examples` - small end-to-end upload examples for Node.js and Go.
+- `public/boilerplates` - Pxxl-ready starter projects for static sites, React, and Express APIs.
+- `public/guides/cdn-api.md` - CDN API-key upload guide.
+- `public/skills/pxxl-cdn/SKILL.md` - safe instructions for agents integrating Pxxl CDN.
+
 ## Overview
 Pxxl.app is a powerful deployment platform that enables developers to deploy web applications instantly with zero configuration 1 . The platform provides enterprise-grade hosting infrastructure, continuous deployment, and automatic scaling for modern web applications 1 .
 

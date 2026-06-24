@@ -1,0 +1,12 @@
+{
+  "id": "static-cdn-gallery",
+  "name": "Static CDN Gallery",
+  "description": "A fast static gallery starter for image portfolios, product shots, and CDN-backed landing pages on Pxxl.",
+  "framework": "static",
+  "language": "html",
+  "deploy": {
+    "buildCommand": "",
+    "startCommand": "",
+    "outputDirectory": "."
+  }
+}

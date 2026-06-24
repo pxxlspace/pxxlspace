@@ -1,0 +1,12 @@
+{
+  "id": "express-api-pxxl",
+  "name": "Express API on Pxxl",
+  "description": "A minimal Express API starter for deploying backend services, webhooks, and JSON APIs on Pxxl.",
+  "framework": "express",
+  "language": "javascript",
+  "deploy": {
+    "buildCommand": "",
+    "startCommand": "npm run start",
+    "port": 3000
+  }
+}

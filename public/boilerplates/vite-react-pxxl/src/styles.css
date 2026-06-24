@@ -1,0 +1,6 @@
+body { margin: 0; font-family: Inter, system-ui, sans-serif; color: #f8fafc; background: #09090f; }
+main { min-height: 100vh; display: grid; place-items: center; padding: 32px; }
+section { max-width: 820px; }
+p { color: #a1a1aa; text-transform: uppercase; letter-spacing: .14em; font-size: 12px; }
+h1 { margin: 0 0 28px; font-size: clamp(42px, 8vw, 88px); line-height: .96; letter-spacing: 0; }
+a { display: inline-flex; padding: 13px 18px; border-radius: 8px; background: #ff63f9; color: #08090d; text-decoration: none; font-weight: 800; }
