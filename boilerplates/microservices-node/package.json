@@ -1,0 +1,13 @@
+{
+  "name": "pxxl-microservices-node",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "start": "node services/api/server.js",
+    "start:worker": "node services/worker/worker.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
