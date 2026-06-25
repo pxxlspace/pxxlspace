@@ -1,0 +1,11 @@
+{
+  "name": "pxxl-node-sdk-functions-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "node sdk-functions.mjs"
+  },
+  "dependencies": {
+    "@pxxlapp/pxxl": "file:../.."
+  }
+}

@@ -65,6 +65,14 @@ const asset = await pxxl.uploadAsset({
 Domain search returns availability, prices, renewal pricing, and active promo fields such as `.cv` bonus amounts when the API returns them.
 Database commands use the same managed database provisioning API as the dashboard. Use `pxxl team use <team-id>` or `PXXL_TEAM_ID` to create/list databases inside a spaceship.
 
+## Examples
+
+- `examples/node-sdk-functions`: copyable Node functions for deploys, CDN, domains, teams, projects, deployments, databases, env vars, stats, and usage.
+- `examples/go-sdk-functions`: copyable Go functions for deploys, CDN, and domain search/pricing.
+- `examples/node-cdn-upload`: minimal Node CDN upload.
+- `examples/go-cdn-upload`: minimal Go CDN upload.
+- `examples/microservices-node`: multi-service Pxxl project example.
+
 ## Boilerplates
 
 Run `pxxl init --new` to choose a framework first, then choose a package manager when that framework has variants.

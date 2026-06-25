@@ -1,11 +1,15 @@
 package pxxl
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -113,5 +117,101 @@ func TestTypedAPIError(t *testing.T) {
 	}
 	if apiErr.StatusCode != http.StatusForbidden || apiErr.Message != "nope" {
 		t.Fatalf("api error = %#v", apiErr)
+	}
+}
+
+func TestSearchDomains(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/domains/search" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		var payload map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["query"] != "example.cv" {
+			t.Fatalf("query = %q", payload["query"])
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"query":   "example.cv",
+			"count":   1,
+			"results": []map[string]any{{"domain": "example.cv", "available": true, "tld": ".cv", "registerDollar": 4.99}},
+		})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.SearchDomains(context.Background(), "example.cv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Count != 1 || result.Results[0].Domain != "example.cv" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestDeployUsesMultipartArchive(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>Hello</h1>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("SECRET=1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/projects/spacedrop" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if err := r.ParseMultipartForm(8 << 20); err != nil {
+			t.Fatal(err)
+		}
+		if r.FormValue("sourceShape") != "clideploy" || r.FormValue("deploymentSource") != "clideploy" {
+			t.Fatalf("source fields missing")
+		}
+		if r.FormValue("name") != "hello" || r.FormValue("domainChoice") != "pxxl.app" {
+			t.Fatalf("name/domain = %q/%q", r.FormValue("name"), r.FormValue("domainChoice"))
+		}
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer file.Close()
+		archive, _ := io.ReadAll(file)
+		reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var hasIndex, hasEnv bool
+		for _, zipped := range reader.File {
+			if zipped.Name == "index.html" {
+				hasIndex = true
+			}
+			if zipped.Name == ".env" {
+				hasEnv = true
+			}
+		}
+		if !hasIndex || hasEnv {
+			t.Fatalf("archive files index=%v env=%v", hasIndex, hasEnv)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "projectId": "proj_1", "deploymentId": "dep_1"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.Deploy(context.Background(), DeployInput{
+		Directory:     dir,
+		Name:          "hello",
+		DomainChoice:  "pxxl.app",
+		Port:          3000,
+		CommitMessage: "Initial deploy from Go SDK",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ProjectID != "proj_1" || result.DeploymentID != "dep_1" {
+		t.Fatalf("deploy result = %#v", result)
 	}
 }
