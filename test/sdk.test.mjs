@@ -136,6 +136,53 @@ test("checks domains through the CLI-safe domain route", async () => {
   assert.equal(result.status, "available");
 });
 
+test("connects domains and keeps plan-limit rejects separate", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      if (init.body.includes("overflow.com")) {
+        return Response.json({ code: "DOMAIN_LIMIT_EXCEEDED", message: "Your current plan allows up to 1 custom domains.", limit: 1, used: 1 }, { status: 403 });
+      }
+      return Response.json({ error: false, domainId: "dom_1", domain: { name: "example.com" }, expectedARecordIp: "193.181.212.65" });
+    },
+  });
+  const result = await client.connectDomains([
+    { domain: "example.com", projectId: "proj_1" },
+    { domain: "overflow.com", projectId: "proj_1" },
+  ]);
+  assert.equal(result.accepted.length, 1);
+  assert.equal(result.rejected.length, 1);
+  assert.equal(result.rejected[0].status, 403);
+  assert.deepEqual(calls.map((call) => call.url), [
+    "https://gateway.pxxl.app/api/v3/cli/domains?teamId=team_123",
+    "https://gateway.pxxl.app/api/v3/cli/domains?teamId=team_123",
+  ]);
+});
+
+test("manages domain DNS records through CLI-safe routes", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method || "GET", body: init.body ? JSON.parse(init.body) : null });
+      return Response.json({ error: false, records: [{ type: "A", name: "@", value: "193.181.212.65" }] });
+    },
+  });
+  await client.listDomainDNSRecords("dom_1");
+  await client.createDomainDNSRecord("dom_1", { type: "A", name: "@", value: "193.181.212.65", ttl: 60 });
+  await client.updateDomainDNSRecords("dom_1", { recordId: "rec_1", type: "A", name: "@", value: "193.181.212.66" });
+  await client.deleteDomainDNSRecord("dom_1", { recordId: "rec_1" });
+  assert.deepEqual(calls.map((call) => `${call.method} ${call.url}`), [
+    "GET https://gateway.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
+    "POST https://gateway.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
+    "PUT https://gateway.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
+    "DELETE https://gateway.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
+  ]);
+});
+
 test("diffs env vars without requesting remote secret values", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",

@@ -31,7 +31,7 @@ import {
 } from "./index.js";
 
 const run = promisify(execFile);
-const cliVersion = "0.1.8";
+const cliVersion = "0.1.9";
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
 const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}
@@ -101,7 +101,11 @@ ${bold("Databases")}
 ${bold("Domains")}
   ${cyan("pxxl domains list")}                List domains available for stats
   ${cyan("pxxl domains check")} <domain>      Check DNS, ownership, SSL, and proxy route
-  ${cyan("pxxl domains connect")}             Interactive custom domain setup
+  ${cyan("pxxl domains connect")} <domain>    Add a custom domain to a project
+  ${cyan("pxxl domains verify")} <domain>     Verify expected project DNS records
+  ${cyan("pxxl domains records")} <id>         List or edit managed DNS records
+  ${cyan("pxxl domains cert")} <id> --out file Download the proxy public certificate
+  ${cyan("pxxl domains activate")} <id>        Check activation and SSL routing
   ${cyan("pxxl domains stats")} [domain]      Show proxy stats for a domain
 
 ${bold("Environment")}
@@ -480,21 +484,127 @@ async function domains(client: PxxlClient, args: string[]) {
     return printDomainCheck(remote, dns);
   }
   if (command === "connect") {
+    const domains = valueArgs(args);
+    if (!domains.length) domains.push(await promptText("Domain"));
+    const projectId = await resolveProjectIdFromArgsOrConfig(client, flagValue(args, "--project"), args);
+    const teamId = flagValue(args, "--team");
+    const inputs = domains.map((domain) => ({ domain, projectId, teamId, alias: hasFlag(args, "--alias") }));
+    const result = await spinner(`Connecting ${domains.length} domain${domains.length === 1 ? "" : "s"}`, () => client.connectDomains(inputs));
+    if (wantsJSON(args)) return printJSON(result);
+    return printDomainConnectResult(result, projectId);
+  }
+  if (command === "verify" || command === "checkrecord") {
     const domain = firstValueArg(args) || await promptText("Domain");
-    const projectId = await resolveProjectIdFromArgsOrConfig(client, flagValue(args, "--project"), args).catch(() => "");
-    const remote = await spinner(`Checking ${domain}`, () => client.checkDomain(domain, flagValue(args, "--team")));
-    if (wantsJSON(args)) return printJSON(remote);
-    printDomainCheck(remote, await checkDNS(domain));
-    printHeader("DNS setup");
-    printKV([
-      ["A record", "@ -> 193.181.212.65"],
-      ["WWW", `www -> ${domain}`],
-      ["Project", projectId || "Choose the project in the dashboard after DNS resolves"],
-    ]);
-    print(`${bold("Dashboard")} ${link(projectId ? `https://pxxl.app/dashboard/projects/${projectId}/domains` : "https://pxxl.app/dashboard/domains")}`);
-    return;
+    const projectId = await resolveProjectIdFromArgsOrConfig(client, flagValue(args, "--project"), args);
+    const result = await spinner(`Verifying ${domain}`, () => client.verifyDomainRecord({ domain, projectId, teamId: flagValue(args, "--team") }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain verification", result);
+  }
+  if (command === "get") {
+    const id = firstValueArg(args) || await resolveDomainId(client, args);
+    const result = await spinner("Fetching domain", () => client.getDomain(id, flagValue(args, "--team")));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain", result);
+  }
+  if (command === "activate") {
+    const id = firstValueArg(args) || await resolveDomainId(client, args);
+    const result = await spinner("Checking activation", () => client.activateDomain(id, flagValue(args, "--team")));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain activation", result);
+  }
+  if (command === "zone") {
+    const id = firstValueArg(args) || await resolveDomainId(client, args);
+    const result = await spinner("Fetching zone status", () => client.getDomainZoneStatus(id, flagValue(args, "--team")));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain zone", result);
+  }
+  if (command === "cert" || command === "certificate") {
+    const id = firstValueArg(args) || await resolveDomainId(client, args);
+    const out = flagValue(args, "--out") || `${id}_public_certificate.pem`;
+    const cert = await spinner("Downloading certificate", () => client.downloadDomainCertificate(id, flagValue(args, "--team")));
+    const bytes = new Uint8Array(await cert.arrayBuffer());
+    await writeFile(out, bytes);
+    return printSuccess(`Certificate saved to ${out}`);
+  }
+  if (command === "switch-to-pxxl-dns") {
+    const id = firstValueArg(args) || await resolveDomainId(client, args);
+    const result = await spinner("Switching to Pxxl DNS", () => client.switchDomainToPxxlDNS(id, flagValue(args, "--team")));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Pxxl DNS", result);
+  }
+  if (command === "nameservers" || command === "ns") {
+    const action = args.shift() || "verify";
+    const id = firstValueArg(args) || await resolveDomainId(client, args);
+    let result: unknown;
+    if (action === "set") {
+      const nameservers = (flagValue(args, "--values") || valueArgs(args).slice(1).join(",")).split(",").map((item) => item.trim()).filter(Boolean);
+      if (!nameservers.length) throw new Error("Pass nameservers with --values ns1.example.com,ns2.example.com");
+      result = await spinner("Updating nameservers", () => client.updateDomainNameservers(id, nameservers, flagValue(args, "--team")));
+    } else if (action === "reset") {
+      result = await spinner("Resetting nameservers", () => client.resetDomainNameservers(id, flagValue(args, "--team")));
+    } else {
+      result = await spinner("Verifying nameservers", () => client.verifyDomainNameservers(id, flagValue(args, "--team")));
+    }
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Nameservers", result);
+  }
+  if (command === "records" || command === "dns") {
+    return domainRecords(client, args);
   }
   throw new Error(`Unknown domains command: ${command}`);
+}
+
+async function domainRecords(client: PxxlClient, args: string[]) {
+  const action = ["add", "create", "set", "update", "delete", "del", "rm", "list", "ls"].includes(args[0] || "") ? args.shift() || "list" : "list";
+  const id = firstValueArg(args) || await resolveDomainId(client, args);
+  const teamId = flagValue(args, "--team");
+  let result: unknown;
+  if (action === "add" || action === "create") {
+    result = await spinner("Creating DNS record", () => client.createDomainDNSRecord(id, dnsRecordFromFlags(args, false, teamId)));
+  } else if (action === "set" || action === "update") {
+    result = await spinner("Updating DNS record", () => client.updateDomainDNSRecords(id, dnsRecordFromFlags(args, true, teamId)));
+  } else if (action === "delete" || action === "del" || action === "rm") {
+    const recordId = flagValue(args, "--record-id") || flagValue(args, "--id") || await promptText("Record ID");
+    result = await spinner("Deleting DNS record", () => client.deleteDomainDNSRecord(id, { recordId, zoneId: flagValue(args, "--zone-id"), teamId }));
+  } else {
+    result = await spinner("Fetching DNS records", () => client.listDomainDNSRecords(id, teamId));
+  }
+  if (wantsJSON(args)) return printJSON(result);
+  if (action === "list" || action === "ls") return printDNSRecords(result);
+  return printNestedObject("DNS records", result);
+}
+
+function dnsRecordFromFlags(args: string[], includeId: boolean, teamId?: string) {
+  const recordId = flagValue(args, "--record-id") || flagValue(args, "--id");
+  const priority = flagValue(args, "--priority");
+  return {
+    type: (flagValue(args, "--type") || (includeId ? undefined : "A"))?.toUpperCase(),
+    name: flagValue(args, "--name") || (includeId ? undefined : "@"),
+    value: flagValue(args, "--value"),
+    ttl: Number(flagValue(args, "--ttl") || "60"),
+    priority: priority ? Number(priority) : undefined,
+    recordId,
+    id: recordId,
+    zoneId: flagValue(args, "--zone-id"),
+    teamId,
+  };
+}
+
+function valueArgs(args: string[]): string[] {
+  const out: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (!arg || arg.startsWith("-")) {
+      if (arg && !arg.includes("=") && flagTakesValue(arg)) index += 1;
+      continue;
+    }
+    out.push(arg);
+  }
+  return out;
+}
+
+function flagTakesValue(flag: string): boolean {
+  return !["--json", "--alias", "--force", "--global", "--follow", "--dashboard"].includes(flag);
 }
 
 function firstValueArg(args: string[]): string | undefined {
@@ -795,6 +905,10 @@ function flagValue(args: string[], name: string): string | undefined {
   return args[index + 1];
 }
 
+function hasFlag(args: string[], name: string): boolean {
+  return args.includes(name);
+}
+
 function normalizeDomainChoice(value?: string): string | undefined {
   if (!value) return value;
   return value.replace(/^\./, "");
@@ -1043,6 +1157,15 @@ async function resolveDomainName(client: PxxlClient, domain: string | undefined,
   const result = await spinner("Fetching domains", () => client.listDomains(flagValue(args, "--team")));
   const domains = normalizeDomainRows(result);
   return promptSelect("Choose domain", domains.map((row) => ({ label: row.domain || "-", value: row.domain || "" })).filter((option) => option.value));
+}
+
+async function resolveDomainId(client: PxxlClient, args: string[]): Promise<string> {
+  const result = await spinner("Fetching domains", () => client.listDomains(flagValue(args, "--team")));
+  const domains = normalizeDomainRows(result);
+  return promptSelect("Choose domain", domains.map((row) => ({
+    label: `${row.domain || row.id} ${dim(row.status || row.type || "")}`,
+    value: row.id || "",
+  })).filter((option) => option.value && option.value !== "-"));
 }
 
 async function resolveProjectIdFromArgsOrConfig(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
@@ -1523,6 +1646,71 @@ function printDomainCheck(value: unknown, dns: unknown) {
       ["CNAME www", domain || "your apex domain"],
     ]);
   }
+}
+
+function printDomainConnectResult(value: unknown, projectId: string) {
+  const root = asRecord(value);
+  const accepted = arrayValue(root.accepted);
+  const rejected = arrayValue(root.rejected);
+  printHeader("Domain connect");
+  if (accepted.length) {
+    printSuccess(`${accepted.length} domain${accepted.length === 1 ? "" : "s"} connected`);
+    const rows = accepted.map((item) => {
+      const row = asRecord(item);
+      const domain = asRecord(row.domain);
+      return {
+        domain: stringValue(domain.name || row.domain || row.name) || "-",
+        status: stringValue(row.status || domain.status) || "-",
+        mode: stringValue(row.managementMode) || "-",
+        id: stringValue(row.domainId || domain.id) || "-",
+      };
+    });
+    printTable("", rows, ["domain", "status", "mode", "id"]);
+    const first = asRecord(accepted[0]);
+    const expectedIP = stringValue(first.expectedARecordIp);
+    if (expectedIP) {
+      printHeader("Expected DNS");
+      printKV([
+        ["A @", expectedIP],
+        ["CNAME www", stringValue(asRecord(first.domain).name || first.domain) || "your-domain.com"],
+      ]);
+    }
+  }
+  if (rejected.length) {
+    print(`\n${red(`${rejected.length} rejected`)}`);
+    const rows = rejected.map((item) => {
+      const row = asRecord(item);
+      const details = asRecord(row.details);
+      return {
+        domain: stringValue(row.domain) || "-",
+        status: String(numberValue(row.status)),
+        message: stringValue(row.message || details.message) || "-",
+        limit: details.limit !== undefined ? String(details.limit) : "-",
+        used: details.used !== undefined ? String(details.used) : "-",
+      };
+    });
+    printTable("", rows, ["domain", "status", "message", "limit", "used"]);
+  }
+  if (projectId) print(`${bold("Dashboard")} ${link(`https://pxxl.app/dashboard/projects/${projectId}/domains`)}`);
+}
+
+function printDNSRecords(value: unknown) {
+  const root = asRecord(value);
+  const records = arrayValue(root.records || asRecord(root.data).records || root.data || value).map((item) => {
+    const row = asRecord(item);
+    return {
+      type: stringValue(row.type) || "-",
+      name: stringValue(row.name || row.host) || "-",
+      value: stringValue(row.value || row.target || row.content) || "-",
+      ttl: row.ttl !== undefined ? String(row.ttl) : "-",
+      id: stringValue(row.id || row.recordId) || "-",
+    };
+  });
+  printHeader("DNS records");
+  if (!records.length) return print(dim("No DNS records found."));
+  printTable("", records, ["type", "name", "value", "ttl", "id"]);
+  const expected = stringValue(root.expectedARecordIp);
+  if (expected) print(`\n${dim(`Expected A @ -> ${expected}`)}`);
 }
 
 function printLogs(value: unknown, since?: string) {

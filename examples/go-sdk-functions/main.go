@@ -64,6 +64,37 @@ func searchDomainsWithPrices(ctx context.Context, client *pxxl.Client, query str
 	return search, tlds, nil
 }
 
+func connectDomainToProject(ctx context.Context, client *pxxl.Client, domain, projectID string) (map[string]any, error) {
+	return client.ConnectDomain(ctx, pxxl.ConnectDomainInput{
+		Domain:    domain,
+		ProjectID: projectID,
+	})
+}
+
+func verifyDomainForProject(ctx context.Context, client *pxxl.Client, domain, projectID string) (map[string]any, error) {
+	return client.VerifyDomainRecord(ctx, pxxl.VerifyDomainRecordInput{
+		Domain:    domain,
+		ProjectID: projectID,
+	})
+}
+
+func addDomainARecord(ctx context.Context, client *pxxl.Client, domainID, value string) (map[string]any, error) {
+	return client.CreateDomainDNSRecord(ctx, domainID, pxxl.DomainDNSRecordInput{
+		Type:  "A",
+		Name:  "@",
+		Value: value,
+		TTL:   60,
+	})
+}
+
+func listManagedDomainRecords(ctx context.Context, client *pxxl.Client, domainID string) (map[string]any, error) {
+	return client.ListDomainDNSRecords(ctx, domainID, "")
+}
+
+func downloadDomainCertificate(ctx context.Context, client *pxxl.Client, domainID string) ([]byte, error) {
+	return client.DownloadDomainCertificate(ctx, domainID, "")
+}
+
 func main() {
 	if os.Getenv("PXXL_API_KEY") == "" {
 		log.Fatal("PXXL_API_KEY is required")

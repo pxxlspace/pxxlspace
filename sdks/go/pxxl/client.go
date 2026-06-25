@@ -136,6 +136,43 @@ type DomainSearchResponse struct {
 	Latency float64              `json:"latency,omitempty"`
 }
 
+type DomainSummary struct {
+	ID        string `json:"id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Domain    string `json:"domain,omitempty"`
+	Status    string `json:"status,omitempty"`
+	Type      string `json:"type,omitempty"`
+	ProjectID string `json:"projectId,omitempty"`
+	CreatedAt string `json:"createdAt,omitempty"`
+}
+
+type ConnectDomainInput struct {
+	Domain    string `json:"domain"`
+	ProjectID string `json:"projectId"`
+	Alias     bool   `json:"alias,omitempty"`
+	TeamID    string `json:"-"`
+}
+
+type VerifyDomainRecordInput struct {
+	Domain    string `json:"domain"`
+	ProjectID string `json:"projectId"`
+	TeamID    string `json:"teamId,omitempty"`
+}
+
+type DomainDNSRecordInput struct {
+	Type     string                 `json:"type,omitempty"`
+	Name     string                 `json:"name,omitempty"`
+	Value    string                 `json:"value,omitempty"`
+	TTL      int                    `json:"ttl,omitempty"`
+	Proxied  *bool                  `json:"proxied,omitempty"`
+	Priority *int                   `json:"priority,omitempty"`
+	ID       string                 `json:"id,omitempty"`
+	RecordID string                 `json:"recordId,omitempty"`
+	ZoneID   string                 `json:"zoneId,omitempty"`
+	Records  []DomainDNSRecordInput `json:"records,omitempty"`
+	TeamID   string                 `json:"-"`
+}
+
 type DeployInput struct {
 	Directory      string
 	ArchivePath    string
@@ -283,6 +320,114 @@ func (c *Client) SearchDomains(ctx context.Context, query string) (*DomainSearch
 		return nil, err
 	}
 	return &out, nil
+}
+
+func (c *Client) ListDomains(ctx context.Context, teamID string) ([]DomainSummary, error) {
+	var out struct {
+		Domains []DomainSummary `json:"domains"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/cli/domains"+teamQuery(teamID), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Domains, nil
+}
+
+func (c *Client) CheckDomain(ctx context.Context, domain, teamID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodGet, "/cli/domains/"+url.PathEscape(domain)+"/check"+teamQuery(teamID), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ConnectDomain(ctx context.Context, input ConnectDomainInput) (map[string]any, error) {
+	if strings.TrimSpace(input.Domain) == "" || strings.TrimSpace(input.ProjectID) == "" {
+		return nil, fmt.Errorf("pxxl: domain and project id are required")
+	}
+	body, _ := json.Marshal(input)
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodPost, "/cli/domains"+teamQuery(input.TeamID), bytes.NewReader(body), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) VerifyDomainRecord(ctx context.Context, input VerifyDomainRecordInput) (map[string]any, error) {
+	body, _ := json.Marshal(input)
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodPost, "/cli/domains/checkrecord"+teamQuery(input.TeamID), bytes.NewReader(body), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetDomain(ctx context.Context, id, teamID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodGet, "/cli/domains/"+url.PathEscape(id)+teamQuery(teamID), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ListDomainDNSRecords(ctx context.Context, id, teamID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodGet, "/cli/domains/"+url.PathEscape(id)+"/dns-records"+teamQuery(teamID), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) CreateDomainDNSRecord(ctx context.Context, id string, input DomainDNSRecordInput) (map[string]any, error) {
+	return c.domainDNSRecord(ctx, http.MethodPost, id, input)
+}
+
+func (c *Client) UpdateDomainDNSRecords(ctx context.Context, id string, input DomainDNSRecordInput) (map[string]any, error) {
+	return c.domainDNSRecord(ctx, http.MethodPut, id, input)
+}
+
+func (c *Client) DeleteDomainDNSRecord(ctx context.Context, id string, input DomainDNSRecordInput) (map[string]any, error) {
+	return c.domainDNSRecord(ctx, http.MethodDelete, id, input)
+}
+
+func (c *Client) domainDNSRecord(ctx context.Context, method, id string, input DomainDNSRecordInput) (map[string]any, error) {
+	body, _ := json.Marshal(input)
+	var out map[string]any
+	if err := c.doJSON(ctx, method, "/cli/domains/"+url.PathEscape(id)+"/dns-records"+teamQuery(input.TeamID), bytes.NewReader(body), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ActivateDomain(ctx context.Context, id, teamID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodPost, "/cli/domains/"+url.PathEscape(id)+"/activate"+teamQuery(teamID), bytes.NewReader([]byte("{}")), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetDomainZoneStatus(ctx context.Context, id, teamID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodGet, "/cli/domains/"+url.PathEscape(id)+"/zone-status"+teamQuery(teamID), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) DownloadDomainCertificate(ctx context.Context, id, teamID string) ([]byte, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/cli/domains/"+url.PathEscape(id)+"/certificate/download"+teamQuery(teamID), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, decodeAPIError(resp)
+	}
+	return io.ReadAll(resp.Body)
 }
 
 func (c *Client) Deploy(ctx context.Context, input DeployInput) (*DeployResult, error) {
@@ -494,6 +639,14 @@ func writeField(writer *multipart.Writer, key, value string) {
 	if strings.TrimSpace(value) != "" {
 		_ = writer.WriteField(key, value)
 	}
+}
+
+func teamQuery(teamID string) string {
+	teamID = strings.TrimSpace(teamID)
+	if teamID == "" {
+		return ""
+	}
+	return "?teamId=" + url.QueryEscape(teamID)
 }
 
 func defaultString(value, fallback string) string {

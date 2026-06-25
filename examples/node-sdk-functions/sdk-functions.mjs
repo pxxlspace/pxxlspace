@@ -68,6 +68,35 @@ export async function getDomainStats(domain, timeframe = "30d") {
   return pxxl.domainStats(domain, { timeframe });
 }
 
+export async function connectDomainToProject(domain, projectId) {
+  return pxxl.connectDomain({ domain, projectId });
+}
+
+export async function connectDomainsToProject(domains, projectId) {
+  return pxxl.connectDomains(domains.map((domain) => ({ domain, projectId })));
+}
+
+export async function verifyDomainForProject(domain, projectId) {
+  return pxxl.verifyDomainRecord({ domain, projectId });
+}
+
+export async function addDomainARecord(domainId, value = "193.181.212.65") {
+  return pxxl.createDomainDNSRecord(domainId, {
+    type: "A",
+    name: "@",
+    value,
+    ttl: 60,
+  });
+}
+
+export async function listManagedDomainRecords(domainId) {
+  return pxxl.listDomainDNSRecords(domainId);
+}
+
+export async function downloadDomainCertificate(domainId) {
+  return pxxl.downloadDomainCertificate(domainId);
+}
+
 export async function listSpaceships() {
   return pxxl.listTeams();
 }

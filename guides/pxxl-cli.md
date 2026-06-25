@@ -109,8 +109,14 @@ Use an API key with `scope=database` or `scope=all`. Listing and read operations
 
 ```bash
 pxxl domains list
+pxxl domains connect example.com --project <project-id>
+pxxl domains verify example.com --project <project-id>
+pxxl domains records <domain-id>
+pxxl domains records add <domain-id> --type A --name @ --value 193.181.212.65
+pxxl domains cert <domain-id> --out example.com.pem
+pxxl domains activate <domain-id>
 pxxl domains stats
 pxxl domains stats example.com --timeframe 30d
 ```
 
-Domain stats use the same Gateway proxy analytics source as the dashboard. If you omit the domain, the CLI fetches your available domains and lets you select one.
+Domain commands use the same Gateway proxy and DNS source as the dashboard. If you omit a selectable target, the CLI fetches your available domains and lets you select one. Bulk connects report accepted domains separately from plan-limit rejections.

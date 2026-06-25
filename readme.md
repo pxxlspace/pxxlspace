@@ -32,6 +32,8 @@ pxxl db create --name app-db --type postgres
 pxxl db list
 pxxl db get
 pxxl domains list
+pxxl domains connect example.com --project <project-id>
+pxxl domains records <domain-id>
 pxxl domains stats
 ```
 
@@ -53,6 +55,8 @@ const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY });
 const domains = await pxxl.searchDomains({ query: "pxxl.cv" });
 const tlds = await pxxl.listTLDs();
 const invoices = await pxxl.listDomainInvoices();
+const connected = await pxxl.connectDomain({ domain: "example.com", projectId: "proj_123" });
+const records = await pxxl.listDomainDNSRecords("dom_123");
 const teams = await pxxl.listTeams();
 const database = await pxxl.createDatabase({ name: "app-db", type: "postgres" });
 const asset = await pxxl.uploadAsset({
@@ -63,6 +67,7 @@ const asset = await pxxl.uploadAsset({
 ```
 
 Domain search returns availability, prices, renewal pricing, and active promo fields such as `.cv` bonus amounts when the API returns them.
+Domain management supports project connection, DNS verification, managed DNS records, nameservers, activation checks, and certificate download.
 Database commands use the same managed database provisioning API as the dashboard. Use `pxxl team use <team-id>` or `PXXL_TEAM_ID` to create/list databases inside a spaceship.
 
 ## Examples
@@ -91,3 +96,5 @@ Direct IDs still work for scripts, for example `express-bun`, `express-npm`, `vi
 - CDN guide: [docs.pxxl.app/api/cdn](https://docs.pxxl.app/api/cdn)
 - Database API: [docs.pxxl.app/api/database-api](https://docs.pxxl.app/api/database-api)
 - Domain reseller SDK: [docs.pxxl.app/api/domain-reseller-sdk](https://docs.pxxl.app/api/domain-reseller-sdk)
+- Domain Node SDK: [docs.pxxl.app/api/domain-node-sdk](https://docs.pxxl.app/api/domain-node-sdk)
+- Domain Go SDK: [docs.pxxl.app/api/domain-go-sdk](https://docs.pxxl.app/api/domain-go-sdk)

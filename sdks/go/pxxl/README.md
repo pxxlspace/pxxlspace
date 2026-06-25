@@ -57,4 +57,27 @@ search, err := client.SearchDomains(context.Background(), "example.cv")
 tlds, err := client.ListTLDs(context.Background())
 ```
 
+## Connect and manage domains
+
+```go
+connected, err := client.ConnectDomain(context.Background(), pxxl.ConnectDomainInput{
+  Domain: "example.com",
+  ProjectID: "proj_123",
+})
+
+records, err := client.ListDomainDNSRecords(context.Background(), "dom_123", "")
+
+created, err := client.CreateDomainDNSRecord(context.Background(), "dom_123", pxxl.DomainDNSRecordInput{
+  Type: "A",
+  Name: "@",
+  Value: "193.181.212.65",
+  TTL: 60,
+})
+
+activation, err := client.ActivateDomain(context.Background(), "dom_123", "")
+certificate, err := client.DownloadDomainCertificate(context.Background(), "dom_123", "")
+```
+
+Domain write operations require an API key with `scope=domain`, `scope=domains`, or `scope=all` and `permission=read_write`.
+
 See `examples/go-sdk-functions` for copyable functions.

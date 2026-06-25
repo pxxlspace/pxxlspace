@@ -105,6 +105,94 @@ export class PxxlClient {
     async checkDomain(domain, teamId = this.teamId) {
         return this.request(`/cli/domains/${encodeURIComponent(domain)}/check${teamQuery(teamId)}`);
     }
+    async connectDomain(input) {
+        const teamId = input.teamId || this.teamId;
+        return this.request(`/cli/domains${teamQuery(teamId)}`, {
+            method: "POST",
+            body: JSON.stringify({ domain: input.domain, projectId: input.projectId, alias: Boolean(input.alias) }),
+        });
+    }
+    async connectDomains(input) {
+        const result = { accepted: [], rejected: [], attempted: input.length };
+        for (const item of input) {
+            try {
+                result.accepted.push(await this.connectDomain(item));
+            }
+            catch (error) {
+                if (error instanceof PxxlAPIError) {
+                    result.rejected.push({ domain: item.domain, status: error.status, message: error.message, details: error.details });
+                    continue;
+                }
+                throw error;
+            }
+        }
+        return result;
+    }
+    async verifyDomainRecord(input) {
+        const teamId = input.teamId || this.teamId;
+        return this.request(`/cli/domains/checkrecord${teamQuery(teamId)}`, {
+            method: "POST",
+            body: JSON.stringify({ domain: input.domain, projectId: input.projectId, teamId }),
+        });
+    }
+    async getDomain(id, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}${teamQuery(teamId)}`);
+    }
+    async updateDomain(id, input) {
+        const teamId = input.teamId || this.teamId;
+        const { teamId: _teamId, ...body } = input;
+        return this.request(`/cli/domains/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "PATCH", body: JSON.stringify(body) });
+    }
+    async downloadDomainCertificate(id, teamId = this.teamId) {
+        const response = await this.rawRequest(`/cli/domains/${encodeURIComponent(id)}/certificate/download${teamQuery(teamId)}`);
+        return response.blob();
+    }
+    async listDomainDNSRecords(id, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-records${teamQuery(teamId)}`);
+    }
+    async createDomainDNSRecord(id, input) {
+        const teamId = input.teamId || this.teamId;
+        const { teamId: _teamId, ...body } = input;
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-records${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify(body) });
+    }
+    async updateDomainDNSRecords(id, input) {
+        const teamId = input.teamId || this.teamId;
+        const { teamId: _teamId, ...body } = input;
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-records${teamQuery(teamId)}`, { method: "PUT", body: JSON.stringify(body) });
+    }
+    async deleteDomainDNSRecord(id, input) {
+        const teamId = input.teamId || this.teamId;
+        const { teamId: _teamId, ...body } = input;
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-records${teamQuery(teamId)}`, { method: "DELETE", body: JSON.stringify(body) });
+    }
+    async listDomainDNSChangeLogs(id, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-change-logs${teamQuery(teamId)}`);
+    }
+    async rollbackDomainDNSChange(id, logId, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-change-logs/${encodeURIComponent(logId)}/rollback${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+    }
+    async createManagedSubdomain(id, input) {
+        const teamId = input.teamId || this.teamId;
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/subdomains${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({ ...input, teamId }) });
+    }
+    async updateDomainNameservers(id, nameservers, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/nameservers${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({ nameservers }) });
+    }
+    async resetDomainNameservers(id, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/nameservers/reset${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+    }
+    async verifyDomainNameservers(id, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/nameservers/verify${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+    }
+    async getDomainZoneStatus(id, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/zone-status${teamQuery(teamId)}`);
+    }
+    async switchDomainToPxxlDNS(id, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/switch-to-pxxl-dns${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+    }
+    async activateDomain(id, teamId = this.teamId) {
+        return this.request(`/cli/domains/${encodeURIComponent(id)}/activate${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+    }
     async listTeams() {
         return this.request("/teams");
     }

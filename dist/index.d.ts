@@ -111,6 +111,55 @@ export interface DomainSummary {
     projectId?: string | null;
     createdAt?: string;
 }
+export interface ConnectDomainInput {
+    domain: string;
+    projectId: string;
+    alias?: boolean;
+    teamId?: string;
+}
+export interface ConnectDomainsResult {
+    accepted: unknown[];
+    rejected: Array<{
+        domain: string;
+        status: number;
+        message: string;
+        details?: unknown;
+    }>;
+    attempted: number;
+}
+export interface VerifyDomainRecordInput {
+    domain: string;
+    projectId: string;
+    teamId?: string;
+}
+export interface DomainDNSRecordInput {
+    type?: string;
+    name?: string;
+    value?: string;
+    ttl?: number;
+    proxied?: boolean;
+    priority?: number;
+    id?: string;
+    recordId?: string;
+    zoneId?: string;
+    records?: DomainDNSRecordInput[];
+}
+export interface ManagedSubdomainInput {
+    label?: string;
+    subdomain?: string;
+    projectId?: string;
+    teamId?: string;
+}
+export interface DomainSettingsInput {
+    isPxxlManaged?: boolean;
+    isPxxlNS?: boolean;
+    forceHttps?: boolean;
+    allowWebsocket?: boolean;
+    isActive?: boolean;
+    projectId?: string | null;
+    proxyRules?: Record<string, unknown>;
+    teamId?: string;
+}
 export interface TeamSummary {
     id: string;
     name: string;
@@ -300,6 +349,31 @@ export declare class PxxlClient {
         teamId?: string;
     }): Promise<unknown>;
     checkDomain(domain: string, teamId?: string | undefined): Promise<unknown>;
+    connectDomain(input: ConnectDomainInput): Promise<unknown>;
+    connectDomains(input: ConnectDomainInput[]): Promise<ConnectDomainsResult>;
+    verifyDomainRecord(input: VerifyDomainRecordInput): Promise<unknown>;
+    getDomain(id: string, teamId?: string | undefined): Promise<unknown>;
+    updateDomain(id: string, input: DomainSettingsInput): Promise<unknown>;
+    downloadDomainCertificate(id: string, teamId?: string | undefined): Promise<Blob>;
+    listDomainDNSRecords(id: string, teamId?: string | undefined): Promise<unknown>;
+    createDomainDNSRecord(id: string, input: DomainDNSRecordInput & {
+        teamId?: string;
+    }): Promise<unknown>;
+    updateDomainDNSRecords(id: string, input: DomainDNSRecordInput & {
+        teamId?: string;
+    }): Promise<unknown>;
+    deleteDomainDNSRecord(id: string, input: Pick<DomainDNSRecordInput, "id" | "recordId" | "zoneId"> & {
+        teamId?: string;
+    }): Promise<unknown>;
+    listDomainDNSChangeLogs(id: string, teamId?: string | undefined): Promise<unknown>;
+    rollbackDomainDNSChange(id: string, logId: string, teamId?: string | undefined): Promise<unknown>;
+    createManagedSubdomain(id: string, input: ManagedSubdomainInput): Promise<unknown>;
+    updateDomainNameservers(id: string, nameservers: string[], teamId?: string | undefined): Promise<unknown>;
+    resetDomainNameservers(id: string, teamId?: string | undefined): Promise<unknown>;
+    verifyDomainNameservers(id: string, teamId?: string | undefined): Promise<unknown>;
+    getDomainZoneStatus(id: string, teamId?: string | undefined): Promise<unknown>;
+    switchDomainToPxxlDNS(id: string, teamId?: string | undefined): Promise<unknown>;
+    activateDomain(id: string, teamId?: string | undefined): Promise<unknown>;
     listTeams(): Promise<{
         teams: TeamSummary[];
         total: number;

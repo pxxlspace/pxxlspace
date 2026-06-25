@@ -153,6 +153,64 @@ func TestSearchDomains(t *testing.T) {
 	}
 }
 
+func TestConnectDomainUsesCLIDomainEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cli/domains" || r.URL.Query().Get("teamId") != "team_1" {
+			t.Fatalf("path/query = %s?%s", r.URL.Path, r.URL.RawQuery)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["domain"] != "example.com" || payload["projectId"] != "proj_1" {
+			t.Fatalf("payload = %#v", payload)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"domainId": "dom_1", "status": "pending"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.ConnectDomain(context.Background(), ConnectDomainInput{Domain: "example.com", ProjectID: "proj_1", TeamID: "team_1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["domainId"] != "dom_1" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestCreateDomainDNSRecord(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cli/domains/dom_1/dns-records" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["type"] != "A" || payload["name"] != "@" || payload["value"] != "193.181.212.65" {
+			t.Fatalf("payload = %#v", payload)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"message": "DNS record saved"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.CreateDomainDNSRecord(context.Background(), "dom_1", DomainDNSRecordInput{Type: "A", Name: "@", Value: "193.181.212.65", TTL: 60})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["message"] != "DNS record saved" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestDeployUsesMultipartArchive(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>Hello</h1>"), 0o644); err != nil {

@@ -129,6 +129,56 @@ export interface DomainSummary {
   createdAt?: string;
 }
 
+export interface ConnectDomainInput {
+  domain: string;
+  projectId: string;
+  alias?: boolean;
+  teamId?: string;
+}
+
+export interface ConnectDomainsResult {
+  accepted: unknown[];
+  rejected: Array<{ domain: string; status: number; message: string; details?: unknown }>;
+  attempted: number;
+}
+
+export interface VerifyDomainRecordInput {
+  domain: string;
+  projectId: string;
+  teamId?: string;
+}
+
+export interface DomainDNSRecordInput {
+  type?: string;
+  name?: string;
+  value?: string;
+  ttl?: number;
+  proxied?: boolean;
+  priority?: number;
+  id?: string;
+  recordId?: string;
+  zoneId?: string;
+  records?: DomainDNSRecordInput[];
+}
+
+export interface ManagedSubdomainInput {
+  label?: string;
+  subdomain?: string;
+  projectId?: string;
+  teamId?: string;
+}
+
+export interface DomainSettingsInput {
+  isPxxlManaged?: boolean;
+  isPxxlNS?: boolean;
+  forceHttps?: boolean;
+  allowWebsocket?: boolean;
+  isActive?: boolean;
+  projectId?: string | null;
+  proxyRules?: Record<string, unknown>;
+  teamId?: string;
+}
+
 export interface TeamSummary {
   id: string;
   name: string;
@@ -386,6 +436,112 @@ export class PxxlClient {
 
   async checkDomain(domain: string, teamId = this.teamId): Promise<unknown> {
     return this.request(`/cli/domains/${encodeURIComponent(domain)}/check${teamQuery(teamId)}`);
+  }
+
+  async connectDomain(input: ConnectDomainInput): Promise<unknown> {
+    const teamId = input.teamId || this.teamId;
+    return this.request(`/cli/domains${teamQuery(teamId)}`, {
+      method: "POST",
+      body: JSON.stringify({ domain: input.domain, projectId: input.projectId, alias: Boolean(input.alias) }),
+    });
+  }
+
+  async connectDomains(input: ConnectDomainInput[]): Promise<ConnectDomainsResult> {
+    const result: ConnectDomainsResult = { accepted: [], rejected: [], attempted: input.length };
+    for (const item of input) {
+      try {
+        result.accepted.push(await this.connectDomain(item));
+      } catch (error) {
+        if (error instanceof PxxlAPIError) {
+          result.rejected.push({ domain: item.domain, status: error.status, message: error.message, details: error.details });
+          continue;
+        }
+        throw error;
+      }
+    }
+    return result;
+  }
+
+  async verifyDomainRecord(input: VerifyDomainRecordInput): Promise<unknown> {
+    const teamId = input.teamId || this.teamId;
+    return this.request(`/cli/domains/checkrecord${teamQuery(teamId)}`, {
+      method: "POST",
+      body: JSON.stringify({ domain: input.domain, projectId: input.projectId, teamId }),
+    });
+  }
+
+  async getDomain(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}${teamQuery(teamId)}`);
+  }
+
+  async updateDomain(id: string, input: DomainSettingsInput): Promise<unknown> {
+    const teamId = input.teamId || this.teamId;
+    const { teamId: _teamId, ...body } = input;
+    return this.request(`/cli/domains/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "PATCH", body: JSON.stringify(body) });
+  }
+
+  async downloadDomainCertificate(id: string, teamId = this.teamId): Promise<Blob> {
+    const response = await this.rawRequest(`/cli/domains/${encodeURIComponent(id)}/certificate/download${teamQuery(teamId)}`);
+    return response.blob();
+  }
+
+  async listDomainDNSRecords(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-records${teamQuery(teamId)}`);
+  }
+
+  async createDomainDNSRecord(id: string, input: DomainDNSRecordInput & { teamId?: string }): Promise<unknown> {
+    const teamId = input.teamId || this.teamId;
+    const { teamId: _teamId, ...body } = input;
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-records${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async updateDomainDNSRecords(id: string, input: DomainDNSRecordInput & { teamId?: string }): Promise<unknown> {
+    const teamId = input.teamId || this.teamId;
+    const { teamId: _teamId, ...body } = input;
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-records${teamQuery(teamId)}`, { method: "PUT", body: JSON.stringify(body) });
+  }
+
+  async deleteDomainDNSRecord(id: string, input: Pick<DomainDNSRecordInput, "id" | "recordId" | "zoneId"> & { teamId?: string }): Promise<unknown> {
+    const teamId = input.teamId || this.teamId;
+    const { teamId: _teamId, ...body } = input;
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-records${teamQuery(teamId)}`, { method: "DELETE", body: JSON.stringify(body) });
+  }
+
+  async listDomainDNSChangeLogs(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-change-logs${teamQuery(teamId)}`);
+  }
+
+  async rollbackDomainDNSChange(id: string, logId: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/dns-change-logs/${encodeURIComponent(logId)}/rollback${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async createManagedSubdomain(id: string, input: ManagedSubdomainInput): Promise<unknown> {
+    const teamId = input.teamId || this.teamId;
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/subdomains${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({ ...input, teamId }) });
+  }
+
+  async updateDomainNameservers(id: string, nameservers: string[], teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/nameservers${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({ nameservers }) });
+  }
+
+  async resetDomainNameservers(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/nameservers/reset${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async verifyDomainNameservers(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/nameservers/verify${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async getDomainZoneStatus(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/zone-status${teamQuery(teamId)}`);
+  }
+
+  async switchDomainToPxxlDNS(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/switch-to-pxxl-dns${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async activateDomain(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(id)}/activate${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
   }
 
   async listTeams(): Promise<{ teams: TeamSummary[]; total: number }> {
