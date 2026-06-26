@@ -34,7 +34,7 @@ import {
 } from "./index.js";
 
 const run = promisify(execFile);
-const cliVersion = "0.1.9";
+const cliVersion = "0.1.11";
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
 const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}

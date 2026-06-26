@@ -9,7 +9,7 @@ import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { PXXL_API_BASE_URL, PxxlAPIError, PxxlClient, clearAuthConfig, configPath, copyBoilerplate, createProjectZip, readPxxlToml, readBoilerplateManifest, readAuthConfig, saveAuthConfig, saveTeamSelection, sha256Hex, writeDefaultPxxlFiles, } from "./index.js";
 const run = promisify(execFile);
-const cliVersion = "0.1.9";
+const cliVersion = "0.1.11";
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
 const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}
