@@ -10,6 +10,7 @@ import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import {
   PXXL_API_BASE_URL,
+  PxxlAPIError,
   PxxlClient,
   clearAuthConfig,
   configPath,
@@ -23,11 +24,13 @@ import {
   sha256Hex,
   writeDefaultPxxlFiles,
   type CDNVisibility,
+  type CreateCronJobInput,
   type DatabaseSummary,
   type DeployConfig,
   type DomainSummary,
   type EnvVarInput,
   type TeamSummary,
+  type UpdateCronJobInput,
 } from "./index.js";
 
 const run = promisify(execFile);
@@ -108,6 +111,16 @@ ${bold("Domains")}
   ${cyan("pxxl domains activate")} <id>        Check activation and SSL routing
   ${cyan("pxxl domains stats")} [domain]      Show proxy stats for a domain
 
+${bold("Cron Jobs")}
+  ${cyan("pxxl cron list")}                    List scheduled HTTP cron jobs
+  ${cyan("pxxl cron create")}                  Create an HTTP cron job
+  ${cyan("pxxl cron get")} [id]                Show cron job details
+  ${cyan("pxxl cron update")} [id]             Update a cron job
+  ${cyan("pxxl cron start|stop|trigger")} [id] Control or run a cron job
+  ${cyan("pxxl cron runs")} [id]               Show cron run history
+  ${cyan("pxxl cron validate-schedule")} "*/5 * * * *"
+  ${cyan("pxxl cron validate-url")} <url>
+
 ${bold("Environment")}
   ${dim("PXXL_API_KEY")} overrides stored credentials.
   ${dim("PXXL_TEAM_ID")} overrides the selected spaceship/team for scoped commands.
@@ -146,6 +159,7 @@ async function main() {
   if (command === "env" || command === "envs") return envs(client, args);
   if (command === "cdn") return cdn(client, args);
   if (command === "domain" || command === "domains") return domains(client, args);
+  if (command === "cron") return cron(client, args);
   if (command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") return teams(client, args);
   if (command === "db" || command === "database" || command === "databases") return databases(client, args);
 
@@ -605,6 +619,115 @@ function valueArgs(args: string[]): string[] {
 
 function flagTakesValue(flag: string): boolean {
   return !["--json", "--alias", "--force", "--global", "--follow", "--dashboard"].includes(flag);
+}
+
+async function cron(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "list";
+  const teamId = flagValue(args, "--team");
+  if (command === "list" || command === "ls") {
+    const result = await spinner("Fetching cron jobs", () => client.listCronJobs({ teamId }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printCronJobs(result);
+  }
+  if (command === "create") {
+    const input = await cronInputFromArgs(client, args, false);
+    const body = requireCronCreateInput(input);
+    try {
+      const result = await spinner("Creating cron job", () => client.createCronJob({ ...body, teamId }));
+      if (wantsJSON(args)) return printJSON(result);
+      return printCronJobDetails(result, "Cron job created");
+    } catch (error) {
+      if (isCronPlanLimitError(error)) {
+        printCronPlanLimit(error);
+        return;
+      }
+      throw error;
+    }
+  }
+  if (command === "get") {
+    const id = firstValueArg(args) || await resolveCronJobId(client, args);
+    const result = await spinner("Fetching cron job", () => client.getCronJob(id, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printCronJobDetails(result, "Cron job");
+  }
+  if (command === "update") {
+    const id = firstValueArg(args) || await resolveCronJobId(client, args);
+    const input = await cronInputFromArgs(client, args, true);
+    const result = await spinner("Updating cron job", () => client.updateCronJob(id, { ...input, teamId }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printCronJobDetails(result, "Cron job updated");
+  }
+  if (command === "delete" || command === "rm") {
+    const id = firstValueArg(args) || await resolveCronJobId(client, args);
+    const result = await spinner("Deleting cron job", () => client.deleteCronJob(id, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printResult(result, "Cron job deleted");
+  }
+  if (command === "start" || command === "stop" || command === "trigger") {
+    const id = firstValueArg(args) || await resolveCronJobId(client, args);
+    const method = command === "start" ? client.startCronJob.bind(client) : command === "stop" ? client.stopCronJob.bind(client) : client.triggerCronJob.bind(client);
+    const result = await spinner(`${labelize(command)} cron job`, () => method(id, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printResult(result, `Cron job ${command === "trigger" ? "triggered" : command + "ed"}`);
+  }
+  if (command === "runs") {
+    const id = firstValueArg(args) || await resolveCronJobId(client, args);
+    const result = await spinner("Fetching cron runs", () => client.listCronJobRuns(id, { page: Number(flagValue(args, "--page") || 1), limit: Number(flagValue(args, "--limit") || 20), teamId }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printCronRuns(result);
+  }
+  if (command === "validate-schedule") {
+    const schedule = firstValueArg(args) || await promptText("Schedule", "*/5 * * * *");
+    const result = await spinner("Validating schedule", () => client.validateCronSchedule(schedule));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Cron schedule", result);
+  }
+  if (command === "validate-url") {
+    const url = firstValueArg(args) || await promptText("URL");
+    const result = await spinner("Validating URL", () => client.validateCronURL(url));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Cron URL", result);
+  }
+  throw new Error(`Unknown cron command: ${command}`);
+}
+
+type CronCLIInput = Partial<CreateCronJobInput & UpdateCronJobInput>;
+
+async function cronInputFromArgs(client: PxxlClient, args: string[], partial: boolean): Promise<CronCLIInput> {
+  const name = flagValue(args, "--name") || (partial ? undefined : await promptText("Name"));
+  const schedule = flagValue(args, "--schedule") || (partial ? undefined : await promptText("Schedule", "*/5 * * * *"));
+  const url = flagValue(args, "--url") || (partial ? undefined : await promptText("URL"));
+  const method = (flagValue(args, "--method") || (partial ? undefined : await promptSelect("Method", ["GET", "POST", "PUT", "PATCH", "DELETE"].map((value) => ({ label: value, value }))))) as string | undefined;
+  const timeout = flagValue(args, "--timeout") || flagValue(args, "--timeout-seconds");
+  const headersRaw = flagValue(args, "--headers");
+  const projectFlag = flagValue(args, "--project");
+  const projectId = projectFlag === "none" ? undefined : projectFlag || undefined;
+  const input: CronCLIInput = {};
+  if (name) input.name = name;
+  if (schedule) input.schedule = schedule;
+  if (url) input.url = url;
+  if (method) input.method = method.toUpperCase();
+  if (timeout) input.timeoutSeconds = Number(timeout);
+  if (headersRaw) input.headers = parseHeadersJSON(headersRaw);
+  if (projectId) input.projectId = projectId === "select" ? await resolveProjectId(client, undefined, args) : projectId;
+  return input;
+}
+
+function requireCronCreateInput(input: CronCLIInput): CreateCronJobInput {
+  if (!input.name || !input.schedule || !input.url) {
+    throw new Error("Cron job name, schedule, and URL are required. Pass --name, --schedule, and --url or run interactively.");
+  }
+  return input as CreateCronJobInput;
+}
+
+function isCronPlanLimitError(error: unknown): error is PxxlAPIError {
+  return error instanceof PxxlAPIError && stringValue(asRecord(error.details).code) === "CRON_JOB_LIMIT_REACHED";
+}
+
+function parseHeadersJSON(raw: string): Record<string, string> {
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("--headers must be a JSON object");
+  return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value)]));
 }
 
 function firstValueArg(args: string[]): string | undefined {
@@ -1168,6 +1291,15 @@ async function resolveDomainId(client: PxxlClient, args: string[]): Promise<stri
   })).filter((option) => option.value && option.value !== "-"));
 }
 
+async function resolveCronJobId(client: PxxlClient, args: string[]): Promise<string> {
+  const result = await spinner("Fetching cron jobs", () => client.listCronJobs({ teamId: flagValue(args, "--team") }));
+  const jobs = normalizeCronRows(result);
+  return promptSelect("Choose cron job", jobs.map((job) => ({
+    label: `${job.name || job.id} ${dim(job.status || job.schedule || "")}`,
+    value: job.id || "",
+  })).filter((option) => option.value));
+}
+
 async function resolveProjectIdFromArgsOrConfig(client: PxxlClient, id: string | undefined, args: string[]): Promise<string> {
   if (id) return id;
   const config = await readPxxlToml(resolve(flagValue(args, "--dir") || "."));
@@ -1484,6 +1616,62 @@ function printDomains(value: unknown) {
   printHeader("Domains");
   if (!rows.length) return print(dim("No domains found."));
   printTable("", rows, ["domain", "status", "type", "id"]);
+}
+
+function printCronJobs(value: unknown) {
+  const rows = normalizeCronRows(value);
+  printHeader("Cron jobs");
+  if (!rows.length) return print(dim("No cron jobs found."));
+  printTable("", rows, ["name", "status", "schedule", "method", "next", "id"]);
+}
+
+function printCronJobDetails(value: unknown, title: string) {
+  const job = asRecord(value);
+  printHeader(title);
+  printKV([
+    ["ID", stringValue(job.id)],
+    ["Name", stringValue(job.name)],
+    ["Status", cronStatusLabel(stringValue(job.status))],
+    ["Schedule", stringValue(job.schedule)],
+    ["URL", stringValue(job.url)],
+    ["Method", stringValue(job.method)],
+    ["Timeout", job.timeoutSeconds ? `${job.timeoutSeconds}s` : "-"],
+    ["Project", stringValue(job.projectId) || "-"],
+    ["Team", stringValue(job.teamId) || "-"],
+    ["Failures", numberValue(job.consecutiveFailures)],
+    ["Next run", shortDate(job.nextRunAt)],
+    ["Last run", shortDate(job.lastRunAt)],
+  ]);
+  if (job.disabledReason) print(`${red("Disabled")} ${stringValue(job.disabledReason)}`);
+}
+
+function printCronRuns(value: unknown) {
+  const root = asRecord(value);
+  const rows = arrayValue(root.runs || root.data || value).map((item) => {
+    const run = asRecord(item);
+    return {
+      status: cronStatusLabel(stringValue(run.status)),
+      code: run.statusCode === undefined || run.statusCode === null ? "-" : String(run.statusCode),
+      timedOut: run.timedOut ? "yes" : "no",
+      started: shortDate(run.startedAt),
+      finished: shortDate(run.finishedAt),
+      id: stringValue(run.id),
+    };
+  });
+  printHeader("Cron runs");
+  if (!rows.length) return print(dim("No cron runs found."));
+  printTable("", rows, ["status", "code", "timedOut", "started", "finished", "id"]);
+  printPageInfo(value);
+}
+
+function printCronPlanLimit(error: unknown) {
+  const details = asRecord((error as { details?: unknown }).details);
+  if (stringValue(details.code) !== "CRON_JOB_LIMIT_REACHED") return;
+  print(`${red("Cron job limit reached")} ${stringValue(details.message)}`);
+  printKV([
+    ["Limit", details.limit ?? "-"],
+    ["Current", details.current ?? "-"],
+  ]);
 }
 
 function printProjects(value: unknown) {
@@ -1888,6 +2076,28 @@ function normalizeDomainRows(value: unknown): Record<string, string>[] {
       id: stringValue(domain.id) || "-",
     };
   }).filter((row) => row.domain);
+}
+
+function normalizeCronRows(value: unknown): Record<string, string>[] {
+  const root = asRecord(value);
+  return arrayValue(root.cronJobs || root.data || value).map((item) => {
+    const job = asRecord(item);
+    return {
+      name: stringValue(job.name || job.id),
+      status: stringValue(job.status) || "-",
+      schedule: stringValue(job.schedule) || "-",
+      method: stringValue(job.method) || "-",
+      next: shortDate(job.nextRunAt),
+      id: stringValue(job.id),
+    };
+  }).filter((row) => row.id);
+}
+
+function cronStatusLabel(value: string): string {
+  if (value === "active" || value === "success") return green(value);
+  if (value === "paused" || value === "running") return cyan(value);
+  if (value === "disabled" || value === "failed") return red(value);
+  return value || "-";
 }
 
 function locationRow(value: unknown): Record<string, string> {

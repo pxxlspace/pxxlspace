@@ -95,6 +95,41 @@ func downloadDomainCertificate(ctx context.Context, client *pxxl.Client, domainI
 	return client.DownloadDomainCertificate(ctx, domainID, "")
 }
 
+func createCronJob(ctx context.Context, client *pxxl.Client, name, targetURL string) (*pxxl.CronJob, error) {
+	return client.CreateCronJob(ctx, pxxl.CreateCronJobInput{
+		Name:           name,
+		Schedule:       "*/5 * * * *",
+		URL:            targetURL,
+		Method:         "POST",
+		TimeoutSeconds: 10,
+		Headers:        map[string]string{"User-Agent": "Pxxl-Cron/1.0"},
+	})
+}
+
+func listCronJobs(ctx context.Context, client *pxxl.Client) ([]pxxl.CronJob, error) {
+	return client.ListCronJobs(ctx, "")
+}
+
+func triggerCronJob(ctx context.Context, client *pxxl.Client, cronJobID string) (map[string]any, error) {
+	return client.TriggerCronJob(ctx, cronJobID, "")
+}
+
+func listCronJobRuns(ctx context.Context, client *pxxl.Client, cronJobID string) ([]pxxl.CronJobRun, error) {
+	return client.ListCronJobRuns(ctx, cronJobID, nil)
+}
+
+func validateCronJobInputs(ctx context.Context, client *pxxl.Client, targetURL, schedule string) (map[string]any, map[string]any, error) {
+	urlResult, err := client.ValidateCronURL(ctx, targetURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	scheduleResult, err := client.ValidateCronSchedule(ctx, schedule)
+	if err != nil {
+		return nil, nil, err
+	}
+	return urlResult, scheduleResult, nil
+}
+
 func main() {
 	if os.Getenv("PXXL_API_KEY") == "" {
 		log.Fatal("PXXL_API_KEY is required")

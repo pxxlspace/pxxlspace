@@ -97,6 +97,39 @@ export async function downloadDomainCertificate(domainId) {
   return pxxl.downloadDomainCertificate(domainId);
 }
 
+export async function createCronJob(name = "cache warmer", url = "https://example.com/api/warm-cache") {
+  return pxxl.createCronJob({
+    name,
+    schedule: "*/5 * * * *",
+    url,
+    method: "POST",
+    timeoutSeconds: 10,
+    headers: {
+      "User-Agent": "Pxxl-Cron/1.0",
+    },
+  });
+}
+
+export async function listCronJobs() {
+  return pxxl.listCronJobs();
+}
+
+export async function triggerCronJob(cronJobId) {
+  return pxxl.triggerCronJob(cronJobId);
+}
+
+export async function listCronJobRuns(cronJobId) {
+  return pxxl.listCronJobRuns(cronJobId, { page: 1, limit: 20 });
+}
+
+export async function validateCronJobInputs(url = "https://example.com/job", schedule = "*/5 * * * *") {
+  const [urlResult, scheduleResult] = await Promise.all([
+    pxxl.validateCronURL(url),
+    pxxl.validateCronSchedule(schedule),
+  ]);
+  return { url: urlResult, schedule: scheduleResult };
+}
+
 export async function listSpaceships() {
   return pxxl.listTeams();
 }

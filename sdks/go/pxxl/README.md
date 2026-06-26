@@ -80,4 +80,21 @@ certificate, err := client.DownloadDomainCertificate(context.Background(), "dom_
 
 Domain write operations require an API key with `scope=domain`, `scope=domains`, or `scope=all` and `permission=read_write`.
 
+## Manage cron jobs
+
+```go
+job, err := client.CreateCronJob(context.Background(), pxxl.CreateCronJobInput{
+  Name: "cache warmer",
+  Schedule: "*/5 * * * *",
+  URL: "https://example.com/api/warm-cache",
+  Method: "POST",
+  TimeoutSeconds: 10,
+})
+
+runs, err := client.ListCronJobRuns(context.Background(), job.ID, nil)
+triggered, err := client.TriggerCronJob(context.Background(), job.ID, "")
+```
+
+Cron read operations require `scope=cron`, `scope=cronjobs`, or `scope=all` with `permission=read`. Create, update, delete, start, stop, and trigger require `permission=read_write`.
+
 See `examples/go-sdk-functions` for copyable functions.

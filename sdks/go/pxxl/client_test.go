@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -207,6 +208,89 @@ func TestCreateDomainDNSRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result["message"] != "DNS record saved" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestCreateCronJob(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cli/cronjobs" || r.URL.Query().Get("teamId") != "team_1" {
+			t.Fatalf("path/query = %s?%s", r.URL.Path, r.URL.RawQuery)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["name"] != "cleanup" || payload["schedule"] != "*/5 * * * *" || payload["url"] != "https://example.com/job" {
+			t.Fatalf("payload = %#v", payload)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "cron_1", "name": "cleanup", "schedule": "*/5 * * * *", "url": "https://example.com/job", "method": "GET", "status": "active"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	job, err := client.CreateCronJob(context.Background(), CreateCronJobInput{Name: "cleanup", Schedule: "*/5 * * * *", URL: "https://example.com/job", Method: "GET", TeamID: "team_1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.ID != "cron_1" {
+		t.Fatalf("job = %#v", job)
+	}
+}
+
+func TestCronActionsAndRuns(t *testing.T) {
+	paths := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.Method+" "+r.URL.String())
+		if strings.HasSuffix(r.URL.Path, "/runs") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"runs": []map[string]any{{"id": "run_1", "cronJobId": "cron_1", "status": "success", "startedAt": "2026-06-26T00:00:00Z"}}})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"message": "ok"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	if _, err := client.TriggerCronJob(context.Background(), "cron_1", "team_1"); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := client.ListCronJobRuns(context.Background(), "cron_1", url.Values{"page": []string{"1"}, "limit": []string{"20"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 || runs[0].ID != "run_1" {
+		t.Fatalf("runs = %#v", runs)
+	}
+	if paths[0] != "POST /cli/cronjobs/cron_1/trigger?teamId=team_1" || paths[1] != "GET /cli/cronjobs/cron_1/runs?limit=20&page=1" {
+		t.Fatalf("paths = %#v", paths)
+	}
+}
+
+func TestValidateCronSchedule(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cli/cronjobs/validate-schedule" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		var payload map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload["schedule"] != "*/5 * * * *" {
+			t.Fatalf("payload = %#v", payload)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"valid": true})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.ValidateCronSchedule(context.Background(), "*/5 * * * *")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["valid"] != true {
 		t.Fatalf("result = %#v", result)
 	}
 }

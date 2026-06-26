@@ -160,6 +160,57 @@ export interface DomainSettingsInput {
     proxyRules?: Record<string, unknown>;
     teamId?: string;
 }
+export interface CronJob {
+    id: string;
+    userId?: string;
+    projectId?: string | null;
+    teamId?: string | null;
+    name: string;
+    schedule: string;
+    url: string;
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | string;
+    headers?: Record<string, string>;
+    timeoutSeconds: number;
+    status: "active" | "paused" | "disabled" | string;
+    consecutiveFailures?: number;
+    disabledReason?: string | null;
+    lastRunAt?: string | null;
+    nextRunAt?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+}
+export interface CronJobRun {
+    id: string;
+    cronJobId: string;
+    status: "running" | "success" | "failed" | string;
+    statusCode?: number | null;
+    output?: string | null;
+    error?: string | null;
+    timedOut?: boolean;
+    startedAt: string;
+    finishedAt?: string | null;
+}
+export interface CreateCronJobInput {
+    name: string;
+    schedule: string;
+    url: string;
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | string;
+    headers?: Record<string, string>;
+    timeoutSeconds?: number;
+    projectId?: string;
+    teamId?: string;
+}
+export interface UpdateCronJobInput {
+    name?: string;
+    schedule?: string;
+    url?: string;
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | string;
+    headers?: Record<string, string>;
+    timeoutSeconds?: number;
+    status?: "active" | "paused" | "disabled" | string;
+    projectId?: string;
+    teamId?: string;
+}
 export interface TeamSummary {
     id: string;
     name: string;
@@ -374,6 +425,31 @@ export declare class PxxlClient {
     getDomainZoneStatus(id: string, teamId?: string | undefined): Promise<unknown>;
     switchDomainToPxxlDNS(id: string, teamId?: string | undefined): Promise<unknown>;
     activateDomain(id: string, teamId?: string | undefined): Promise<unknown>;
+    listCronJobs(input?: {
+        teamId?: string;
+    }): Promise<{
+        cronJobs: CronJob[];
+    }>;
+    createCronJob(input: CreateCronJobInput): Promise<CronJob>;
+    getCronJob(id: string, teamId?: string | undefined): Promise<CronJob>;
+    updateCronJob(id: string, input: UpdateCronJobInput): Promise<CronJob>;
+    deleteCronJob(id: string, teamId?: string | undefined): Promise<unknown>;
+    startCronJob(id: string, teamId?: string | undefined): Promise<unknown>;
+    stopCronJob(id: string, teamId?: string | undefined): Promise<unknown>;
+    triggerCronJob(id: string, teamId?: string | undefined): Promise<unknown>;
+    listCronJobRuns(id: string, input?: {
+        page?: number;
+        limit?: number;
+        teamId?: string;
+    }): Promise<{
+        runs: CronJobRun[];
+        total?: number;
+        page?: number;
+        limit?: number;
+        totalPages?: number;
+    }>;
+    validateCronSchedule(schedule: string): Promise<unknown>;
+    validateCronURL(url: string): Promise<unknown>;
     listTeams(): Promise<{
         teams: TeamSummary[];
         total: number;

@@ -35,6 +35,9 @@ pxxl domains list
 pxxl domains connect example.com --project <project-id>
 pxxl domains records <domain-id>
 pxxl domains stats
+pxxl cron list
+pxxl cron create --name cleanup --schedule "*/5 * * * *" --url https://example.com/job
+pxxl cron runs <cron-job-id>
 ```
 
 `pxxl login` validates the API key before saving it and prints the authenticated user, scope, and spaceship context. The CLI always uses the official Pxxl Gateway endpoint.
@@ -44,6 +47,7 @@ CLI commands print readable terminal output by default. Add `--json` when you ne
 `pxxl pull` verifies the local git remote before updating an existing checkout, then refuses to pull into dirty working trees.
 `pxxl stats` and `pxxl usage` show deployment, project, artifact, and build-minute usage for the current personal or selected spaceship scope.
 `pxxl db create`, `pxxl db get`, database lifecycle commands, `pxxl team use`, `pxxl env push`, and `pxxl domains stats` become interactive when you omit the target value.
+`pxxl cron create`, `pxxl cron get`, `pxxl cron update`, `pxxl cron start`, `pxxl cron stop`, `pxxl cron trigger`, and `pxxl cron runs` also become interactive when required IDs or fields are omitted.
 
 ## Node SDK
 
@@ -59,6 +63,12 @@ const connected = await pxxl.connectDomain({ domain: "example.com", projectId: "
 const records = await pxxl.listDomainDNSRecords("dom_123");
 const teams = await pxxl.listTeams();
 const database = await pxxl.createDatabase({ name: "app-db", type: "postgres" });
+const cron = await pxxl.createCronJob({
+  name: "cache warmer",
+  schedule: "*/5 * * * *",
+  url: "https://example.com/api/warm-cache",
+  method: "POST",
+});
 const asset = await pxxl.uploadAsset({
   file: new Blob(["hello"]),
   fileName: "hello.txt",
@@ -69,11 +79,12 @@ const asset = await pxxl.uploadAsset({
 Domain search returns availability, prices, renewal pricing, and active promo fields such as `.cv` bonus amounts when the API returns them.
 Domain management supports project connection, DNS verification, managed DNS records, nameservers, activation checks, and certificate download.
 Database commands use the same managed database provisioning API as the dashboard. Use `pxxl team use <team-id>` or `PXXL_TEAM_ID` to create/list databases inside a spaceship.
+Cron jobs are HTTP-only scheduled jobs. Use `scope=cron`, `scope=cronjobs`, or `scope=all`; read operations work with `permission=read`, while create/update/delete/start/stop/trigger require `permission=read_write`.
 
 ## Examples
 
-- `examples/node-sdk-functions`: copyable Node functions for deploys, CDN, domains, teams, projects, deployments, databases, env vars, stats, and usage.
-- `examples/go-sdk-functions`: copyable Go functions for deploys, CDN, and domain search/pricing.
+- `examples/node-sdk-functions`: copyable Node functions for deploys, CDN, domains, cron jobs, teams, projects, deployments, databases, env vars, stats, and usage.
+- `examples/go-sdk-functions`: copyable Go functions for deploys, CDN, domains, and cron jobs.
 - `examples/node-cdn-upload`: minimal Node CDN upload.
 - `examples/go-cdn-upload`: minimal Go CDN upload.
 - `examples/microservices-node`: multi-service Pxxl project example.
@@ -98,3 +109,6 @@ Direct IDs still work for scripts, for example `express-bun`, `express-npm`, `vi
 - Domain reseller SDK: [docs.pxxl.app/api/domain-reseller-sdk](https://docs.pxxl.app/api/domain-reseller-sdk)
 - Domain Node SDK: [docs.pxxl.app/api/domain-node-sdk](https://docs.pxxl.app/api/domain-node-sdk)
 - Domain Go SDK: [docs.pxxl.app/api/domain-go-sdk](https://docs.pxxl.app/api/domain-go-sdk)
+- Cron CLI: [docs.pxxl.app/api/cron-cli](https://docs.pxxl.app/api/cron-cli)
+- Cron Node SDK: [docs.pxxl.app/api/cron-node-sdk](https://docs.pxxl.app/api/cron-node-sdk)
+- Cron Go SDK: [docs.pxxl.app/api/cron-go-sdk](https://docs.pxxl.app/api/cron-go-sdk)

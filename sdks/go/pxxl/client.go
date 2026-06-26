@@ -173,6 +173,61 @@ type DomainDNSRecordInput struct {
 	TeamID   string                 `json:"-"`
 }
 
+type CronJob struct {
+	ID                  string            `json:"id"`
+	UserID              string            `json:"userId,omitempty"`
+	ProjectID           *string           `json:"projectId,omitempty"`
+	TeamID              *string           `json:"teamId,omitempty"`
+	Name                string            `json:"name"`
+	Schedule            string            `json:"schedule"`
+	URL                 string            `json:"url"`
+	Method              string            `json:"method"`
+	Headers             map[string]string `json:"headers,omitempty"`
+	TimeoutSeconds      int               `json:"timeoutSeconds"`
+	Status              string            `json:"status"`
+	ConsecutiveFailures int               `json:"consecutiveFailures,omitempty"`
+	DisabledReason      *string           `json:"disabledReason,omitempty"`
+	LastRunAt           *string           `json:"lastRunAt,omitempty"`
+	NextRunAt           *string           `json:"nextRunAt,omitempty"`
+	CreatedAt           string            `json:"createdAt,omitempty"`
+	UpdatedAt           string            `json:"updatedAt,omitempty"`
+}
+
+type CronJobRun struct {
+	ID         string  `json:"id"`
+	CronJobID  string  `json:"cronJobId"`
+	Status     string  `json:"status"`
+	StatusCode *int    `json:"statusCode,omitempty"`
+	Output     *string `json:"output,omitempty"`
+	Error      *string `json:"error,omitempty"`
+	TimedOut   bool    `json:"timedOut,omitempty"`
+	StartedAt  string  `json:"startedAt"`
+	FinishedAt *string `json:"finishedAt,omitempty"`
+}
+
+type CreateCronJobInput struct {
+	Name           string            `json:"name"`
+	Schedule       string            `json:"schedule"`
+	URL            string            `json:"url"`
+	Method         string            `json:"method,omitempty"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	TimeoutSeconds int               `json:"timeoutSeconds,omitempty"`
+	ProjectID      string            `json:"projectId,omitempty"`
+	TeamID         string            `json:"-"`
+}
+
+type UpdateCronJobInput struct {
+	Name           string            `json:"name,omitempty"`
+	Schedule       string            `json:"schedule,omitempty"`
+	URL            string            `json:"url,omitempty"`
+	Method         string            `json:"method,omitempty"`
+	Headers        map[string]string `json:"headers,omitempty"`
+	TimeoutSeconds int               `json:"timeoutSeconds,omitempty"`
+	Status         string            `json:"status,omitempty"`
+	ProjectID      string            `json:"projectId,omitempty"`
+	TeamID         string            `json:"-"`
+}
+
 type DeployInput struct {
 	Directory      string
 	ArchivePath    string
@@ -428,6 +483,101 @@ func (c *Client) DownloadDomainCertificate(ctx context.Context, id, teamID strin
 		return nil, decodeAPIError(resp)
 	}
 	return io.ReadAll(resp.Body)
+}
+
+func (c *Client) ListCronJobs(ctx context.Context, teamID string) ([]CronJob, error) {
+	var out struct {
+		CronJobs []CronJob `json:"cronJobs"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/cli/cronjobs"+teamQuery(teamID), nil, &out); err != nil {
+		return nil, err
+	}
+	return out.CronJobs, nil
+}
+
+func (c *Client) CreateCronJob(ctx context.Context, input CreateCronJobInput) (*CronJob, error) {
+	if strings.TrimSpace(input.Name) == "" || strings.TrimSpace(input.Schedule) == "" || strings.TrimSpace(input.URL) == "" {
+		return nil, fmt.Errorf("pxxl: cron job name, schedule, and url are required")
+	}
+	body, _ := json.Marshal(input)
+	var out CronJob
+	if err := c.doJSON(ctx, http.MethodPost, "/cli/cronjobs"+teamQuery(input.TeamID), bytes.NewReader(body), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) GetCronJob(ctx context.Context, id, teamID string) (*CronJob, error) {
+	var out CronJob
+	if err := c.doJSON(ctx, http.MethodGet, "/cli/cronjobs/"+url.PathEscape(id)+teamQuery(teamID), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) UpdateCronJob(ctx context.Context, id string, input UpdateCronJobInput) (*CronJob, error) {
+	body, _ := json.Marshal(input)
+	var out CronJob
+	if err := c.doJSON(ctx, http.MethodPut, "/cli/cronjobs/"+url.PathEscape(id)+teamQuery(input.TeamID), bytes.NewReader(body), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) DeleteCronJob(ctx context.Context, id, teamID string) error {
+	return c.doJSON(ctx, http.MethodDelete, "/cli/cronjobs/"+url.PathEscape(id)+teamQuery(teamID), nil, nil)
+}
+
+func (c *Client) StartCronJob(ctx context.Context, id, teamID string) (map[string]any, error) {
+	return c.cronAction(ctx, id, "start", teamID)
+}
+
+func (c *Client) StopCronJob(ctx context.Context, id, teamID string) (map[string]any, error) {
+	return c.cronAction(ctx, id, "stop", teamID)
+}
+
+func (c *Client) TriggerCronJob(ctx context.Context, id, teamID string) (map[string]any, error) {
+	return c.cronAction(ctx, id, "trigger", teamID)
+}
+
+func (c *Client) cronAction(ctx context.Context, id, action, teamID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodPost, "/cli/cronjobs/"+url.PathEscape(id)+"/"+action+teamQuery(teamID), bytes.NewReader([]byte("{}")), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ListCronJobRuns(ctx context.Context, id string, values url.Values) ([]CronJobRun, error) {
+	path := "/cli/cronjobs/" + url.PathEscape(id) + "/runs"
+	if len(values) > 0 {
+		path += "?" + values.Encode()
+	}
+	var out struct {
+		Runs []CronJobRun `json:"runs"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Runs, nil
+}
+
+func (c *Client) ValidateCronSchedule(ctx context.Context, schedule string) (map[string]any, error) {
+	payload, _ := json.Marshal(map[string]string{"schedule": schedule})
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodPost, "/cli/cronjobs/validate-schedule", bytes.NewReader(payload), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ValidateCronURL(ctx context.Context, targetURL string) (map[string]any, error) {
+	payload, _ := json.Marshal(map[string]string{"url": targetURL})
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodPost, "/cli/cronjobs/validate-url", bytes.NewReader(payload), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *Client) Deploy(ctx context.Context, input DeployInput) (*DeployResult, error) {

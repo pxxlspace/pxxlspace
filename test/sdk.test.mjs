@@ -183,6 +183,53 @@ test("manages domain DNS records through CLI-safe routes", async () => {
   ]);
 });
 
+test("manages cron jobs through CLI-safe routes", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method || "GET", body: init.body ? JSON.parse(init.body) : null });
+      if (url.endsWith("/runs?page=1&limit=20&teamId=team_123")) {
+        return Response.json({ runs: [{ id: "run_1", cronJobId: "cron_1", status: "success", startedAt: "2026-06-26T00:00:00Z" }] });
+      }
+      if (url.endsWith("/validate-schedule")) return Response.json({ valid: true, nextRun: "2026-06-26T00:05:00Z" });
+      if (url.endsWith("/validate-url")) return Response.json({ reachable: true, statusCode: 200 });
+      if ((init.method || "GET") === "GET") return Response.json({ cronJobs: [{ id: "cron_1", name: "cleanup", schedule: "*/5 * * * *", url: "https://example.com/job", method: "GET", status: "active" }] });
+      return Response.json({ id: "cron_1", name: "cleanup", schedule: "*/5 * * * *", url: "https://example.com/job", method: "GET", status: "active" });
+    },
+  });
+  await client.listCronJobs();
+  await client.createCronJob({ name: "cleanup", schedule: "*/5 * * * *", url: "https://example.com/job" });
+  await client.updateCronJob("cron_1", { status: "paused" });
+  await client.triggerCronJob("cron_1");
+  await client.listCronJobRuns("cron_1", { page: 1, limit: 20 });
+  await client.validateCronSchedule("*/5 * * * *");
+  await client.validateCronURL("https://example.com/job");
+  assert.deepEqual(calls.map((call) => `${call.method} ${call.url}`), [
+    "GET https://gateway.pxxl.app/api/v3/cli/cronjobs?teamId=team_123",
+    "POST https://gateway.pxxl.app/api/v3/cli/cronjobs?teamId=team_123",
+    "PUT https://gateway.pxxl.app/api/v3/cli/cronjobs/cron_1?teamId=team_123",
+    "POST https://gateway.pxxl.app/api/v3/cli/cronjobs/cron_1/trigger?teamId=team_123",
+    "GET https://gateway.pxxl.app/api/v3/cli/cronjobs/cron_1/runs?page=1&limit=20&teamId=team_123",
+    "POST https://gateway.pxxl.app/api/v3/cli/cronjobs/validate-schedule",
+    "POST https://gateway.pxxl.app/api/v3/cli/cronjobs/validate-url",
+  ]);
+});
+
+test("cron plan limits remain typed API errors", async () => {
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    fetchImpl: async () => Response.json({ code: "CRON_JOB_LIMIT_REACHED", message: "Cron job limit reached (1/1).", limit: 1, current: 1 }, { status: 403 }),
+  });
+  await assert.rejects(() => client.createCronJob({ name: "cleanup", schedule: "*/5 * * * *", url: "https://example.com/job" }), (error) => {
+    assert.ok(error instanceof PxxlAPIError);
+    assert.equal(error.status, 403);
+    assert.equal(error.details.code, "CRON_JOB_LIMIT_REACHED");
+    return true;
+  });
+});
+
 test("diffs env vars without requesting remote secret values", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",

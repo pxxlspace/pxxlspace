@@ -193,6 +193,52 @@ export class PxxlClient {
     async activateDomain(id, teamId = this.teamId) {
         return this.request(`/cli/domains/${encodeURIComponent(id)}/activate${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
     }
+    async listCronJobs(input = {}) {
+        return this.request(`/cli/cronjobs${teamQuery(input.teamId || this.teamId)}`);
+    }
+    async createCronJob(input) {
+        const teamId = input.teamId || this.teamId;
+        const { teamId: _teamId, ...body } = input;
+        return this.request(`/cli/cronjobs${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify(body) });
+    }
+    async getCronJob(id, teamId = this.teamId) {
+        return this.request(`/cli/cronjobs/${encodeURIComponent(id)}${teamQuery(teamId)}`);
+    }
+    async updateCronJob(id, input) {
+        const teamId = input.teamId || this.teamId;
+        const { teamId: _teamId, ...body } = input;
+        return this.request(`/cli/cronjobs/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "PUT", body: JSON.stringify(body) });
+    }
+    async deleteCronJob(id, teamId = this.teamId) {
+        return this.request(`/cli/cronjobs/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "DELETE" });
+    }
+    async startCronJob(id, teamId = this.teamId) {
+        return this.request(`/cli/cronjobs/${encodeURIComponent(id)}/start${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+    }
+    async stopCronJob(id, teamId = this.teamId) {
+        return this.request(`/cli/cronjobs/${encodeURIComponent(id)}/stop${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+    }
+    async triggerCronJob(id, teamId = this.teamId) {
+        return this.request(`/cli/cronjobs/${encodeURIComponent(id)}/trigger${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+    }
+    async listCronJobRuns(id, input = {}) {
+        const params = new URLSearchParams();
+        if (input.page)
+            params.set("page", String(input.page));
+        if (input.limit)
+            params.set("limit", String(input.limit));
+        const teamId = input.teamId || this.teamId;
+        if (teamId)
+            params.set("teamId", teamId);
+        const suffix = params.size ? `?${params.toString()}` : "";
+        return this.request(`/cli/cronjobs/${encodeURIComponent(id)}/runs${suffix}`);
+    }
+    async validateCronSchedule(schedule) {
+        return this.request("/cli/cronjobs/validate-schedule", { method: "POST", body: JSON.stringify({ schedule }) });
+    }
+    async validateCronURL(url) {
+        return this.request("/cli/cronjobs/validate-url", { method: "POST", body: JSON.stringify({ url }) });
+    }
     async listTeams() {
         return this.request("/teams");
     }

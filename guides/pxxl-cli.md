@@ -120,3 +120,25 @@ pxxl domains stats example.com --timeframe 30d
 ```
 
 Domain commands use the same Gateway proxy and DNS source as the dashboard. If you omit a selectable target, the CLI fetches your available domains and lets you select one. Bulk connects report accepted domains separately from plan-limit rejections.
+
+## Cron Jobs
+
+```bash
+pxxl cron list
+pxxl cron create
+pxxl cron create --name cleanup --schedule "*/5 * * * *" --url https://example.com/job --method POST
+pxxl cron get <cron-job-id>
+pxxl cron update <cron-job-id> --schedule "0 * * * *"
+pxxl cron stop <cron-job-id>
+pxxl cron start <cron-job-id>
+pxxl cron trigger <cron-job-id>
+pxxl cron runs <cron-job-id>
+pxxl cron validate-schedule "*/5 * * * *"
+pxxl cron validate-url https://example.com/job
+```
+
+Cron commands manage scheduled HTTP jobs through the same worker used by the dashboard. Run `pxxl cron create` without flags to enter an interactive flow for name, schedule, URL, method, timeout, headers, and optional project.
+
+Use an API key with `scope=cron`, `scope=cronjobs`, or `scope=all`. Listing, details, run history, and validation work with `permission=read`; create/update/delete/start/stop/trigger require `permission=read_write`.
+
+Cron jobs use 5-field cron expressions, public `http` or `https` URLs only, request timeouts from 1 to 30 seconds, and `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. Pxxl blocks private and reserved IP targets. Failed jobs are auto-disabled after repeated failures.

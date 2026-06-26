@@ -179,6 +179,61 @@ export interface DomainSettingsInput {
   teamId?: string;
 }
 
+export interface CronJob {
+  id: string;
+  userId?: string;
+  projectId?: string | null;
+  teamId?: string | null;
+  name: string;
+  schedule: string;
+  url: string;
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | string;
+  headers?: Record<string, string>;
+  timeoutSeconds: number;
+  status: "active" | "paused" | "disabled" | string;
+  consecutiveFailures?: number;
+  disabledReason?: string | null;
+  lastRunAt?: string | null;
+  nextRunAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CronJobRun {
+  id: string;
+  cronJobId: string;
+  status: "running" | "success" | "failed" | string;
+  statusCode?: number | null;
+  output?: string | null;
+  error?: string | null;
+  timedOut?: boolean;
+  startedAt: string;
+  finishedAt?: string | null;
+}
+
+export interface CreateCronJobInput {
+  name: string;
+  schedule: string;
+  url: string;
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | string;
+  headers?: Record<string, string>;
+  timeoutSeconds?: number;
+  projectId?: string;
+  teamId?: string;
+}
+
+export interface UpdateCronJobInput {
+  name?: string;
+  schedule?: string;
+  url?: string;
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | string;
+  headers?: Record<string, string>;
+  timeoutSeconds?: number;
+  status?: "active" | "paused" | "disabled" | string;
+  projectId?: string;
+  teamId?: string;
+}
+
 export interface TeamSummary {
   id: string;
   name: string;
@@ -542,6 +597,60 @@ export class PxxlClient {
 
   async activateDomain(id: string, teamId = this.teamId): Promise<unknown> {
     return this.request(`/cli/domains/${encodeURIComponent(id)}/activate${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async listCronJobs(input: { teamId?: string } = {}): Promise<{ cronJobs: CronJob[] }> {
+    return this.request(`/cli/cronjobs${teamQuery(input.teamId || this.teamId)}`);
+  }
+
+  async createCronJob(input: CreateCronJobInput): Promise<CronJob> {
+    const teamId = input.teamId || this.teamId;
+    const { teamId: _teamId, ...body } = input;
+    return this.request(`/cli/cronjobs${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async getCronJob(id: string, teamId = this.teamId): Promise<CronJob> {
+    return this.request(`/cli/cronjobs/${encodeURIComponent(id)}${teamQuery(teamId)}`);
+  }
+
+  async updateCronJob(id: string, input: UpdateCronJobInput): Promise<CronJob> {
+    const teamId = input.teamId || this.teamId;
+    const { teamId: _teamId, ...body } = input;
+    return this.request(`/cli/cronjobs/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "PUT", body: JSON.stringify(body) });
+  }
+
+  async deleteCronJob(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/cronjobs/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "DELETE" });
+  }
+
+  async startCronJob(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/cronjobs/${encodeURIComponent(id)}/start${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async stopCronJob(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/cronjobs/${encodeURIComponent(id)}/stop${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async triggerCronJob(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/cli/cronjobs/${encodeURIComponent(id)}/trigger${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
+  }
+
+  async listCronJobRuns(id: string, input: { page?: number; limit?: number; teamId?: string } = {}): Promise<{ runs: CronJobRun[]; total?: number; page?: number; limit?: number; totalPages?: number }> {
+    const params = new URLSearchParams();
+    if (input.page) params.set("page", String(input.page));
+    if (input.limit) params.set("limit", String(input.limit));
+    const teamId = input.teamId || this.teamId;
+    if (teamId) params.set("teamId", teamId);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return this.request(`/cli/cronjobs/${encodeURIComponent(id)}/runs${suffix}`);
+  }
+
+  async validateCronSchedule(schedule: string): Promise<unknown> {
+    return this.request("/cli/cronjobs/validate-schedule", { method: "POST", body: JSON.stringify({ schedule }) });
+  }
+
+  async validateCronURL(url: string): Promise<unknown> {
+    return this.request("/cli/cronjobs/validate-url", { method: "POST", body: JSON.stringify({ url }) });
   }
 
   async listTeams(): Promise<{ teams: TeamSummary[]; total: number }> {
