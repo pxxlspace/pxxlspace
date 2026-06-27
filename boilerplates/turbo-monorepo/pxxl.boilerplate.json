@@ -1,0 +1,44 @@
+{
+  "id": "turbo-monorepo",
+  "family": "monorepo",
+  "displayName": "Turbo Monorepo",
+  "description": "Turborepo workspace with a Vite web app and Express API service.",
+  "language": "node",
+  "framework": "turborepo",
+  "packageManager": "pnpm",
+  "runtime": "node",
+  "port": 3000,
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm turbo build",
+  "startCommand": "pnpm start:web",
+  "services": [
+    {
+      "alias": "web",
+      "baseDirectory": "apps/web",
+      "port": 3000,
+      "serviceType": "web",
+      "route": true,
+      "language": "node",
+      "framework": "vite",
+      "packageManager": "pnpm",
+      "runtime": "node",
+      "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+      "buildCommand": "cd ../.. && pnpm --filter @pxxl/turbo-web run build",
+      "startCommand": "pnpm run start"
+    },
+    {
+      "alias": "api",
+      "baseDirectory": "apps/api",
+      "port": 3001,
+      "serviceType": "api",
+      "route": true,
+      "language": "node",
+      "framework": "express",
+      "packageManager": "pnpm",
+      "runtime": "node",
+      "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+      "buildCommand": "",
+      "startCommand": "pnpm run start"
+    }
+  ]
+}

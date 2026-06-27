@@ -36,6 +36,16 @@ test("reads boilerplate manifest deploy defaults", async () => {
   assert.equal(manifest.startCommand, "bun src/server.js");
 });
 
+test("reads turbo monorepo boilerplate services", async () => {
+  const manifest = await readBoilerplateManifest("turbo-monorepo", process.cwd());
+  assert.equal(manifest.family, "monorepo");
+  assert.equal(manifest.packageManager, "pnpm");
+  assert.equal(manifest.services.length, 2);
+  assert.equal(manifest.services[0].baseDirectory, "apps/web");
+  assert.equal(manifest.services[0].buildCommand, "cd ../.. && pnpm --filter @pxxl/turbo-web run build");
+  assert.equal(manifest.services[1].framework, "express");
+});
+
 test("uploads CDN multipart file without forcing json content type", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",

@@ -95,10 +95,10 @@ Run `pxxl init --new` to choose a framework first, then choose a package manager
 
 - Express: npm, pnpm, Bun, Yarn.
 - Vite React: npm, pnpm, Bun, Yarn.
-- Astro, Next.js, Vue Vite, SvelteKit, Fastify, Hono, Node TypeScript.
+- Astro, Next.js, Vue Vite, SvelteKit, Fastify, Hono, Node TypeScript, Turbo Monorepo.
 - FastAPI, Flask, Django, PHP, HTML Static, Go HTTP, Rust Axum, Dockerfile Node.
 
-Direct IDs still work for scripts, for example `express-bun`, `express-npm`, `vite-react-pnpm`, `php-basic`, or `static-cdn-gallery`.
+Direct IDs still work for scripts, for example `express-bun`, `express-npm`, `vite-react-pnpm`, `turbo-monorepo`, `php-basic`, or `static-cdn-gallery`.
 
 ## Useful Links
 

@@ -53,10 +53,11 @@ Use `--json` when you need the raw response for automation.
 pxxl init --new
 pxxl init --new express-bun --name my-api
 pxxl init --new vite-react-pnpm --name react-app
+pxxl init --new turbo-monorepo --name workspace-app
 pxxl init --new php-basic --name php-app
 ```
 
-Interactive init lists clean framework names such as Express, Vite React, HTML Static, PHP, FastAPI, Go HTTP, and Rust Axum. When a framework has variants, the CLI asks for the package manager next.
+Interactive init lists clean framework names such as Express, Vite React, Turbo Monorepo, HTML Static, PHP, FastAPI, Go HTTP, and Rust Axum. When a framework has variants, the CLI asks for the package manager next.
 
 Each boilerplate includes a `pxxl.boilerplate.json` manifest. The CLI reads that manifest and writes matching `pxxl.toml` defaults for the package manager, framework, port, install command, build command, and start command. It creates a new folder by default for `--new`, validates the project name and selected Pxxl domain suffix, and can deploy the first version immediately.
 

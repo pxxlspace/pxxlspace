@@ -1,0 +1,15 @@
+{
+  "name": "@pxxl/turbo-ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.jsx"
+  },
+  "scripts": {
+    "build": "echo \"No build needed\"",
+    "lint": "echo \"No lint configured\""
+  },
+  "dependencies": {
+    "react": "^19.2.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@pxxl/turbo-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "lint": "echo \"No lint configured\""
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

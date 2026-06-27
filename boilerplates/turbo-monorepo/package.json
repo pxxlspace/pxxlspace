@@ -1,0 +1,16 @@
+{
+  "name": "pxxl-turbo-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev --parallel",
+    "lint": "turbo lint",
+    "start:web": "pnpm --filter @pxxl/turbo-web start",
+    "start:api": "pnpm --filter @pxxl/turbo-api start"
+  },
+  "devDependencies": {
+    "turbo": "^2.6.3"
+  }
+}
