@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pxxl"
+version = "0.1.0"
+description = "Official Python SDK for Pxxl deploys, CDN assets, domains, and cron jobs."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "Pxxl" }]
+keywords = ["pxxl", "deploy", "cdn", "domains", "cron", "sdk"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+Homepage = "https://pxxl.app"
+Documentation = "https://docs.pxxl.app"
+Repository = "https://github.com/pxxlspace/pxxlspace"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pxxl"]

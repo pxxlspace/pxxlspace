@@ -1,0 +1,23 @@
+[package]
+name = "pxxl"
+version = "0.1.0"
+edition = "2021"
+description = "Official Rust SDK for Pxxl deploys, CDN assets, domains, and cron jobs."
+license = "MIT"
+repository = "https://github.com/pxxlspace/pxxlspace"
+homepage = "https://pxxl.app"
+documentation = "https://docs.pxxl.app"
+keywords = ["pxxl", "deploy", "cdn", "domains", "cron"]
+categories = ["api-bindings", "web-programming::http-client"]
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["fs", "io-util"] }
+walkdir = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

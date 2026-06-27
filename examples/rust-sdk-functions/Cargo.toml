@@ -1,0 +1,9 @@
+[package]
+name = "pxxl-rust-sdk-functions"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+pxxl = { path = "../../sdks/rust/pxxl" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

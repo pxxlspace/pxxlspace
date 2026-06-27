@@ -81,10 +81,51 @@ Domain management supports project connection, DNS verification, managed DNS rec
 Database commands use the same managed database provisioning API as the dashboard. Use `pxxl team use <team-id>` or `PXXL_TEAM_ID` to create/list databases inside a spaceship.
 Cron jobs are HTTP-only scheduled jobs. Use `scope=cron`, `scope=cronjobs`, or `scope=all`; read operations work with `permission=read`, while create/update/delete/start/stop/trigger require `permission=read_write`.
 
+## Python SDK
+
+```bash
+pip install pxxl
+```
+
+```python
+from pxxl import PxxlClient
+
+pxxl = PxxlClient(api_key="pxxl_...")
+
+asset = pxxl.upload_asset(file_path="logo.png", visibility="public")
+domains = pxxl.search_domains("pxxl.cv")
+job = pxxl.create_cron_job(
+    name="cache warmer",
+    schedule="*/5 * * * *",
+    url="https://example.com/api/warm-cache",
+    method="POST",
+)
+```
+
+## Rust SDK
+
+```bash
+cargo add pxxl
+```
+
+```rust
+use pxxl::{PxxlClient, UploadAsset};
+
+let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?;
+let asset = client.upload_asset(UploadAsset {
+    file_name: "hello.txt".into(),
+    bytes: b"hello from Pxxl".to_vec(),
+    visibility: Some("public".into()),
+    ..Default::default()
+}).await?;
+```
+
 ## Examples
 
 - `examples/node-sdk-functions`: copyable Node functions for deploys, CDN, domains, cron jobs, teams, projects, deployments, databases, env vars, stats, and usage.
 - `examples/go-sdk-functions`: copyable Go functions for deploys, CDN, domains, and cron jobs.
+- `examples/python-sdk-functions`: copyable Python functions for deploys, CDN, domains, and cron jobs.
+- `examples/rust-sdk-functions`: copyable Rust functions for deploys, CDN, domains, and cron jobs.
 - `examples/node-cdn-upload`: minimal Node CDN upload.
 - `examples/go-cdn-upload`: minimal Go CDN upload.
 - `examples/microservices-node`: multi-service Pxxl project example.
@@ -109,6 +150,8 @@ Direct IDs still work for scripts, for example `express-bun`, `express-npm`, `vi
 - Domain reseller SDK: [docs.pxxl.app/api/domain-reseller-sdk](https://docs.pxxl.app/api/domain-reseller-sdk)
 - Domain Node SDK: [docs.pxxl.app/api/domain-node-sdk](https://docs.pxxl.app/api/domain-node-sdk)
 - Domain Go SDK: [docs.pxxl.app/api/domain-go-sdk](https://docs.pxxl.app/api/domain-go-sdk)
+- Python SDK: [docs.pxxl.app/api/python-sdk](https://docs.pxxl.app/api/python-sdk)
+- Rust SDK: [docs.pxxl.app/api/rust-sdk](https://docs.pxxl.app/api/rust-sdk)
 - Cron CLI: [docs.pxxl.app/api/cron-cli](https://docs.pxxl.app/api/cron-cli)
 - Cron Node SDK: [docs.pxxl.app/api/cron-node-sdk](https://docs.pxxl.app/api/cron-node-sdk)
 - Cron Go SDK: [docs.pxxl.app/api/cron-go-sdk](https://docs.pxxl.app/api/cron-go-sdk)
