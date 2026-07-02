@@ -107,9 +107,16 @@ export class PxxlClient {
     }
     async connectDomain(input) {
         const teamId = input.teamId || this.teamId;
+        const serviceAlias = input.serviceAlias || input.microserviceId || input.serviceId;
         return this.request(`/cli/domains${teamQuery(teamId)}`, {
             method: "POST",
-            body: JSON.stringify({ domain: input.domain, projectId: input.projectId, alias: Boolean(input.alias) }),
+            body: JSON.stringify({
+                domain: input.domain,
+                projectId: input.projectId,
+                alias: Boolean(input.alias),
+                ...(serviceAlias ? { serviceAlias } : {}),
+                ...(input.servicePort ? { servicePort: input.servicePort } : {}),
+            }),
         });
     }
     async connectDomains(input) {

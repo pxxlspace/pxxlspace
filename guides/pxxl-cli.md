@@ -111,6 +111,7 @@ Use an API key with `scope=database` or `scope=all`. Listing and read operations
 ```bash
 pxxl domains list
 pxxl domains connect example.com --project <project-id>
+pxxl domains connect api.example.com --project <project-id> --service api
 pxxl domains verify example.com --project <project-id>
 pxxl domains records <domain-id>
 pxxl domains records add <domain-id> --type A --name @ --value 193.181.212.65
@@ -121,6 +122,8 @@ pxxl domains stats example.com --timeframe 30d
 ```
 
 Domain commands use the same Gateway proxy and DNS source as the dashboard. If you omit a selectable target, the CLI fetches your available domains and lets you select one. Bulk connects report accepted domains separately from plan-limit rejections.
+
+For monorepos and multi-service projects, pass the microservice ID with `--service`. Pxxl stores that value as the service alias and routes the domain to that microservice instead of the main project service.
 
 ## Cron Jobs
 

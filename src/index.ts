@@ -126,6 +126,9 @@ export interface DomainSummary {
   status?: string;
   type?: string;
   projectId?: string | null;
+  serviceAlias?: string;
+  servicePort?: number;
+  serviceScope?: string;
   createdAt?: string;
 }
 
@@ -133,6 +136,10 @@ export interface ConnectDomainInput {
   domain: string;
   projectId: string;
   alias?: boolean;
+  serviceAlias?: string;
+  serviceId?: string;
+  microserviceId?: string;
+  servicePort?: number;
   teamId?: string;
 }
 
@@ -495,9 +502,16 @@ export class PxxlClient {
 
   async connectDomain(input: ConnectDomainInput): Promise<unknown> {
     const teamId = input.teamId || this.teamId;
+    const serviceAlias = input.serviceAlias || input.microserviceId || input.serviceId;
     return this.request(`/cli/domains${teamQuery(teamId)}`, {
       method: "POST",
-      body: JSON.stringify({ domain: input.domain, projectId: input.projectId, alias: Boolean(input.alias) }),
+      body: JSON.stringify({
+        domain: input.domain,
+        projectId: input.projectId,
+        alias: Boolean(input.alias),
+        ...(serviceAlias ? { serviceAlias } : {}),
+        ...(input.servicePort ? { servicePort: input.servicePort } : {}),
+      }),
     });
   }
 

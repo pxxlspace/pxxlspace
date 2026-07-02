@@ -65,6 +65,12 @@ connected, err := client.ConnectDomain(context.Background(), pxxl.ConnectDomainI
   ProjectID: "proj_123",
 })
 
+apiDomain, err := client.ConnectDomain(context.Background(), pxxl.ConnectDomainInput{
+  Domain: "api.example.com",
+  ProjectID: "proj_123",
+  MicroserviceID: "api",
+})
+
 records, err := client.ListDomainDNSRecords(context.Background(), "dom_123", "")
 
 created, err := client.CreateDomainDNSRecord(context.Background(), "dom_123", pxxl.DomainDNSRecordInput{

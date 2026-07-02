@@ -184,6 +184,25 @@ impl PxxlClient {
         .await
     }
 
+    pub async fn connect_domain_to_service(
+        &self,
+        domain: &str,
+        project_id: &str,
+        service_alias: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::POST,
+            &format!("/cli/domains{}", self.team_query(team_id)),
+            Some(json!({
+                "domain": domain,
+                "projectId": project_id,
+                "serviceAlias": service_alias
+            })),
+        )
+        .await
+    }
+
     pub async fn verify_domain_record(
         &self,
         input: VerifyDomainRecord,

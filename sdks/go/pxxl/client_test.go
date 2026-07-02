@@ -169,12 +169,15 @@ func TestConnectDomainUsesCLIDomainEndpoint(t *testing.T) {
 		if payload["domain"] != "example.com" || payload["projectId"] != "proj_1" {
 			t.Fatalf("payload = %#v", payload)
 		}
+		if payload["serviceAlias"] != "api" || payload["servicePort"] != float64(4000) {
+			t.Fatalf("payload = %#v", payload)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"domainId": "dom_1", "status": "pending"})
 	}))
 	defer server.Close()
 
 	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
-	result, err := client.ConnectDomain(context.Background(), ConnectDomainInput{Domain: "example.com", ProjectID: "proj_1", TeamID: "team_1"})
+	result, err := client.ConnectDomain(context.Background(), ConnectDomainInput{Domain: "example.com", ProjectID: "proj_1", MicroserviceID: "api", ServicePort: 4000, TeamID: "team_1"})
 	if err != nil {
 		t.Fatal(err)
 	}

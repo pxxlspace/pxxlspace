@@ -137,20 +137,27 @@ type DomainSearchResponse struct {
 }
 
 type DomainSummary struct {
-	ID        string `json:"id,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Domain    string `json:"domain,omitempty"`
-	Status    string `json:"status,omitempty"`
-	Type      string `json:"type,omitempty"`
-	ProjectID string `json:"projectId,omitempty"`
-	CreatedAt string `json:"createdAt,omitempty"`
+	ID           string `json:"id,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Domain       string `json:"domain,omitempty"`
+	Status       string `json:"status,omitempty"`
+	Type         string `json:"type,omitempty"`
+	ProjectID    string `json:"projectId,omitempty"`
+	ServiceAlias string `json:"serviceAlias,omitempty"`
+	ServicePort  int    `json:"servicePort,omitempty"`
+	ServiceScope string `json:"serviceScope,omitempty"`
+	CreatedAt    string `json:"createdAt,omitempty"`
 }
 
 type ConnectDomainInput struct {
-	Domain    string `json:"domain"`
-	ProjectID string `json:"projectId"`
-	Alias     bool   `json:"alias,omitempty"`
-	TeamID    string `json:"-"`
+	Domain         string `json:"domain"`
+	ProjectID      string `json:"projectId"`
+	Alias          bool   `json:"alias,omitempty"`
+	ServiceAlias   string `json:"serviceAlias,omitempty"`
+	ServiceID      string `json:"-"`
+	MicroserviceID string `json:"-"`
+	ServicePort    int    `json:"servicePort,omitempty"`
+	TeamID         string `json:"-"`
 }
 
 type VerifyDomainRecordInput struct {
@@ -398,6 +405,13 @@ func (c *Client) CheckDomain(ctx context.Context, domain, teamID string) (map[st
 func (c *Client) ConnectDomain(ctx context.Context, input ConnectDomainInput) (map[string]any, error) {
 	if strings.TrimSpace(input.Domain) == "" || strings.TrimSpace(input.ProjectID) == "" {
 		return nil, fmt.Errorf("pxxl: domain and project id are required")
+	}
+	if input.ServiceAlias == "" {
+		if strings.TrimSpace(input.MicroserviceID) != "" {
+			input.ServiceAlias = strings.TrimSpace(input.MicroserviceID)
+		} else if strings.TrimSpace(input.ServiceID) != "" {
+			input.ServiceAlias = strings.TrimSpace(input.ServiceID)
+		}
 	}
 	body, _ := json.Marshal(input)
 	var out map[string]any

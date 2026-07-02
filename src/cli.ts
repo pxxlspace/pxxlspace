@@ -105,6 +105,8 @@ ${bold("Domains")}
   ${cyan("pxxl domains list")}                List domains available for stats
   ${cyan("pxxl domains check")} <domain>      Check DNS, ownership, SSL, and proxy route
   ${cyan("pxxl domains connect")} <domain>    Add a custom domain to a project
+  ${cyan("pxxl domains connect")} <domain> --service <id>
+                                             Route a domain to a monorepo microservice
   ${cyan("pxxl domains verify")} <domain>     Verify expected project DNS records
   ${cyan("pxxl domains records")} <id>         List or edit managed DNS records
   ${cyan("pxxl domains cert")} <id> --out file Download the proxy public certificate
@@ -127,11 +129,186 @@ ${bold("Environment")}
   Pass ${dim("--json")} to print raw API responses for scripting.
 `;
 
+const commandHelps: Record<string, string> = {
+  account: `${logo}
+
+${bold("Account Commands")}
+  ${cyan("pxxl login")} --api-key <key>       Validate and save a Pxxl API key
+  ${cyan("pxxl logout")}                     Remove local credentials
+  ${cyan("pxxl whoami")}                     Show the active account and API key scope
+  ${cyan("pxxl status")}                     Same as whoami
+  ${cyan("pxxl stats")} [--team <id>]         Show platform stats for the current scope
+  ${cyan("pxxl usage")} [--team <id>]         Show usage for the current scope
+`,
+  deploy: `${logo}
+
+${bold("Deploy Commands")}
+  ${cyan("pxxl doctor")}                     Check auth, git, config, package manager, and deploy issues
+  ${cyan("pxxl inspect")}                    Show detected framework, runtime, env files, and deploy size
+  ${cyan("pxxl init")} --new <starter>        Create a Pxxl-ready project
+  ${cyan("pxxl deploy")}                     Package this directory and deploy on Pxxl
+  ${cyan("pxxl deploy")} --dir <path>         Deploy a different local directory
+  ${cyan("pxxl deploy")} -m "message"        Deploy with a custom commit message
+  ${cyan("pxxl redeploy")} <project-id>       Trigger a fresh deployment
+  ${cyan("pxxl pull")} <project-id> [folder]  Clone or update the attached Git repo
+  ${cyan("pxxl logs")} [--project <id>]       Fetch recent logs
+  ${cyan("pxxl open")} [--dashboard]          Open the current project or dashboard
+`,
+  projects: `${logo}
+
+${bold("Project Commands")}
+  ${cyan("pxxl projects list")}               List projects
+  ${cyan("pxxl projects get")} [project-id]   Show project details
+  ${cyan("pxxl projects show")} [project-id]  Same as get
+  ${cyan("pxxl projects list")} --page 2      Show the next page
+`,
+  deployments: `${logo}
+
+${bold("Deployment Commands")}
+  ${cyan("pxxl deployments recent")}          Show recent deployments
+  ${cyan("pxxl deployments list")}            List deployments
+  ${cyan("pxxl deployments get")} [id]        Show deployment details
+  ${cyan("pxxl deployments get")} --project <project-id>
+`,
+  env: `${logo}
+
+${bold("Environment Variable Commands")}
+  ${cyan("pxxl env list")} [project-id]       List project env names
+  ${cyan("pxxl env diff")} [project-id]       Compare local .env with encrypted remote envs
+  ${cyan("pxxl env push")} [project-id]       Push a local .env file
+  ${cyan("pxxl env push")} --force            Replace remote envs with local .env
+  ${cyan("pxxl env push")} --file .env.prod   Use a specific env file
+  ${cyan("pxxl env push")} --global           Use global project envs
+`,
+  cdn: `${logo}
+
+${bold("CDN Commands")}
+  ${cyan("pxxl cdn summary")}                 Show CDN usage summary
+  ${cyan("pxxl cdn list")}                    List assets
+  ${cyan("pxxl cdn usage")} [--limit 100]     Show CDN usage events
+  ${cyan("pxxl cdn upload")} <file>           Upload a public asset
+  ${cyan("pxxl cdn upload")} <file> --private Upload a private asset
+  ${cyan("pxxl cdn download")} <id> <file>    Download an asset
+  ${cyan("pxxl cdn delete")} <id>             Delete an asset
+`,
+  domains: `${logo}
+
+${bold("Domain Commands")}
+  ${cyan("pxxl domains list")}                List domains available for stats
+  ${cyan("pxxl domains check")} <domain>      Check DNS, ownership, SSL, and proxy route
+  ${cyan("pxxl domains connect")} <domain>    Add a custom domain to a project
+  ${cyan("pxxl domains connect")} <domain> --service <id>
+                                             Route a domain to a monorepo microservice
+  ${cyan("pxxl domains verify")} <domain>     Verify expected project DNS records
+  ${cyan("pxxl domains get")} [domain-id]     Show domain details
+  ${cyan("pxxl domains records")} [id]        List or edit managed DNS records
+  ${cyan("pxxl domains records add")} [id] --type A --name @ --value 1.2.3.4
+  ${cyan("pxxl domains nameservers")} [id]    Verify, set, or reset nameservers
+  ${cyan("pxxl domains cert")} [id] --out file
+  ${cyan("pxxl domains activate")} [id]       Check activation and SSL routing
+  ${cyan("pxxl domains stats")} [domain]      Show proxy stats for a domain
+`,
+  cron: `${logo}
+
+${bold("Cron Job Commands")}
+  ${cyan("pxxl cron list")}                    List scheduled HTTP cron jobs
+  ${cyan("pxxl cron create")}                  Create an HTTP cron job interactively
+  ${cyan("pxxl cron create")} --name cleanup --schedule "*/5 * * * *" --url https://example.com/job
+  ${cyan("pxxl cron get")} [cron-job-id]       Show cron job details
+  ${cyan("pxxl cron update")} [id] --schedule "0 * * * *"
+  ${cyan("pxxl cron start")} [cron-job-id]     Resume a paused cron job
+  ${cyan("pxxl cron stop")} [cron-job-id]      Pause a cron job
+  ${cyan("pxxl cron delete")} [cron-job-id]    Delete a cron job
+  ${cyan("pxxl cron trigger")} [cron-job-id]   Run a cron job now
+  ${cyan("pxxl cron runs")} [cron-job-id]      Show cron run history
+  ${cyan("pxxl cron validate-schedule")} "*/5 * * * *"
+  ${cyan("pxxl cron validate-url")} https://example.com/job
+`,
+  team: `${logo}
+
+${bold("Spaceship / Team Commands")}
+  ${cyan("pxxl team list")}                   List teams
+  ${cyan("pxxl team get")} [team-id]          Show team details
+  ${cyan("pxxl team use")} [team-id]          Select a team for scoped commands
+  ${cyan("pxxl team current")}                Show selected team
+  ${cyan("pxxl team clear")}                  Clear selected team
+`,
+  db: `${logo}
+
+${bold("Database Commands")}
+  ${cyan("pxxl db list")}                     List databases
+  ${cyan("pxxl db create")}                   Create a database interactively
+  ${cyan("pxxl db create")} --name app-db --type postgres
+  ${cyan("pxxl db get")} [database-id]        Show credentials and connection URLs
+  ${cyan("pxxl db start")} [database-id]      Start a database
+  ${cyan("pxxl db stop")} [database-id]       Stop a database
+  ${cyan("pxxl db restart")} [database-id]    Restart a database
+  ${cyan("pxxl db delete")} [database-id]     Delete a database
+  ${cyan("pxxl db stats")} [database-id]      Show database stats
+  ${cyan("pxxl db tables")} [database-id]     Show tables
+`,
+  logs: `${logo}
+
+${bold("Log Commands")}
+  ${cyan("pxxl logs")}                       Fetch recent logs for the current project
+  ${cyan("pxxl logs")} --project <id>         Fetch project logs
+  ${cyan("pxxl logs")} --deployment <id>      Fetch deployment logs
+  ${cyan("pxxl logs")} --since 1h             Fetch logs by time window
+  ${cyan("pxxl logs")} --lines 200            Fetch more lines
+  ${cyan("pxxl logs")} --follow               Poll live project logs
+`,
+};
+
+const helpAliases: Record<string, string> = {
+  status: "account",
+  whoami: "account",
+  stats: "account",
+  usage: "account",
+  login: "account",
+  logout: "account",
+  doctor: "deploy",
+  inspect: "deploy",
+  init: "deploy",
+  deploy: "deploy",
+  redeploy: "deploy",
+  pull: "deploy",
+  project: "projects",
+  projects: "projects",
+  deployment: "deployments",
+  deployments: "deployments",
+  env: "env",
+  envs: "env",
+  cdn: "cdn",
+  domain: "domains",
+  domains: "domains",
+  cron: "cron",
+  team: "team",
+  teams: "team",
+  spaceship: "team",
+  spaceships: "team",
+  db: "db",
+  database: "db",
+  databases: "db",
+  logs: "logs",
+  log: "logs",
+  open: "deploy",
+};
+
+function isHelpRequest(args: string[]) {
+  return args.some((arg) => arg === "--help" || arg === "-h") || args[0] === "help" || args.at(-1) === "help";
+}
+
+function commandHelp(command: string) {
+  return commandHelps[helpAliases[command] || command] || usage;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args.shift();
   if (command === "version" || command === "--version" || command === "-v") return print(cliVersion);
+  if (command === "help" && args[0]) return print(commandHelp(args[0]));
   if (!command || command === "help" || command === "--help" || command === "-h") return print(usage);
+  if (isHelpRequest(args)) return print(commandHelp(command));
 
   if (command === "login") return login(args);
   if (command === "logout") {
@@ -502,7 +679,20 @@ async function domains(client: PxxlClient, args: string[]) {
     if (!domains.length) domains.push(await promptText("Domain"));
     const projectId = await resolveProjectIdFromArgsOrConfig(client, flagValue(args, "--project"), args);
     const teamId = flagValue(args, "--team");
-    const inputs = domains.map((domain) => ({ domain, projectId, teamId, alias: hasFlag(args, "--alias") }));
+    const serviceAlias = flagValue(args, "--service") || flagValue(args, "--service-alias") || flagValue(args, "--microservice") || flagValue(args, "--microservice-id");
+    const servicePortValue = flagValue(args, "--service-port") || flagValue(args, "--port");
+    const servicePort = servicePortValue ? Number(servicePortValue) : undefined;
+    if (servicePortValue && (!Number.isFinite(servicePort) || Number(servicePort) <= 0)) {
+      throw new Error("--service-port must be a positive number");
+    }
+    const inputs = domains.map((domain) => ({
+      domain,
+      projectId,
+      teamId,
+      alias: hasFlag(args, "--alias"),
+      ...(serviceAlias ? { serviceAlias } : {}),
+      ...(servicePort ? { servicePort } : {}),
+    }));
     const result = await spinner(`Connecting ${domains.length} domain${domains.length === 1 ? "" : "s"}`, () => client.connectDomains(inputs));
     if (wantsJSON(args)) return printJSON(result);
     return printDomainConnectResult(result, projectId);

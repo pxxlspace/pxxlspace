@@ -109,12 +109,19 @@ export interface DomainSummary {
     status?: string;
     type?: string;
     projectId?: string | null;
+    serviceAlias?: string;
+    servicePort?: number;
+    serviceScope?: string;
     createdAt?: string;
 }
 export interface ConnectDomainInput {
     domain: string;
     projectId: string;
     alias?: boolean;
+    serviceAlias?: string;
+    serviceId?: string;
+    microserviceId?: string;
+    servicePort?: number;
     teamId?: string;
 }
 export interface ConnectDomainsResult {

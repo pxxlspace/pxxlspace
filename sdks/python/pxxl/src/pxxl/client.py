@@ -93,11 +93,27 @@ class PxxlClient:
     def check_domain(self, domain: str, team_id: str | None = None) -> dict[str, Any]:
         return self._request("GET", f"/cli/domains/{_escape(domain)}/check" + self._team_query(team_id))
 
-    def connect_domain(self, domain: str, project_id: str, alias: bool = False, team_id: str | None = None) -> dict[str, Any]:
+    def connect_domain(
+        self,
+        domain: str,
+        project_id: str,
+        alias: bool = False,
+        team_id: str | None = None,
+        service_alias: str | None = None,
+        microservice_id: str | None = None,
+        service_id: str | None = None,
+        service_port: int | None = None,
+    ) -> dict[str, Any]:
+        target_service = service_alias or microservice_id or service_id
+        payload: dict[str, Any] = {"domain": domain, "projectId": project_id, "alias": alias}
+        if target_service:
+            payload["serviceAlias"] = target_service
+        if service_port:
+            payload["servicePort"] = service_port
         return self._request(
             "POST",
             "/cli/domains" + self._team_query(team_id),
-            json_body={"domain": domain, "projectId": project_id, "alias": alias},
+            json_body=payload,
         )
 
     def verify_domain_record(self, domain: str, project_id: str, team_id: str | None = None) -> dict[str, Any]:

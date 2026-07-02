@@ -30,6 +30,7 @@ async fn main() -> Result<(), pxxl::PxxlError> {
 ```rust
 let search = client.search_domains("example.cv").await?;
 let connected = client.connect_domain("example.com", "proj_123", None).await?;
+let api_domain = client.connect_domain_to_service("api.example.com", "proj_123", "api", None).await?;
 let records = client.list_domain_dns_records("dom_123", None).await?;
 ```
 
