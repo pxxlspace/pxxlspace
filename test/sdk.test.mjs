@@ -193,6 +193,65 @@ test("manages domain DNS records through CLI-safe routes", async () => {
   ]);
 });
 
+test("resyncs and disconnects domains through CLI-safe routes", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method || "GET" });
+      return Response.json({ success: true });
+    },
+  });
+  await client.resyncDomainProxy("example.com");
+  await client.disconnectDomain("example.com", { projectId: "proj_123" });
+  assert.deepEqual(calls, [
+    { method: "POST", url: "https://gateway.pxxl.app/api/v3/cli/domains/example.com/resync?teamId=team_123" },
+    { method: "DELETE", url: "https://gateway.pxxl.app/api/v3/cli/domains/example.com?projectId=proj_123&teamId=team_123" },
+  ]);
+});
+
+test("uses generic activation status for non-cv domain connection checks", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    teamId: "team_123",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method || "GET" });
+      if (url.endsWith("/cli/domains/dom_1?teamId=team_123")) {
+        return Response.json({ id: "dom_1", name: "example.com" });
+      }
+      return Response.json({ status: "active", routeStatus: "connected" });
+    },
+  });
+  const result = await client.getDomainZoneStatus("dom_1");
+  assert.equal(result.status, "active");
+  assert.deepEqual(calls, [
+    { method: "GET", url: "https://gateway.pxxl.app/api/v3/cli/domains/dom_1?teamId=team_123" },
+    { method: "POST", url: "https://gateway.pxxl.app/api/v3/cli/domains/dom_1/activate?teamId=team_123" },
+  ]);
+});
+
+test("uses cv zone status for cv domain connection checks", async () => {
+  const calls = [];
+  const client = new PxxlClient({
+    apiKey: "pxxl_test",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method || "GET" });
+      if (url.endsWith("/cli/domains/dom_cv")) {
+        return Response.json({ id: "dom_cv", domain: { name: "pxxl.cv" } });
+      }
+      return Response.json({ status: "active", zoneStatus: "connected" });
+    },
+  });
+  const result = await client.getDomainConnectionStatus("dom_cv");
+  assert.equal(result.zoneStatus, "connected");
+  assert.deepEqual(calls, [
+    { method: "GET", url: "https://gateway.pxxl.app/api/v3/cli/domains/dom_cv" },
+    { method: "GET", url: "https://gateway.pxxl.app/api/v3/cli/domains/dom_cv/zone-status" },
+  ]);
+});
+
 test("manages cron jobs through CLI-safe routes", async () => {
   const calls = [];
   const client = new PxxlClient({

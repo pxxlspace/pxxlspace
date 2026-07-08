@@ -32,6 +32,8 @@ let search = client.search_domains("example.cv").await?;
 let connected = client.connect_domain("example.com", "proj_123", None).await?;
 let api_domain = client.connect_domain_to_service("api.example.com", "proj_123", "api", None).await?;
 let records = client.list_domain_dns_records("dom_123", None).await?;
+client.resync_domain_proxy("example.com", None).await?;
+client.disconnect_domain("old.example.com", Some("proj_123"), None).await?;
 ```
 
 ## Cron Jobs

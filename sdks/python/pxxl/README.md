@@ -25,6 +25,8 @@ search = client.search_domains("example.cv")
 connected = client.connect_domain("example.com", project_id="proj_123")
 api_domain = client.connect_domain("api.example.com", project_id="proj_123", microservice_id="api")
 records = client.list_domain_dns_records("dom_123")
+client.resync_domain_proxy("example.com")
+client.disconnect_domain("old.example.com", project_id="proj_123")
 ```
 
 Domain write operations require `scope=domain`, `scope=domains`, or `scope=all` with `permission=read_write`.

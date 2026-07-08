@@ -124,11 +124,26 @@ class PxxlClient:
             json_body={"domain": domain, "projectId": project_id, "teamId": selected_team},
         )
 
+    def verify_domain_dns_record(self, domain: str, project_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self.verify_domain_record(domain, project_id, team_id)
+
     def get_domain(self, domain_id: str, team_id: str | None = None) -> dict[str, Any]:
         return self._request("GET", f"/cli/domains/{_escape(domain_id)}" + self._team_query(team_id))
 
     def update_domain(self, domain_id: str, settings: Mapping[str, Any], team_id: str | None = None) -> dict[str, Any]:
         return self._request("PATCH", f"/cli/domains/{_escape(domain_id)}" + self._team_query(team_id), json_body=dict(settings))
+
+    def disconnect_domain(self, domain: str, project_id: str | None = None, team_id: str | None = None) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+        selected_team = team_id or self.team_id
+        if project_id:
+            params["projectId"] = project_id
+        if selected_team:
+            params["teamId"] = selected_team
+        return self._request("DELETE", f"/cli/domains/{_escape(domain)}" + _query(params))
+
+    def resync_domain_proxy(self, domain: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("POST", f"/cli/domains/{_escape(domain)}/resync" + self._team_query(team_id), json_body={})
 
     def list_domain_dns_records(self, domain_id: str, team_id: str | None = None) -> dict[str, Any]:
         return self._request("GET", f"/cli/domains/{_escape(domain_id)}/dns-records" + self._team_query(team_id))
@@ -146,6 +161,19 @@ class PxxlClient:
         return self._request("POST", f"/cli/domains/{_escape(domain_id)}/activate" + self._team_query(team_id), json_body={})
 
     def get_domain_zone_status(self, domain_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self.get_domain_connection_status(domain_id, team_id)
+
+    def get_domain_connection_status(self, domain_id: str, team_id: str | None = None) -> dict[str, Any]:
+        domain = self.get_domain(domain_id, team_id)
+        if _is_cv_domain_name(_domain_name_from_response(domain)):
+            try:
+                return self._get_domain_zone_status_raw(domain_id, team_id)
+            except PxxlAPIError as error:
+                if "zone status is only available for .cv domains" not in error.message.lower():
+                    raise
+        return self.activate_domain(domain_id, team_id)
+
+    def _get_domain_zone_status_raw(self, domain_id: str, team_id: str | None = None) -> dict[str, Any]:
         return self._request("GET", f"/cli/domains/{_escape(domain_id)}/zone-status" + self._team_query(team_id))
 
     def download_domain_certificate(self, domain_id: str, team_id: str | None = None) -> bytes:
@@ -331,6 +359,35 @@ def _error_message(payload: bytes) -> str:
     except Exception:
         return ""
     return str(body.get("message") or body.get("error") or "")
+
+
+def _domain_name_from_response(value: Mapping[str, Any]) -> str:
+    paths = (
+        ("name",),
+        ("domainName",),
+        ("domain",),
+        ("domain", "name"),
+        ("domain", "domain"),
+        ("data", "name"),
+        ("data", "domainName"),
+        ("data", "domain"),
+        ("data", "domain", "name"),
+        ("data", "domain", "domain"),
+    )
+    for path in paths:
+        current: Any = value
+        for key in path:
+            if not isinstance(current, Mapping) or key not in current:
+                current = None
+                break
+            current = current[key]
+        if isinstance(current, str) and current.strip():
+            return current.strip().lower().removesuffix(".")
+    return ""
+
+
+def _is_cv_domain_name(domain: str) -> bool:
+    return domain.strip().lower().removesuffix(".").endswith(".cv")
 
 
 def _camel(value: str) -> str:

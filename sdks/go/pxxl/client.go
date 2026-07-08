@@ -430,9 +430,40 @@ func (c *Client) VerifyDomainRecord(ctx context.Context, input VerifyDomainRecor
 	return out, nil
 }
 
+func (c *Client) VerifyDomainDNSRecord(ctx context.Context, input VerifyDomainRecordInput) (map[string]any, error) {
+	return c.VerifyDomainRecord(ctx, input)
+}
+
 func (c *Client) GetDomain(ctx context.Context, id, teamID string) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doJSON(ctx, http.MethodGet, "/cli/domains/"+url.PathEscape(id)+teamQuery(teamID), nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) DisconnectDomain(ctx context.Context, domain, projectID, teamID string) (map[string]any, error) {
+	params := url.Values{}
+	if strings.TrimSpace(projectID) != "" {
+		params.Set("projectId", strings.TrimSpace(projectID))
+	}
+	if strings.TrimSpace(teamID) != "" {
+		params.Set("teamId", strings.TrimSpace(teamID))
+	}
+	suffix := ""
+	if encoded := params.Encode(); encoded != "" {
+		suffix = "?" + encoded
+	}
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodDelete, "/cli/domains/"+url.PathEscape(domain)+suffix, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *Client) ResyncDomainProxy(ctx context.Context, domain, teamID string) (map[string]any, error) {
+	var out map[string]any
+	if err := c.doJSON(ctx, http.MethodPost, "/cli/domains/"+url.PathEscape(domain)+"/resync"+teamQuery(teamID), bytes.NewReader([]byte("{}")), &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -476,11 +507,83 @@ func (c *Client) ActivateDomain(ctx context.Context, id, teamID string) (map[str
 }
 
 func (c *Client) GetDomainZoneStatus(ctx context.Context, id, teamID string) (map[string]any, error) {
+	return c.GetDomainConnectionStatus(ctx, id, teamID)
+}
+
+func (c *Client) GetDomainConnectionStatus(ctx context.Context, id, teamID string) (map[string]any, error) {
+	domain, err := c.GetDomain(ctx, id, teamID)
+	if err != nil {
+		return nil, err
+	}
+	if isCVDomainName(domainNameFromMap(domain)) {
+		out, err := c.getDomainZoneStatusRaw(ctx, id, teamID)
+		if err == nil {
+			return out, nil
+		}
+		if !isCVZoneOnlyError(err) {
+			return nil, err
+		}
+	}
+	return c.ActivateDomain(ctx, id, teamID)
+}
+
+func (c *Client) getDomainZoneStatusRaw(ctx context.Context, id, teamID string) (map[string]any, error) {
 	var out map[string]any
 	if err := c.doJSON(ctx, http.MethodGet, "/cli/domains/"+url.PathEscape(id)+"/zone-status"+teamQuery(teamID), nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+func domainNameFromMap(value map[string]any) string {
+	paths := [][]string{
+		{"name"},
+		{"domainName"},
+		{"domain"},
+		{"domain", "name"},
+		{"domain", "domain"},
+		{"data", "name"},
+		{"data", "domainName"},
+		{"data", "domain"},
+		{"data", "domain", "name"},
+		{"data", "domain", "domain"},
+	}
+	for _, path := range paths {
+		if candidate := stringPath(value, path); candidate != "" {
+			return strings.TrimSuffix(strings.ToLower(candidate), ".")
+		}
+	}
+	return ""
+}
+
+func stringPath(value any, path []string) string {
+	current := value
+	for _, key := range path {
+		obj, ok := current.(map[string]any)
+		if !ok {
+			return ""
+		}
+		current, ok = obj[key]
+		if !ok {
+			return ""
+		}
+	}
+	if str, ok := current.(string); ok {
+		return strings.TrimSpace(str)
+	}
+	return ""
+}
+
+func isCVDomainName(domain string) bool {
+	return strings.HasSuffix(strings.TrimSuffix(strings.ToLower(strings.TrimSpace(domain)), "."), ".cv")
+}
+
+func isCVZoneOnlyError(err error) bool {
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		return false
+	}
+	return strings.Contains(strings.ToLower(apiErr.Message), "zone status is only available for .cv domains")
 }
 
 func (c *Client) DownloadDomainCertificate(ctx context.Context, id, teamID string) ([]byte, error) {

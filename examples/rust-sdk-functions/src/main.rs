@@ -29,6 +29,20 @@ async fn connect_domain(domain: &str, project_id: &str) -> Result<(), pxxl::Pxxl
     Ok(())
 }
 
+async fn resync_domain_proxy(domain: &str) -> Result<(), pxxl::PxxlError> {
+    let result = client()?.resync_domain_proxy(domain, None).await?;
+    println!("{result:?}");
+    Ok(())
+}
+
+async fn disconnect_domain(domain: &str, project_id: &str) -> Result<(), pxxl::PxxlError> {
+    let result = client()?
+        .disconnect_domain(domain, Some(project_id), None)
+        .await?;
+    println!("{result:?}");
+    Ok(())
+}
+
 async fn create_dns_record(domain_id: &str) -> Result<(), pxxl::PxxlError> {
     let created = client()?
         .create_domain_dns_record(

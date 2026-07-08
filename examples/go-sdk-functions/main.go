@@ -78,6 +78,14 @@ func verifyDomainForProject(ctx context.Context, client *pxxl.Client, domain, pr
 	})
 }
 
+func resyncDomainProxy(ctx context.Context, client *pxxl.Client, domain string) (map[string]any, error) {
+	return client.ResyncDomainProxy(ctx, domain, "")
+}
+
+func disconnectDomainFromProject(ctx context.Context, client *pxxl.Client, domain, projectID string) (map[string]any, error) {
+	return client.DisconnectDomain(ctx, domain, projectID, "")
+}
+
 func addDomainARecord(ctx context.Context, client *pxxl.Client, domainID, value string) (map[string]any, error) {
 	return client.CreateDomainDNSRecord(ctx, domainID, pxxl.DomainDNSRecordInput{
 		Type:  "A",

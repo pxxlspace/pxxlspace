@@ -19,6 +19,14 @@ def connect_domain(domain: str, project_id: str):
     return client().connect_domain(domain, project_id=project_id)
 
 
+def resync_domain_proxy(domain: str):
+    return client().resync_domain_proxy(domain)
+
+
+def disconnect_domain(domain: str, project_id: str):
+    return client().disconnect_domain(domain, project_id=project_id)
+
+
 def create_cron_job():
     return client().create_cron_job(
         name="cache warmer",

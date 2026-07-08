@@ -410,8 +410,19 @@ export declare class PxxlClient {
     connectDomain(input: ConnectDomainInput): Promise<unknown>;
     connectDomains(input: ConnectDomainInput[]): Promise<ConnectDomainsResult>;
     verifyDomainRecord(input: VerifyDomainRecordInput): Promise<unknown>;
+    verifyDomainDNSRecord(input: VerifyDomainRecordInput): Promise<unknown>;
     getDomain(id: string, teamId?: string | undefined): Promise<unknown>;
     updateDomain(id: string, input: DomainSettingsInput): Promise<unknown>;
+    disconnectDomain(domain: string, input?: {
+        projectId?: string;
+        teamId?: string;
+    }): Promise<unknown>;
+    resyncDomainProxy(domain: string, input?: {
+        teamId?: string;
+    }): Promise<unknown>;
+    domainInfraAction(domain: string, type: "resync" | "fetch" | "certificate" | "ssl", input?: {
+        teamId?: string;
+    }): Promise<unknown>;
     downloadDomainCertificate(id: string, teamId?: string | undefined): Promise<Blob>;
     listDomainDNSRecords(id: string, teamId?: string | undefined): Promise<unknown>;
     createDomainDNSRecord(id: string, input: DomainDNSRecordInput & {
@@ -430,6 +441,8 @@ export declare class PxxlClient {
     resetDomainNameservers(id: string, teamId?: string | undefined): Promise<unknown>;
     verifyDomainNameservers(id: string, teamId?: string | undefined): Promise<unknown>;
     getDomainZoneStatus(id: string, teamId?: string | undefined): Promise<unknown>;
+    getDomainConnectionStatus(id: string, teamId?: string | undefined): Promise<unknown>;
+    private getDomainZoneStatusRaw;
     switchDomainToPxxlDNS(id: string, teamId?: string | undefined): Promise<unknown>;
     activateDomain(id: string, teamId?: string | undefined): Promise<unknown>;
     listCronJobs(input?: {

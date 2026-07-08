@@ -18,6 +18,41 @@ export class PxxlAPIError extends Error {
         this.details = details;
     }
 }
+function readStringPath(value, path) {
+    let current = value;
+    for (const key of path) {
+        if (!current || typeof current !== "object" || !(key in current))
+            return undefined;
+        current = current[key];
+    }
+    return typeof current === "string" && current.trim() ? current.trim() : undefined;
+}
+function domainNameFromResponse(value) {
+    const candidates = [
+        ["name"],
+        ["domainName"],
+        ["domain"],
+        ["domain", "name"],
+        ["domain", "domain"],
+        ["data", "name"],
+        ["data", "domainName"],
+        ["data", "domain"],
+        ["data", "domain", "name"],
+        ["data", "domain", "domain"],
+    ];
+    for (const path of candidates) {
+        const candidate = readStringPath(value, path);
+        if (candidate)
+            return candidate.toLowerCase().replace(/\.$/, "");
+    }
+    return "";
+}
+function isCvDomainName(domain) {
+    return domain.toLowerCase().replace(/\.$/, "").endsWith(".cv");
+}
+function isCvZoneOnlyError(error) {
+    return error instanceof PxxlAPIError && /zone status .*only available for \.cv domains/i.test(error.message);
+}
 export class PxxlClient {
     apiKey;
     baseUrl;
@@ -142,6 +177,9 @@ export class PxxlClient {
             body: JSON.stringify({ domain: input.domain, projectId: input.projectId, teamId }),
         });
     }
+    async verifyDomainDNSRecord(input) {
+        return this.verifyDomainRecord(input);
+    }
     async getDomain(id, teamId = this.teamId) {
         return this.request(`/cli/domains/${encodeURIComponent(id)}${teamQuery(teamId)}`);
     }
@@ -149,6 +187,28 @@ export class PxxlClient {
         const teamId = input.teamId || this.teamId;
         const { teamId: _teamId, ...body } = input;
         return this.request(`/cli/domains/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "PATCH", body: JSON.stringify(body) });
+    }
+    async disconnectDomain(domain, input = {}) {
+        const params = new URLSearchParams();
+        const teamId = input.teamId || this.teamId;
+        if (input.projectId)
+            params.set("projectId", input.projectId);
+        if (teamId)
+            params.set("teamId", teamId);
+        const suffix = params.size ? `?${params.toString()}` : "";
+        return this.request(`/cli/domains/${encodeURIComponent(domain)}${suffix}`, { method: "DELETE" });
+    }
+    async resyncDomainProxy(domain, input = {}) {
+        return this.request(`/cli/domains/${encodeURIComponent(domain)}/resync${teamQuery(input.teamId || this.teamId)}`, {
+            method: "POST",
+            body: JSON.stringify({}),
+        });
+    }
+    async domainInfraAction(domain, type, input = {}) {
+        return this.request(`/cli/domains/${encodeURIComponent(domain)}/infra/${encodeURIComponent(type)}${teamQuery(input.teamId || this.teamId)}`, {
+            method: "POST",
+            body: JSON.stringify({}),
+        });
     }
     async downloadDomainCertificate(id, teamId = this.teamId) {
         const response = await this.rawRequest(`/cli/domains/${encodeURIComponent(id)}/certificate/download${teamQuery(teamId)}`);
@@ -192,6 +252,23 @@ export class PxxlClient {
         return this.request(`/cli/domains/${encodeURIComponent(id)}/nameservers/verify${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
     }
     async getDomainZoneStatus(id, teamId = this.teamId) {
+        return this.getDomainConnectionStatus(id, teamId);
+    }
+    async getDomainConnectionStatus(id, teamId = this.teamId) {
+        const domain = await this.getDomain(id, teamId);
+        const name = domainNameFromResponse(domain);
+        if (isCvDomainName(name)) {
+            try {
+                return await this.getDomainZoneStatusRaw(id, teamId);
+            }
+            catch (error) {
+                if (!isCvZoneOnlyError(error))
+                    throw error;
+            }
+        }
+        return this.activateDomain(id, teamId);
+    }
+    async getDomainZoneStatusRaw(id, teamId = this.teamId) {
         return this.request(`/cli/domains/${encodeURIComponent(id)}/zone-status${teamQuery(teamId)}`);
     }
     async switchDomainToPxxlDNS(id, teamId = this.teamId) {

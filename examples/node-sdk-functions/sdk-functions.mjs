@@ -80,6 +80,14 @@ export async function verifyDomainForProject(domain, projectId) {
   return pxxl.verifyDomainRecord({ domain, projectId });
 }
 
+export async function resyncDomainProxy(domain) {
+  return pxxl.resyncDomainProxy(domain);
+}
+
+export async function disconnectDomainFromProject(domain, projectId) {
+  return pxxl.disconnectDomain(domain, { projectId });
+}
+
 export async function addDomainARecord(domainId, value = "193.181.212.65") {
   return pxxl.createDomainDNSRecord(domainId, {
     type: "A",

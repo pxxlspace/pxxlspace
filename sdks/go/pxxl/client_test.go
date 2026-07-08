@@ -186,6 +186,50 @@ func TestConnectDomainUsesCLIDomainEndpoint(t *testing.T) {
 	}
 }
 
+func TestResyncDomainProxy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cli/domains/example.com/resync" || r.URL.Query().Get("teamId") != "team_1" {
+			t.Fatalf("path/query = %s?%s", r.URL.Path, r.URL.RawQuery)
+		}
+		if r.Method != http.MethodPost {
+			t.Fatalf("method = %s", r.Method)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.ResyncDomainProxy(context.Background(), "example.com", "team_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["success"] != true {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestDisconnectDomain(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cli/domains/example.com" || r.URL.Query().Get("projectId") != "proj_1" || r.URL.Query().Get("teamId") != "team_1" {
+			t.Fatalf("path/query = %s?%s", r.URL.Path, r.URL.RawQuery)
+		}
+		if r.Method != http.MethodDelete {
+			t.Fatalf("method = %s", r.Method)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"action": "deleted"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.DisconnectDomain(context.Background(), "example.com", "proj_1", "team_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["action"] != "deleted" {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestCreateDomainDNSRecord(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/cli/domains/dom_1/dns-records" {
@@ -212,6 +256,64 @@ func TestCreateDomainDNSRecord(t *testing.T) {
 	}
 	if result["message"] != "DNS record saved" {
 		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestGetDomainZoneStatusFallsBackToActivationForNonCVDomains(t *testing.T) {
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.String())
+		switch r.URL.Path {
+		case "/cli/domains/dom_1":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "dom_1", "name": "example.com"})
+		case "/cli/domains/dom_1/activate":
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "active", "routeStatus": "connected"})
+		default:
+			t.Fatalf("unexpected route %s", r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.GetDomainZoneStatus(context.Background(), "dom_1", "team_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["status"] != "active" {
+		t.Fatalf("result = %#v", result)
+	}
+	want := []string{"GET /cli/domains/dom_1?teamId=team_1", "POST /cli/domains/dom_1/activate?teamId=team_1"}
+	if strings.Join(calls, "|") != strings.Join(want, "|") {
+		t.Fatalf("calls = %#v", calls)
+	}
+}
+
+func TestGetDomainZoneStatusUsesZoneStatusForCVDomains(t *testing.T) {
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.String())
+		switch r.URL.Path {
+		case "/cli/domains/dom_cv":
+			_ = json.NewEncoder(w).Encode(map[string]any{"id": "dom_cv", "domain": map[string]any{"name": "pxxl.cv"}})
+		case "/cli/domains/dom_cv/zone-status":
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "active", "zoneStatus": "connected"})
+		default:
+			t.Fatalf("unexpected route %s", r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	result, err := client.GetDomainConnectionStatus(context.Background(), "dom_cv", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["zoneStatus"] != "connected" {
+		t.Fatalf("result = %#v", result)
+	}
+	want := []string{"GET /cli/domains/dom_cv", "GET /cli/domains/dom_cv/zone-status"}
+	if strings.Join(calls, "|") != strings.Join(want, "|") {
+		t.Fatalf("calls = %#v", calls)
 	}
 }
 

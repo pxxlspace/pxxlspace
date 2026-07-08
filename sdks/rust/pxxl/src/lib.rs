@@ -216,11 +216,61 @@ impl PxxlClient {
         .await
     }
 
+    pub async fn verify_domain_dns_record(
+        &self,
+        input: VerifyDomainRecord,
+    ) -> Result<Value, PxxlError> {
+        self.verify_domain_record(input).await
+    }
+
     pub async fn get_domain(&self, id: &str, team_id: Option<&str>) -> Result<Value, PxxlError> {
         self.request(
             Method::GET,
             &format!("/cli/domains/{}{}", escape(id), self.team_query(team_id)),
             None,
+        )
+        .await
+    }
+
+    pub async fn disconnect_domain(
+        &self,
+        domain: &str,
+        project_id: Option<&str>,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        let mut query = Vec::new();
+        if let Some(project_id) = project_id.filter(|value| !value.trim().is_empty()) {
+            query.push(format!("projectId={}", escape(project_id)));
+        }
+        if let Some(team_id) = team_id.filter(|value| !value.trim().is_empty()) {
+            query.push(format!("teamId={}", escape(team_id)));
+        }
+        let suffix = if query.is_empty() {
+            String::new()
+        } else {
+            format!("?{}", query.join("&"))
+        };
+        self.request(
+            Method::DELETE,
+            &format!("/cli/domains/{}{}", escape(domain), suffix),
+            None,
+        )
+        .await
+    }
+
+    pub async fn resync_domain_proxy(
+        &self,
+        domain: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::POST,
+            &format!(
+                "/cli/domains/{}/resync{}",
+                escape(domain),
+                self.team_query(team_id)
+            ),
+            Some(json!({})),
         )
         .await
     }
@@ -314,6 +364,30 @@ impl PxxlClient {
     }
 
     pub async fn domain_zone_status(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.domain_connection_status(id, team_id).await
+    }
+
+    pub async fn domain_connection_status(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        let domain = self.get_domain(id, team_id).await?;
+        if is_cv_domain_name(&domain_name_from_value(&domain)) {
+            match self.domain_zone_status_raw(id, team_id).await {
+                Ok(value) => return Ok(value),
+                Err(error) if is_cv_zone_only_error(&error) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        self.activate_domain(id, team_id).await
+    }
+
+    async fn domain_zone_status_raw(
         &self,
         id: &str,
         team_id: Option<&str>,
@@ -574,6 +648,61 @@ impl PxxlClient {
             format!("?teamId={}", escape(selected))
         }
     }
+}
+
+fn domain_name_from_value(value: &Value) -> String {
+    let paths: &[&[&str]] = &[
+        &["name"],
+        &["domainName"],
+        &["domain"],
+        &["domain", "name"],
+        &["domain", "domain"],
+        &["data", "name"],
+        &["data", "domainName"],
+        &["data", "domain"],
+        &["data", "domain", "name"],
+        &["data", "domain", "domain"],
+    ];
+    for path in paths {
+        let mut current = value;
+        let mut matched = true;
+        for key in *path {
+            match current.get(*key) {
+                Some(next) => current = next,
+                None => {
+                    matched = false;
+                    break;
+                }
+            }
+        }
+        if matched {
+            if let Some(domain) = current.as_str() {
+                let domain = domain.trim().trim_end_matches('.').to_lowercase();
+                if !domain.is_empty() {
+                    return domain;
+                }
+            }
+        }
+    }
+    String::new()
+}
+
+fn is_cv_domain_name(domain: &str) -> bool {
+    domain
+        .trim()
+        .trim_end_matches('.')
+        .to_lowercase()
+        .ends_with(".cv")
+}
+
+fn is_cv_zone_only_error(error: &PxxlError) -> bool {
+    matches!(
+        error,
+        PxxlError::Api { message, .. }
+            if message
+                .to_lowercase()
+                .contains("zone status is only available for .cv domains")
+    )
 }
 
 #[derive(Debug, Default)]

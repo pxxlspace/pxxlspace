@@ -61,6 +61,8 @@ const tlds = await pxxl.listTLDs();
 const invoices = await pxxl.listDomainInvoices();
 const connected = await pxxl.connectDomain({ domain: "example.com", projectId: "proj_123" });
 const records = await pxxl.listDomainDNSRecords("dom_123");
+await pxxl.resyncDomainProxy("example.com");
+await pxxl.disconnectDomain("old.example.com", { projectId: "proj_123" });
 const teams = await pxxl.listTeams();
 const database = await pxxl.createDatabase({ name: "app-db", type: "postgres" });
 const cron = await pxxl.createCronJob({

@@ -107,10 +107,13 @@ ${bold("Domains")}
   ${cyan("pxxl domains connect")} <domain>    Add a custom domain to a project
   ${cyan("pxxl domains connect")} <domain> --service <id>
                                              Route a domain to a monorepo microservice
+  ${cyan("pxxl domains resync")} <domain>     Resync proxy route and SSL
+  ${cyan("pxxl domains disconnect")} <domain> Disconnect a project domain
   ${cyan("pxxl domains verify")} <domain>     Verify expected project DNS records
   ${cyan("pxxl domains records")} <id>         List or edit managed DNS records
   ${cyan("pxxl domains cert")} <id> --out file Download the proxy public certificate
   ${cyan("pxxl domains activate")} <id>        Check activation and SSL routing
+  ${cyan("pxxl domains status")} <id>          Check DNS, SSL, and managed-zone readiness
   ${cyan("pxxl domains stats")} [domain]      Show proxy stats for a domain
 
 ${bold("Cron Jobs")}
@@ -206,6 +209,8 @@ ${bold("Domain Commands")}
   ${cyan("pxxl domains nameservers")} [id]    Verify, set, or reset nameservers
   ${cyan("pxxl domains cert")} [id] --out file
   ${cyan("pxxl domains activate")} [id]       Check activation and SSL routing
+  ${cyan("pxxl domains status")} [id]         Check DNS, SSL, and managed-zone readiness
+  ${cyan("pxxl domains zone")} [id]           Alias for status; .cv domains include zone details
   ${cyan("pxxl domains stats")} [domain]      Show proxy stats for a domain
 `,
   cron: `${logo}
@@ -697,6 +702,20 @@ async function domains(client: PxxlClient, args: string[]) {
     if (wantsJSON(args)) return printJSON(result);
     return printDomainConnectResult(result, projectId);
   }
+  if (command === "resync" || command === "resync-proxy") {
+    const domain = firstValueArg(args) || await resolveDomainName(client, undefined, args);
+    const result = await spinner(`Resyncing proxy for ${domain}`, () => client.resyncDomainProxy(domain, { teamId: flagValue(args, "--team") }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain proxy resync", result);
+  }
+  if (command === "disconnect" || command === "remove" || command === "delete") {
+    const domain = firstValueArg(args) || await resolveDomainName(client, undefined, args);
+    const config = await readPxxlToml(resolve(flagValue(args, "--dir") || "."));
+    const projectId = flagValue(args, "--project") || config.projectId;
+    const result = await spinner(`Disconnecting ${domain}`, () => client.disconnectDomain(domain, { projectId, teamId: flagValue(args, "--team") }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain disconnect", result);
+  }
   if (command === "verify" || command === "checkrecord") {
     const domain = firstValueArg(args) || await promptText("Domain");
     const projectId = await resolveProjectIdFromArgsOrConfig(client, flagValue(args, "--project"), args);
@@ -716,11 +735,11 @@ async function domains(client: PxxlClient, args: string[]) {
     if (wantsJSON(args)) return printJSON(result);
     return printNestedObject("Domain activation", result);
   }
-  if (command === "zone") {
+  if (command === "status" || command === "connection-status" || command === "zone") {
     const id = firstValueArg(args) || await resolveDomainId(client, args);
-    const result = await spinner("Fetching zone status", () => client.getDomainZoneStatus(id, flagValue(args, "--team")));
+    const result = await spinner("Checking domain status", () => client.getDomainConnectionStatus(id, flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
-    return printNestedObject("Domain zone", result);
+    return printNestedObject("Domain status", result);
   }
   if (command === "cert" || command === "certificate") {
     const id = firstValueArg(args) || await resolveDomainId(client, args);

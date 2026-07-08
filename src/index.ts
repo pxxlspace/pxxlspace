@@ -402,6 +402,43 @@ export class PxxlAPIError extends Error {
   }
 }
 
+function readStringPath(value: unknown, path: string[]): string | undefined {
+  let current: unknown = value;
+  for (const key of path) {
+    if (!current || typeof current !== "object" || !(key in current)) return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.trim() ? current.trim() : undefined;
+}
+
+function domainNameFromResponse(value: unknown): string {
+  const candidates = [
+    ["name"],
+    ["domainName"],
+    ["domain"],
+    ["domain", "name"],
+    ["domain", "domain"],
+    ["data", "name"],
+    ["data", "domainName"],
+    ["data", "domain"],
+    ["data", "domain", "name"],
+    ["data", "domain", "domain"],
+  ];
+  for (const path of candidates) {
+    const candidate = readStringPath(value, path);
+    if (candidate) return candidate.toLowerCase().replace(/\.$/, "");
+  }
+  return "";
+}
+
+function isCvDomainName(domain: string): boolean {
+  return domain.toLowerCase().replace(/\.$/, "").endsWith(".cv");
+}
+
+function isCvZoneOnlyError(error: unknown): boolean {
+  return error instanceof PxxlAPIError && /zone status .*only available for \.cv domains/i.test(error.message);
+}
+
 export class PxxlClient {
   private readonly apiKey?: string;
   private readonly baseUrl: string;
@@ -539,6 +576,10 @@ export class PxxlClient {
     });
   }
 
+  async verifyDomainDNSRecord(input: VerifyDomainRecordInput): Promise<unknown> {
+    return this.verifyDomainRecord(input);
+  }
+
   async getDomain(id: string, teamId = this.teamId): Promise<unknown> {
     return this.request(`/cli/domains/${encodeURIComponent(id)}${teamQuery(teamId)}`);
   }
@@ -547,6 +588,29 @@ export class PxxlClient {
     const teamId = input.teamId || this.teamId;
     const { teamId: _teamId, ...body } = input;
     return this.request(`/cli/domains/${encodeURIComponent(id)}${teamQuery(teamId)}`, { method: "PATCH", body: JSON.stringify(body) });
+  }
+
+  async disconnectDomain(domain: string, input: { projectId?: string; teamId?: string } = {}): Promise<unknown> {
+    const params = new URLSearchParams();
+    const teamId = input.teamId || this.teamId;
+    if (input.projectId) params.set("projectId", input.projectId);
+    if (teamId) params.set("teamId", teamId);
+    const suffix = params.size ? `?${params.toString()}` : "";
+    return this.request(`/cli/domains/${encodeURIComponent(domain)}${suffix}`, { method: "DELETE" });
+  }
+
+  async resyncDomainProxy(domain: string, input: { teamId?: string } = {}): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(domain)}/resync${teamQuery(input.teamId || this.teamId)}`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  }
+
+  async domainInfraAction(domain: string, type: "resync" | "fetch" | "certificate" | "ssl", input: { teamId?: string } = {}): Promise<unknown> {
+    return this.request(`/cli/domains/${encodeURIComponent(domain)}/infra/${encodeURIComponent(type)}${teamQuery(input.teamId || this.teamId)}`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
   }
 
   async downloadDomainCertificate(id: string, teamId = this.teamId): Promise<Blob> {
@@ -602,6 +666,23 @@ export class PxxlClient {
   }
 
   async getDomainZoneStatus(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.getDomainConnectionStatus(id, teamId);
+  }
+
+  async getDomainConnectionStatus(id: string, teamId = this.teamId): Promise<unknown> {
+    const domain = await this.getDomain(id, teamId);
+    const name = domainNameFromResponse(domain);
+    if (isCvDomainName(name)) {
+      try {
+        return await this.getDomainZoneStatusRaw(id, teamId);
+      } catch (error) {
+        if (!isCvZoneOnlyError(error)) throw error;
+      }
+    }
+    return this.activateDomain(id, teamId);
+  }
+
+  private async getDomainZoneStatusRaw(id: string, teamId = this.teamId): Promise<unknown> {
     return this.request(`/cli/domains/${encodeURIComponent(id)}/zone-status${teamQuery(teamId)}`);
   }
 
