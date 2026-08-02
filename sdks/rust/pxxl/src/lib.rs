@@ -7,7 +7,7 @@ use thiserror::Error;
 use walkdir::WalkDir;
 use zip::write::FileOptions;
 
-pub const PXXL_API_BASE_URL: &str = "https://gateway.pxxl.app/api/v3";
+pub const PXXL_API_BASE_URL: &str = "https://server.pxxl.app/api/v3";
 pub const MAX_DEPLOY_FILES: usize = 12_000;
 pub const MAX_DEPLOY_SOURCE_BYTES: u64 = 220 * 1024 * 1024;
 

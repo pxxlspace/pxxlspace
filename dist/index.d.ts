@@ -1,6 +1,6 @@
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
-export declare const PXXL_API_BASE_URL = "https://gateway.pxxl.app/api/v3";
+export declare const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
 export declare const MAX_DEPLOY_FILES = 12000;
 export declare const MAX_DEPLOY_SOURCE_BYTES: number;
 export interface PxxlClientOptions {

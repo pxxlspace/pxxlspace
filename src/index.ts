@@ -8,7 +8,7 @@ import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
-export const PXXL_API_BASE_URL = "https://gateway.pxxl.app/api/v3";
+export const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
 export const MAX_DEPLOY_FILES = 12000;
 export const MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024;
 

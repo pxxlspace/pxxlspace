@@ -25,7 +25,7 @@ X-Pxxl-Api-Key: pxxl_...
 ## Upload
 
 ```bash
-curl -X POST https://gateway.pxxl.app/api/v3/cdn/assets \
+curl -X POST https://server.pxxl.app/api/v3/cdn/assets \
   -H "Authorization: Bearer $PXXL_API_KEY" \
   -F "file=@./logo.png" \
   -F "visibility=public"
@@ -36,14 +36,14 @@ Uploads are checked against your CDN upload size limit and cloud-credit balance 
 ## List Assets
 
 ```bash
-curl https://gateway.pxxl.app/api/v3/cdn/assets \
+curl https://server.pxxl.app/api/v3/cdn/assets \
   -H "Authorization: Bearer $PXXL_API_KEY"
 ```
 
 ## Download
 
 ```bash
-curl -L https://gateway.pxxl.app/api/v3/cdn/assets/<asset-id>/download \
+curl -L https://server.pxxl.app/api/v3/cdn/assets/<asset-id>/download \
   -H "Authorization: Bearer $PXXL_API_KEY" \
   -o asset.bin
 ```

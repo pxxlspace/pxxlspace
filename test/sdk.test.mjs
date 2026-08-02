@@ -20,7 +20,7 @@ test("sends bearer auth and parses CDN summary", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",
     fetchImpl: async (url, init) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/cdn/summary");
+      assert.equal(url, "https://server.pxxl.app/api/v3/cdn/summary");
       assert.equal(init.headers.get("Authorization"), "Bearer pxxl_test");
       return Response.json({ data: { totalFiles: 1, recentAssets: [] } });
     },
@@ -50,7 +50,7 @@ test("uploads CDN multipart file without forcing json content type", async () =>
   const client = new PxxlClient({
     apiKey: "pxxl_test",
     fetchImpl: async (url, init) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/cdn/assets");
+      assert.equal(url, "https://server.pxxl.app/api/v3/cdn/assets");
       assert.equal(init.method, "POST");
       assert.equal(init.headers.get("Content-Type"), null);
       assert.ok(init.body instanceof FormData);
@@ -66,7 +66,7 @@ test("whoami uses the API-key compatible CLI identity route", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",
     fetchImpl: async (url, init) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/cli/whoami");
+      assert.equal(url, "https://server.pxxl.app/api/v3/cli/whoami");
       assert.equal(init.headers.get("Authorization"), "Bearer pxxl_test");
       return Response.json({ success: true, user: { id: "user_1", email: "user@example.test" }, authMethod: "api_key" });
     },
@@ -88,8 +88,8 @@ test("stats and usage use CLI-safe API-key routes with team context", async () =
   await client.stats();
   await client.platformUsage();
   assert.deepEqual(calls, [
-    { url: "https://gateway.pxxl.app/api/v3/cli/stats?teamId=team_123", auth: "Bearer pxxl_test" },
-    { url: "https://gateway.pxxl.app/api/v3/cli/usage?teamId=team_123", auth: "Bearer pxxl_test" },
+    { url: "https://server.pxxl.app/api/v3/cli/stats?teamId=team_123", auth: "Bearer pxxl_test" },
+    { url: "https://server.pxxl.app/api/v3/cli/usage?teamId=team_123", auth: "Bearer pxxl_test" },
   ]);
 });
 
@@ -97,7 +97,7 @@ test("searches domains and preserves promo pricing fields", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",
     fetchImpl: async (url, init) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/domains/search");
+      assert.equal(url, "https://server.pxxl.app/api/v3/domains/search");
       assert.equal(init.method, "POST");
       assert.deepEqual(JSON.parse(init.body), { query: "pxxl.cv" });
       return Response.json({
@@ -127,8 +127,8 @@ test("lists domains and fetches CLI domain stats with team context", async () =>
   assert.equal(domains.domains[0], "example.com");
   assert.equal(stats.domain, "example.com");
   assert.deepEqual(calls.map((call) => call.url), [
-    "https://gateway.pxxl.app/api/v3/cli/domains?teamId=team_123",
-    "https://gateway.pxxl.app/api/v3/cli/domains/example.com/stats?timeframe=30d&teamId=team_123",
+    "https://server.pxxl.app/api/v3/cli/domains?teamId=team_123",
+    "https://server.pxxl.app/api/v3/cli/domains/example.com/stats?timeframe=30d&teamId=team_123",
   ]);
 });
 
@@ -137,7 +137,7 @@ test("checks domains through the CLI-safe domain route", async () => {
     apiKey: "pxxl_test",
     teamId: "team_123",
     fetchImpl: async (url, init) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/cli/domains/example.com/check?teamId=team_123");
+      assert.equal(url, "https://server.pxxl.app/api/v3/cli/domains/example.com/check?teamId=team_123");
       assert.equal(init.headers.get("Authorization"), "Bearer pxxl_test");
       return Response.json({ success: true, domain: "example.com", status: "available" });
     },
@@ -167,8 +167,8 @@ test("connects domains and keeps plan-limit rejects separate", async () => {
   assert.equal(result.rejected.length, 1);
   assert.equal(result.rejected[0].status, 403);
   assert.deepEqual(calls.map((call) => call.url), [
-    "https://gateway.pxxl.app/api/v3/cli/domains?teamId=team_123",
-    "https://gateway.pxxl.app/api/v3/cli/domains?teamId=team_123",
+    "https://server.pxxl.app/api/v3/cli/domains?teamId=team_123",
+    "https://server.pxxl.app/api/v3/cli/domains?teamId=team_123",
   ]);
 });
 
@@ -186,10 +186,10 @@ test("manages domain DNS records through CLI-safe routes", async () => {
   await client.updateDomainDNSRecords("dom_1", { recordId: "rec_1", type: "A", name: "@", value: "193.181.212.66" });
   await client.deleteDomainDNSRecord("dom_1", { recordId: "rec_1" });
   assert.deepEqual(calls.map((call) => `${call.method} ${call.url}`), [
-    "GET https://gateway.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
-    "POST https://gateway.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
-    "PUT https://gateway.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
-    "DELETE https://gateway.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
+    "GET https://server.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
+    "POST https://server.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
+    "PUT https://server.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
+    "DELETE https://server.pxxl.app/api/v3/cli/domains/dom_1/dns-records",
   ]);
 });
 
@@ -206,8 +206,8 @@ test("resyncs and disconnects domains through CLI-safe routes", async () => {
   await client.resyncDomainProxy("example.com");
   await client.disconnectDomain("example.com", { projectId: "proj_123" });
   assert.deepEqual(calls, [
-    { method: "POST", url: "https://gateway.pxxl.app/api/v3/cli/domains/example.com/resync?teamId=team_123" },
-    { method: "DELETE", url: "https://gateway.pxxl.app/api/v3/cli/domains/example.com?projectId=proj_123&teamId=team_123" },
+    { method: "POST", url: "https://server.pxxl.app/api/v3/cli/domains/example.com/resync?teamId=team_123" },
+    { method: "DELETE", url: "https://server.pxxl.app/api/v3/cli/domains/example.com?projectId=proj_123&teamId=team_123" },
   ]);
 });
 
@@ -227,8 +227,8 @@ test("uses generic activation status for non-cv domain connection checks", async
   const result = await client.getDomainZoneStatus("dom_1");
   assert.equal(result.status, "active");
   assert.deepEqual(calls, [
-    { method: "GET", url: "https://gateway.pxxl.app/api/v3/cli/domains/dom_1?teamId=team_123" },
-    { method: "POST", url: "https://gateway.pxxl.app/api/v3/cli/domains/dom_1/activate?teamId=team_123" },
+    { method: "GET", url: "https://server.pxxl.app/api/v3/cli/domains/dom_1?teamId=team_123" },
+    { method: "POST", url: "https://server.pxxl.app/api/v3/cli/domains/dom_1/activate?teamId=team_123" },
   ]);
 });
 
@@ -247,8 +247,8 @@ test("uses cv zone status for cv domain connection checks", async () => {
   const result = await client.getDomainConnectionStatus("dom_cv");
   assert.equal(result.zoneStatus, "connected");
   assert.deepEqual(calls, [
-    { method: "GET", url: "https://gateway.pxxl.app/api/v3/cli/domains/dom_cv" },
-    { method: "GET", url: "https://gateway.pxxl.app/api/v3/cli/domains/dom_cv/zone-status" },
+    { method: "GET", url: "https://server.pxxl.app/api/v3/cli/domains/dom_cv" },
+    { method: "GET", url: "https://server.pxxl.app/api/v3/cli/domains/dom_cv/zone-status" },
   ]);
 });
 
@@ -276,13 +276,13 @@ test("manages cron jobs through CLI-safe routes", async () => {
   await client.validateCronSchedule("*/5 * * * *");
   await client.validateCronURL("https://example.com/job");
   assert.deepEqual(calls.map((call) => `${call.method} ${call.url}`), [
-    "GET https://gateway.pxxl.app/api/v3/cli/cronjobs?teamId=team_123",
-    "POST https://gateway.pxxl.app/api/v3/cli/cronjobs?teamId=team_123",
-    "PUT https://gateway.pxxl.app/api/v3/cli/cronjobs/cron_1?teamId=team_123",
-    "POST https://gateway.pxxl.app/api/v3/cli/cronjobs/cron_1/trigger?teamId=team_123",
-    "GET https://gateway.pxxl.app/api/v3/cli/cronjobs/cron_1/runs?page=1&limit=20&teamId=team_123",
-    "POST https://gateway.pxxl.app/api/v3/cli/cronjobs/validate-schedule",
-    "POST https://gateway.pxxl.app/api/v3/cli/cronjobs/validate-url",
+    "GET https://server.pxxl.app/api/v3/cli/cronjobs?teamId=team_123",
+    "POST https://server.pxxl.app/api/v3/cli/cronjobs?teamId=team_123",
+    "PUT https://server.pxxl.app/api/v3/cli/cronjobs/cron_1?teamId=team_123",
+    "POST https://server.pxxl.app/api/v3/cli/cronjobs/cron_1/trigger?teamId=team_123",
+    "GET https://server.pxxl.app/api/v3/cli/cronjobs/cron_1/runs?page=1&limit=20&teamId=team_123",
+    "POST https://server.pxxl.app/api/v3/cli/cronjobs/validate-schedule",
+    "POST https://server.pxxl.app/api/v3/cli/cronjobs/validate-url",
   ]);
 });
 
@@ -303,7 +303,7 @@ test("diffs env vars without requesting remote secret values", async () => {
   const client = new PxxlClient({
     apiKey: "pxxl_test",
     fetchImpl: async (url, init) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/envs/diff");
+      assert.equal(url, "https://server.pxxl.app/api/v3/cli/projects/proj_1/envs/diff");
       assert.equal(init.method, "POST");
       assert.deepEqual(JSON.parse(init.body), { vars: [{ key: "API_KEY", value: "local", isSecret: true }] });
       return Response.json({ success: true, projectId: "proj_1", scope: "app", counts: { changed: 1 }, diff: [{ key: "API_KEY", status: "changed", local: true, remote: true, same: false }] });
@@ -325,8 +325,8 @@ test("fetches project and deployment logs through CLI-safe routes", async () => 
   await client.projectLogs("proj_1", { lines: 50, live: true, since: "1h" });
   await client.deploymentLogs("dep_1", { build: true, since: "1h" });
   assert.deepEqual(calls, [
-    "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/live-logs?tail=50&since=1h",
-    "https://gateway.pxxl.app/api/v3/cli/deployments/dep_1/build-logs?since=1h",
+    "https://server.pxxl.app/api/v3/cli/projects/proj_1/live-logs?tail=50&since=1h",
+    "https://server.pxxl.app/api/v3/cli/deployments/dep_1/build-logs?since=1h",
   ]);
 });
 
@@ -343,7 +343,7 @@ test("network failures explain connectivity", async () => {
 test("lists TLD prices", async () => {
   const client = new PxxlClient({
     fetchImpl: async (url) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/domains/tlds");
+      assert.equal(url, "https://server.pxxl.app/api/v3/domains/tlds");
       return Response.json({ count: 1, tlds: [{ tld: ".cv", registerDollar: 4.99, registerNaira: 7600 }] });
     },
   });
@@ -417,7 +417,7 @@ test("database requests include selected team context", async () => {
     apiKey: "pxxl_test",
     teamId: "team_123",
     fetchImpl: async (url, init) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/databases?teamId=team_123");
+      assert.equal(url, "https://server.pxxl.app/api/v3/databases?teamId=team_123");
       assert.equal(init.method, "POST");
       assert.deepEqual(JSON.parse(init.body), {
         name: "app-db",
@@ -464,9 +464,9 @@ test("project automation uses CLI-safe API routes", async () => {
   await client.pushProjectEnv("proj_1", [{ key: "API_URL", value: "https://api.example.test", isSecret: true }]);
 
   assert.deepEqual(calls.map((call) => [call.method, call.url]), [
-    ["GET", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1"],
-    ["POST", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/redeploy"],
-    ["POST", "https://gateway.pxxl.app/api/v3/cli/projects/proj_1/envs/bulk"],
+    ["GET", "https://server.pxxl.app/api/v3/cli/projects/proj_1"],
+    ["POST", "https://server.pxxl.app/api/v3/cli/projects/proj_1/redeploy"],
+    ["POST", "https://server.pxxl.app/api/v3/cli/projects/proj_1/envs/bulk"],
   ]);
   assert.deepEqual(calls[2].body, { vars: [{ key: "API_URL", value: "https://api.example.test", isSecret: true }], replace: false });
 });
@@ -480,7 +480,7 @@ test("deploy marks archives as CLI deploy source", async () => {
     const client = new PxxlClient({
       apiKey: "pxxl_test",
       fetchImpl: async (url, init) => {
-        assert.equal(url, "https://gateway.pxxl.app/api/v3/projects/spacedrop");
+        assert.equal(url, "https://server.pxxl.app/api/v3/projects/spacedrop");
         const form = init.body;
         assert.equal(form.get("deploymentSource"), "clideploy");
         assert.equal(form.get("sourceShape"), "clideploy");
@@ -502,7 +502,7 @@ test("domain invoice SDK methods stay out of CLI routes", async () => {
     apiKey: "pxxl_test",
     teamId: "team_123",
     fetchImpl: async (url) => {
-      assert.equal(url, "https://gateway.pxxl.app/api/v3/cli/domainprovider/invoices?teamId=team_123");
+      assert.equal(url, "https://server.pxxl.app/api/v3/cli/domainprovider/invoices?teamId=team_123");
       return Response.json({ error: false, invoices: [{ id: "inv_1", status: "pending", grandTotal: 10 }] });
     },
   });

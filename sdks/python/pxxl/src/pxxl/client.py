@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO, Mapping
 
-PXXL_API_BASE_URL = "https://gateway.pxxl.app/api/v3"
+PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3"
 MAX_DEPLOY_FILES = 12000
 MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024
 

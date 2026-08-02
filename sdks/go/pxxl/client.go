@@ -17,7 +17,7 @@ import (
 	"strings"
 )
 
-const defaultBaseURL = "https://gateway.pxxl.app/api/v3"
+const defaultBaseURL = "https://server.pxxl.app/api/v3"
 
 type Client struct {
 	apiKey     string
