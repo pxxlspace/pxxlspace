@@ -50,5 +50,22 @@ curl -L https://server.pxxl.app/api/v3/cdn/assets/<asset-id>/download \
 
 ## SDKs
 
-- Node: root package `pxxl`
-- Go: `sdks/go/pxxl`
+- Node: [`@pxxlapp/pxxl`](../sdks/javascript/pxxl/README.md)
+- Go: [`sdks/go/pxxl`](../sdks/go/pxxl/README.md)
+
+The JavaScript SDK exposes CDN operations through the grouped `Pxxl` client:
+
+```ts
+import { Pxxl } from "@pxxlapp/pxxl";
+
+const pxxl = new Pxxl({ apiKey: process.env.PXXL_API_KEY });
+const assets = await pxxl.cdn.list();
+const uploaded = await pxxl.cdn.upload({
+  file: new Blob(["hello"]),
+  fileName: "hello.txt",
+  visibility: "public",
+});
+```
+
+`PxxlClient` remains available for applications using the original flat
+method names.

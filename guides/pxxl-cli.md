@@ -72,6 +72,52 @@ pxxl cdn delete <asset-id>
 
 Use `scope=cdn` or `scope=all`.
 
+## Storage
+
+```bash
+pxxl storage buckets
+pxxl storage bucket <bucket-id>
+pxxl storage create --name uploads --visibility private
+pxxl storage update <bucket-id> --name media
+pxxl storage objects <bucket-id>
+pxxl storage object-upload <bucket-id> ./logo.png --path images --public
+pxxl storage object-download <asset-id> ./logo.png
+pxxl storage object-delete <asset-id>
+pxxl storage analytics <bucket-id> --timeframe 30d
+pxxl storage billing
+pxxl storage keys <bucket-id>
+pxxl storage key-create <bucket-id> --name deploy --permission read_write
+pxxl storage key-delete <bucket-id> <key-id>
+pxxl storage delete <bucket-id>
+```
+
+Storage commands use `scope=storage` or `scope=all`. Keep generated access
+secrets private; the create response is the place to capture a new secret.
+
+## Analytics
+
+```bash
+pxxl analytics project <project-id>
+pxxl analytics domain <domain-id>
+pxxl analytics user-domain example.com
+```
+
+Add `--timeframe 24h`, `48h`, `72h`, `7d`, or `30d` when supported by the
+route. Use `--json` for dashboards and scheduled reports.
+
+## Billing
+
+Domain-provider invoices are available under `pxxl invoices`. The broader
+billing commands include legacy invoices and payment links:
+
+```bash
+pxxl billing list
+pxxl billing list --status pending
+pxxl billing get <invoice-id>
+pxxl billing create --data '{"domainOrderId":123}'
+pxxl billing payment-link <invoice-id>
+```
+
 ## Teams / Spaceships
 
 ```bash
@@ -124,6 +170,26 @@ pxxl domains stats example.com --timeframe 30d
 Domain commands use the same Gateway proxy and DNS source as the dashboard. If you omit a selectable target, the CLI fetches your available domains and lets you select one. Bulk connects report accepted domains separately from plan-limit rejections.
 
 For monorepos and multi-service projects, pass the microservice ID with `--service`. Pxxl stores that value as the service alias and routes the domain to that microservice instead of the main project service.
+
+Domain reseller commands are also available from the CLI:
+
+```bash
+pxxl domains tlds
+pxxl domains tld-search cv
+pxxl domains search mybrand.cv
+pxxl domains addons
+pxxl domains purchase --data '{"customerId":123,"currency":"NGN","domains":[{"domainName":"mybrand.cv","years":1}]}'
+pxxl customers list
+pxxl customers create --data '{"firstName":"Ada",...}'
+pxxl invoices list
+pxxl invoices payment-url <invoice-id>
+pxxl invoices pay <invoice-id>
+pxxl invoices purchased-domains
+```
+
+Use `scope=domain` or `scope=all` for domain reseller operations and
+`scope=billing` or `scope=all` for invoice operations, with
+`permission=read_write` for purchases and payments.
 
 ## Cron Jobs
 

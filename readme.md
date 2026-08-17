@@ -1,159 +1,76 @@
-# Pxxl CLI and SDK
+Deploy your project in seconds.
 
-Official CLI and SDK for Pxxl deploys, CDN assets, managed databases, teams, and domain reseller workflows.
+# Pxxlspace
 
-- GitHub: [pxxlspace/pxxlspace](https://github.com/pxxlspace/pxxlspace)
-- Docs: [docs.pxxl.app](https://docs.pxxl.app)
-- Deploy on Pxxl: [pxxl.app](https://pxxl.app)
+Pxxlspace is the home of Pxxl's deployment tooling, CLI, JavaScript SDK, and
+language SDKs.
+
+- Website: [pxxl.app](https://pxxl.app)
+- Documentation: [docs.pxxl.app](https://docs.pxxl.app)
 - Dashboard: [pxxl.app/dashboard](https://pxxl.app/dashboard)
-
-## Install
-
-```bash
-npm install -g @pxxlapp/pxxl
-```
 
 ## CLI
 
+Install the official CLI and deploy a project:
+
 ```bash
+npm install -g @pxxlapp/pxxl
+
 pxxl login --api-key pxxl_...
 pxxl init --new vite-react-pnpm --name my-app --domain pxxl.pro
-pxxl init --new express-bun --name my-api --domain pxxl.pro
+cd my-app
 pxxl deploy
-pxxl redeploy <project-id>
-pxxl pull <project-id> ./my-app
-pxxl stats
-pxxl usage
-pxxl env push <project-id> --file .env
-pxxl cdn upload ./logo.png
-pxxl team list
-pxxl team use <team-id>
-pxxl db create --name app-db --type postgres
-pxxl db list
-pxxl db get
-pxxl domains list
-pxxl domains connect example.com --project <project-id>
-pxxl domains records <domain-id>
-pxxl domains stats
-pxxl cron list
-pxxl cron create --name cleanup --schedule "*/5 * * * *" --url https://example.com/job
-pxxl cron runs <cron-job-id>
 ```
 
-`pxxl login` validates the API key before saving it and prints the authenticated user, scope, and spaceship context. The CLI always uses the official Pxxl Gateway endpoint.
-CLI commands print readable terminal output by default. Add `--json` when you need raw API responses for scripts.
+The CLI also handles projects, logs, environment variables, CDN assets,
+Storage, domains, invoices, databases, teams, cron jobs, and usage.
 
-`pxxl deploy` reads `pxxl.toml`, applies `.pxxlignore`, creates a temporary deterministic ZIP, and deploys on Pxxl.
-`pxxl pull` verifies the local git remote before updating an existing checkout, then refuses to pull into dirty working trees.
-`pxxl stats` and `pxxl usage` show deployment, project, artifact, and build-minute usage for the current personal or selected spaceship scope.
-`pxxl db create`, `pxxl db get`, database lifecycle commands, `pxxl team use`, `pxxl env push`, and `pxxl domains stats` become interactive when you omit the target value.
-`pxxl cron create`, `pxxl cron get`, `pxxl cron update`, `pxxl cron start`, `pxxl cron stop`, `pxxl cron trigger`, and `pxxl cron runs` also become interactive when required IDs or fields are omitted.
+## JavaScript SDK
 
-## Node SDK
+The same package provides the Node.js and TypeScript SDK. The CLI and SDK use
+the same API client, so scripts and terminal commands stay in sync.
+
+```bash
+npm install @pxxlapp/pxxl
+```
 
 ```ts
-import { PxxlClient } from "@pxxlapp/pxxl";
+import { Pxxl } from "@pxxlapp/pxxl";
 
-const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY });
-
-const domains = await pxxl.searchDomains({ query: "pxxl.cv" });
-const tlds = await pxxl.listTLDs();
-const invoices = await pxxl.listDomainInvoices();
-const connected = await pxxl.connectDomain({ domain: "example.com", projectId: "proj_123" });
-const records = await pxxl.listDomainDNSRecords("dom_123");
-await pxxl.resyncDomainProxy("example.com");
-await pxxl.disconnectDomain("old.example.com", { projectId: "proj_123" });
-const teams = await pxxl.listTeams();
-const database = await pxxl.createDatabase({ name: "app-db", type: "postgres" });
-const cron = await pxxl.createCronJob({
-  name: "cache warmer",
-  schedule: "*/5 * * * *",
-  url: "https://example.com/api/warm-cache",
-  method: "POST",
-});
-const asset = await pxxl.uploadAsset({
-  file: new Blob(["hello"]),
-  fileName: "hello.txt",
-  visibility: "public",
-});
+const pxxl = new Pxxl({ apiKey: process.env.PXXL_API_KEY });
+const domains = await pxxl.domains.search({ query: "example.com" });
+const jobs = await pxxl.cronjobs.list();
 ```
 
-Domain search returns availability, prices, renewal pricing, and active promo fields such as `.cv` bonus amounts when the API returns them.
-Domain management supports project connection, DNS verification, managed DNS records, nameservers, activation checks, and certificate download.
-Database commands use the same managed database provisioning API as the dashboard. Use `pxxl team use <team-id>` or `PXXL_TEAM_ID` to create/list databases inside a spaceship.
-Cron jobs are HTTP-only scheduled jobs. Use `scope=cron`, `scope=cronjobs`, or `scope=all`; read operations work with `permission=read`, while create/update/delete/start/stop/trigger require `permission=read_write`.
+The JavaScript SDK lives in [`sdks/javascript/pxxl/`](sdks/javascript/pxxl/).
+See its [SDK guide](sdks/javascript/pxxl/README.md) and the
+[Node examples](examples/node-sdk-functions/README.md).
 
-## Python SDK
+## Other SDKs
+
+The [`sdks/`](sdks/) directory contains clients for other languages:
+
+| Language | Package | Guide |
+| --- | --- | --- |
+| Go | `github.com/pxxlspace/pxxlspace/sdks/go/pxxl` | [Go SDK](sdks/go/pxxl/README.md) |
+| Python | `pxxl` | [Python SDK](sdks/python/pxxl/README.md) |
+| Rust | `pxxl` | [Rust SDK](sdks/rust/pxxl/README.md) |
+
+## Repository map
+
+- [`sdks/`](sdks/) — language SDKs and the JavaScript CLI source.
+- [`boilerplates/`](boilerplates/) — starters used by `pxxl init --new`.
+- [`examples/`](examples/) — copyable deployment and SDK examples.
+- [`guides/`](guides/) — CLI, domain, CDN, database, and npm release guides.
+
+## Development
 
 ```bash
-pip install pxxl
+npm ci
+npm test
+npm run build
+npm pack --dry-run
 ```
 
-```python
-from pxxl import PxxlClient
-
-pxxl = PxxlClient(api_key="pxxl_...")
-
-asset = pxxl.upload_asset(file_path="logo.png", visibility="public")
-domains = pxxl.search_domains("pxxl.cv")
-job = pxxl.create_cron_job(
-    name="cache warmer",
-    schedule="*/5 * * * *",
-    url="https://example.com/api/warm-cache",
-    method="POST",
-)
-```
-
-## Rust SDK
-
-```bash
-cargo add pxxl
-```
-
-```rust
-use pxxl::{PxxlClient, UploadAsset};
-
-let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?;
-let asset = client.upload_asset(UploadAsset {
-    file_name: "hello.txt".into(),
-    bytes: b"hello from Pxxl".to_vec(),
-    visibility: Some("public".into()),
-    ..Default::default()
-}).await?;
-```
-
-## Examples
-
-- `examples/node-sdk-functions`: copyable Node functions for deploys, CDN, domains, cron jobs, teams, projects, deployments, databases, env vars, stats, and usage.
-- `examples/go-sdk-functions`: copyable Go functions for deploys, CDN, domains, and cron jobs.
-- `examples/python-sdk-functions`: copyable Python functions for deploys, CDN, domains, and cron jobs.
-- `examples/rust-sdk-functions`: copyable Rust functions for deploys, CDN, domains, and cron jobs.
-- `examples/node-cdn-upload`: minimal Node CDN upload.
-- `examples/go-cdn-upload`: minimal Go CDN upload.
-- `examples/microservices-node`: multi-service Pxxl project example.
-
-## Boilerplates
-
-Run `pxxl init --new` to choose a framework first, then choose a package manager when that framework has variants.
-
-- Express: npm, pnpm, Bun, Yarn.
-- Vite React: npm, pnpm, Bun, Yarn.
-- Astro, Next.js, Vue Vite, SvelteKit, Fastify, Hono, Node TypeScript, Turbo Monorepo.
-- FastAPI, Flask, Django, PHP, HTML Static, Go HTTP, Rust Axum, Dockerfile Node.
-
-Direct IDs still work for scripts, for example `express-bun`, `express-npm`, `vite-react-pnpm`, `turbo-monorepo`, `php-basic`, or `static-cdn-gallery`.
-
-## Useful Links
-
-- CLI docs: [docs.pxxl.app/api/pxxl-cli](https://docs.pxxl.app/api/pxxl-cli)
-- Deploy guide: [docs.pxxl.app/api/pxxl-deploy](https://docs.pxxl.app/api/pxxl-deploy)
-- CDN guide: [docs.pxxl.app/api/cdn](https://docs.pxxl.app/api/cdn)
-- Database API: [docs.pxxl.app/api/database-api](https://docs.pxxl.app/api/database-api)
-- Domain reseller SDK: [docs.pxxl.app/api/domain-reseller-sdk](https://docs.pxxl.app/api/domain-reseller-sdk)
-- Domain Node SDK: [docs.pxxl.app/api/domain-node-sdk](https://docs.pxxl.app/api/domain-node-sdk)
-- Domain Go SDK: [docs.pxxl.app/api/domain-go-sdk](https://docs.pxxl.app/api/domain-go-sdk)
-- Python SDK: [docs.pxxl.app/api/python-sdk](https://docs.pxxl.app/api/python-sdk)
-- Rust SDK: [docs.pxxl.app/api/rust-sdk](https://docs.pxxl.app/api/rust-sdk)
-- Cron CLI: [docs.pxxl.app/api/cron-cli](https://docs.pxxl.app/api/cron-cli)
-- Cron Node SDK: [docs.pxxl.app/api/cron-node-sdk](https://docs.pxxl.app/api/cron-node-sdk)
-- Cron Go SDK: [docs.pxxl.app/api/cron-go-sdk](https://docs.pxxl.app/api/cron-go-sdk)
+Use Conventional Commit subjects such as `feat:`, `fix:`, `refactor:`,
+`test:`, `docs:`, and `chore:` when contributing.

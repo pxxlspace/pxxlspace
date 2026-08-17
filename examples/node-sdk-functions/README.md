@@ -12,6 +12,8 @@ The example includes:
 - Deploying a local codebase with the SDK
 - Uploading and listing CDN assets
 - Searching domains and reading TLD prices
+- Saving a customer, creating a domain invoice, and getting its payment URL
+- Managing Storage buckets, objects, and cron jobs
 - Fetching teams, projects, deployments, usage, and stats
 - Creating databases and pushing encrypted project env vars
 

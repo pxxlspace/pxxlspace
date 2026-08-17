@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
-import { PxxlClient } from "@pxxlapp/pxxl";
+import { Pxxl } from "@pxxlapp/pxxl";
 
 const apiKey = process.env.PXXL_API_KEY;
 if (!apiKey) {
@@ -8,7 +8,7 @@ if (!apiKey) {
   process.exit(1);
 }
 
-const pxxl = new PxxlClient({
+const pxxl = new Pxxl({
   apiKey,
   teamId: process.env.PXXL_TEAM_ID,
 });
@@ -62,6 +62,25 @@ export async function searchDomainsWithPrices(query = "example.cv") {
     pxxl.listTLDs(),
   ]);
   return { search, tlds };
+}
+
+export async function createDomainCheckout(customerInput, domainName, years = 1) {
+  const customer = await pxxl.customers.create(customerInput);
+  const purchase = await pxxl.domains.purchase({
+    customerId: customer.id,
+    domains: [{ domainName, years }],
+    currency: "NGN",
+  });
+  const payment = await pxxl.invoices.getPaymentUrl(purchase.invoice.id);
+  return { customer, purchase, payment };
+}
+
+export async function createStorageBucket(name = "sdk-assets") {
+  return pxxl.storage.createBucket({ name, visibility: "private" });
+}
+
+export async function listStorageObjects(bucketId) {
+  return pxxl.storage.listObjects(bucketId, { limit: 20, page: 1 });
 }
 
 export async function getDomainStats(domain, timeframe = "30d") {
