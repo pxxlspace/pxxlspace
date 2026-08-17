@@ -1,0 +1,62 @@
+---
+title: "Deploy Your First Project on Pxxl in Under Five Minutes"
+sidebarTitle: "Quickstart"
+description: "Follow this step-by-step guide to connect GitHub, configure your build settings, and deploy your first project to a live URL on Pxxl."
+---
+
+This guide walks you through deploying your first project on Pxxl. By the end you will have a live URL you can share — no servers to configure and no infrastructure to manage. The whole process takes under five minutes.
+
+<Note>
+  **Before you begin, make sure you have:**
+  - A GitHub account with the repository you want to deploy.
+  - A Pxxl account — sign up for free at [pxxl.app/signup](https://pxxl.app/signup).
+</Note>
+
+<Steps>
+  <Step title="Create Your Account">
+    Go to [pxxl.app/signup](https://pxxl.app/signup) and create your free Pxxl account. You can sign up with GitHub for the fastest setup — this also pre-authorises repository access in one click.
+  </Step>
+
+  <Step title="Connect GitHub">
+    After you log in, open **Dashboard → Settings → GitHub** and click **Connect GitHub Account**. Grant Pxxl access to either all repositories or only the specific repos you want to deploy. You can update these permissions at any time from your GitHub settings.
+  </Step>
+
+  <Step title="Create a Project">
+    Navigate to **Dashboard → Deploy** and click **Deploy Project**. Pxxl displays the repositories your GitHub account has authorised. Select the repository you want to deploy and continue to the configuration form.
+  </Step>
+
+  <Step title="Configure Build Settings">
+    Fill in the deploy form fields for your project:
+
+    | Field | Description |
+    |---|---|
+    | **Project Domain** | The subdomain prefix for your `pxxl.pro` URL, e.g. `my-api` → `my-api.pxxl.pro`. |
+    | **Port Number** | The port your application listens on inside the container. Must match the `PORT` value your code uses. |
+    | **GitHub Branch** | The branch Pxxl deploys from, e.g. `main` or `production`. |
+    | **Environment Variables** | Key-value pairs injected at runtime — database URLs, API keys, feature flags, and any other secrets. |
+    | **Additional Build Settings** | Override the auto-detected install, build, and start commands, or set a Base Directory for monorepos. |
+
+    Pxxl auto-detects your stack from lock files and pre-fills the command fields. Review them and adjust if your project has a non-standard setup.
+  </Step>
+
+  <Step title="Deploy">
+    Click **Deploy Project**. Pxxl clones your repository, runs your install and build commands inside a fresh container, and then starts your application. Watch the build log stream in real time on the **Deployments** tab — a green status badge confirms a successful deployment.
+  </Step>
+
+  <Step title="Go Live">
+    Your project is now live at `yourproject.pxxl.pro`. Click the URL in the dashboard to open it in your browser. Every subsequent push to your configured branch triggers an automatic redeploy.
+  </Step>
+</Steps>
+
+<Tip>
+  Always use the `PORT` environment variable for the port your server listens on. Pxxl injects `PORT` automatically, so hard-coding a port number can cause your container to fail the health check. For example, in Node.js: `const port = process.env.PORT || 3000;`
+</Tip>
+
+## Next Steps
+
+Now that your first project is live, explore the rest of the Pxxl platform:
+
+- **Custom Domains** — point your own domain at your project from **Dashboard → Domains**.
+- **Databases** — provision a managed PostgreSQL instance from **Dashboard → Database** and connect it with an environment variable.
+- **Deployment Reference** — review exact install, build, and start commands for every supported stack in the [Deployment Command Reference](/deployment-reference).
+- **Framework Recipes** — grab copy-paste configurations for your specific framework in the [Framework Recipes](/framework-recipes) guide.

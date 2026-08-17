@@ -1,0 +1,60 @@
+---
+title: "Create and Manage Scoped API Keys for Pxxl Automation"
+sidebarTitle: "API Keys"
+description: "Generate scoped API keys in the Pxxl dashboard to authenticate backend services, automate deployments, upload CDN assets, and connect monitoring tools."
+---
+
+API keys let trusted backend services communicate directly with the Pxxl platform API. You use them when automation — a deployment check, a CDN upload pipeline, an internal monitoring script — needs to authenticate to Pxxl without a signed-in user in the loop. Each key carries a defined set of scopes so you can grant the minimum permissions each automation actually needs, and nothing more.
+
+Open **Dashboard > API Keys** to manage all platform tokens for the current workspace.
+
+## Creating an API Key
+
+Click **Create API Key** or **New API Key** to open the key creation form. Fill in each field before saving.
+
+| Field | Use |
+| --- | --- |
+| **Key name** | A readable label that identifies where the key is used — for example, `Production deploy bot`, `CDN uploader`, or `Internal monitor`. |
+| **Description** | Optional context explaining the specific service or workflow that holds this key. |
+| **Scopes / permissions** | The capabilities granted to this token. Restrict the token to the minimum scopes required for its purpose. |
+| **Expiration** | The date after which the key stops working. Set an expiration on every key and rotate regularly — avoid permanent tokens wherever possible. |
+
+Copy the key immediately after creation. Pxxl will not display the full key value again after you leave the creation screen.
+
+## Common Key Patterns
+
+| Workflow | Recommended scope pattern |
+| --- | --- |
+| **Backend deployment checks** | Read deployment status and project metadata only. No write or destructive permissions. |
+| **CDN uploader** | CDN asset upload and read permissions scoped to the relevant CDN space. No project or billing access. |
+| **Internal automation** | Narrow project, domain, or billing scopes matched exactly to what the automation needs to modify. |
+| **Monitoring service** | Read-only status, usage, and health permissions. No ability to trigger deployments or modify configuration. |
+
+## Authentication
+
+Pass the API key in the `Authorization` header of every platform API request:
+
+```http
+Authorization: Bearer YOUR_PLATFORM_API_KEY
+```
+
+All API requests must originate from your backend server — never from browser-side JavaScript or mobile application code.
+
+## Security Best Practices
+
+<Warning>
+  **Never put API keys in browser JavaScript, mobile apps, or public code repositories.**
+
+  Follow these practices to keep your keys secure:
+
+  - Store all API keys in backend secrets managers or project environment variables — never hard-code them in source files.
+  - Give each automation its own dedicated key so you can revoke a single key without disrupting other services.
+  - Set an expiration on every key and build rotation into your operations runbook.
+  - Delete keys that are no longer in use. An unused key with broad scopes is an unnecessary risk.
+  - Rotate keys immediately when ownership of a service changes or a team member leaves.
+  - Review your key list periodically from **Dashboard > API Keys** and audit descriptions to confirm each key is still needed.
+</Warning>
+
+## OAuth Integrations
+
+API keys are for backend services that you control directly. If you are building a product where end users need to authorize access to their own Pxxl workspace — for example, a developer tool or a third-party integration — use OAuth instead. OAuth Integrations are managed from **Dashboard > Integrations** and support the full OAuth 2.0 authorization code flow, including callback URLs, token exchange, user info endpoints, scoped permissions, and signed webhooks. See the [OAuth Integrations](integrations/oauth) guide for full setup details.

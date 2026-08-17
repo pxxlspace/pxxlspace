@@ -1,0 +1,77 @@
+---
+title: "Create and Deploy a Pxxl Project from a GitHub Repo"
+sidebarTitle: "Create Project"
+description: "Deploy a project on Pxxl by importing a GitHub repository, configuring build settings, environment variables, and scaling options."
+---
+
+Creating a project on Pxxl starts with a GitHub repository. Pxxl reads the repository, detects the framework, and presents a configuration screen where you set the domain, port, environment variables, build commands, and scaling options before anything is provisioned. Nothing is created until you click **Deploy Project**, which means you have a full opportunity to review every setting first.
+
+<Note>
+  If the application already exists on Vercel, Netlify, Render, or Railway and you want to bring over provider metadata, build commands, and environment variables before creating the Pxxl project, use [Import Projects](dashboard/import-projects) instead of the standard deploy flow.
+</Note>
+
+## Create and Deploy a Project
+
+<Steps>
+  <Step title="Open the deploy screen">
+    Navigate to **Dashboard > Deploy Project** or **Projects > Add New > Deploy from GitHub**. Pxxl lists all repositories available to the connected GitHub account.
+  </Step>
+  <Step title="Choose a repository">
+    Use the search field to find the repository when the list is long. Click **Import** beside the repository you want to deploy. Pxxl opens the deployment configuration screen before creating anything.
+  </Step>
+  <Step title="Configure project setup fields">
+    Fill in the core project settings in the top section of the configuration screen.
+
+    | Field | What it controls |
+    | --- | --- |
+    | **Project Domain** | The public Pxxl subdomain for the new project. Choose a unique, lowercase name. |
+    | **Domain suffix** | The Pxxl suffix — such as `.pxxl.pro` — that the project subdomain uses. |
+    | **Port Number** | The runtime port Pxxl routes traffic to inside the container. Your application should listen on this port or read the `PORT` environment variable. |
+    | **GitHub Branch** | The branch Pxxl deploys on the first build. |
+    | **Select Commit** | The exact commit Pxxl deploys first. Useful when you want to deploy a specific known-good state. |
+    | **Multiple Services** | Enable when the repository contains multiple directories or services that should each deploy independently. |
+  </Step>
+  <Step title="Add environment variables">
+    Open the **Environment Variables** panel and add any secrets, database URLs, API credentials, or feature flags the application needs before it starts. Add these before creating the project — your container will not start without required variables.
+
+    Use clear, descriptive names for every variable. Avoid exposing server-side secrets through variables your frontend framework intentionally injects into browser bundles.
+  </Step>
+  <Step title="Review additional build settings and server options">
+    Open **Additional Build Settings** if Pxxl's auto-detection needs guidance. You can override:
+
+    - **Install command** — e.g., `npm ci`, `pip install -r requirements.txt`
+    - **Build command** — e.g., `npm run build`, `go build ./...`
+    - **Start command** — e.g., `npm start`, `gunicorn app:app`
+    - **Root directory** — when the deployable service lives in a subdirectory
+    - **Requirements file** — for Python projects with non-standard file names
+    - **Package manager** — `npm`, `yarn`, `pnpm`, or `bun`
+    - **Runtime version** — pin the Node.js, Python, or other runtime version
+
+    Open **Server and Scaling** to review the default memory, CPU, build server tier, and scaling configuration. Adjust these before creating the project when you know the application needs more than the defaults.
+  </Step>
+  <Step title="Configure advanced options and deploy">
+    Expand the **Advanced Options** section at the bottom of the configuration screen to configure deployment behavior.
+
+    | Option | Use it for |
+    | --- | --- |
+    | **Blue-green deployment** | Stage a new version behind the edge before switching production traffic, enabling zero-downtime releases. |
+    | **Auto scaling** | Prepare the project to scale horizontally when traffic increases. |
+    | **Project webhooks** | Connect deployment lifecycle events to external systems such as Slack, Datadog, or a custom backend. |
+    | **Build cache** | Speed up subsequent builds by caching installed dependencies when they have not changed. |
+    | **Preview environments** | Enable temporary deployment environments for feature branches and pull requests. |
+
+    When all settings are correct, click **Deploy Project**. Pxxl queues the build and you can follow progress in **Project > Deployments** and **Project > Live Logs**.
+  </Step>
+</Steps>
+
+## Safe Create Pattern
+
+Use this checklist before clicking **Deploy Project** to avoid common first-deploy failures.
+
+- [ ] Repository, branch, and target commit are correct.
+- [ ] Project domain name is unique and available.
+- [ ] Runtime port matches the port your application binds to (or your app reads `PORT`).
+- [ ] All required environment variables are added — database URLs, API keys, secrets.
+- [ ] Install, build, and start commands match the application's actual build process.
+- [ ] Memory, CPU, and scaling settings are appropriate for the expected workload.
+- [ ] Advanced options such as blue-green deployment or build cache are configured intentionally.

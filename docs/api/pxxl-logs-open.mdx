@@ -1,0 +1,67 @@
+---
+title: "CLI Logs and Open"
+sidebarTitle: "Logs and Open"
+description: "Fetch project logs, deployment logs, and open the current Pxxl project from the CLI."
+---
+
+Use `pxxl logs` when you need runtime or deployment logs from a terminal. Use `pxxl open` when you are inside a project folder and want to jump to the dashboard, live URL, or deployment URL.
+
+## Logs
+
+```bash
+pxxl logs
+pxxl logs --project <project-id>
+pxxl logs --deployment <deployment-id>
+pxxl logs --since 1h
+pxxl logs --lines 200
+pxxl logs --follow
+```
+
+When the current folder has a `pxxl.toml`, the CLI reads the saved `projectId` or `deploymentId`. You can also pass an ID explicitly.
+
+| Option | Meaning |
+| --- | --- |
+| `--project <id>` | Fetch runtime logs for a project. |
+| `--deployment <id>` | Fetch build/deployment logs for a deployment. |
+| `--since 1h` | Show recent logs for a time window such as `15m`, `1h`, or `1d`. |
+| `--lines 200` | Request a specific number of runtime log lines. |
+| `--follow` | Poll live project logs every few seconds. |
+
+The CLI prints a readable stream by default. Add `--json` when scripting:
+
+```bash
+pxxl logs --project <project-id> --json
+```
+
+## Open
+
+```bash
+pxxl open
+pxxl open --deployment
+pxxl open --live
+pxxl open --domain
+pxxl open --url https://pxxl.app
+```
+
+`pxxl open` reads `pxxl.toml` and opens the most useful URL for the current folder:
+
+| Option | Opens |
+| --- | --- |
+| No option | Project dashboard if `projectId` exists, otherwise the saved live/deployment URL. |
+| `--deployment` | Saved deployment URL. |
+| `--live` or `--domain` | Saved project live URL. |
+| `--url` | A specific URL. |
+
+## Saved Deploy Metadata
+
+After `pxxl deploy`, the CLI writes deployment metadata back into `pxxl.toml`:
+
+```toml
+projectId = "..."
+deploymentId = "..."
+projectUrl = "https://example.pxxl.pro"
+deploymentUrl = "https://pxxl.app/dashboard/projects/.../deployments/..."
+lastDeployedAt = "2026-06-24T21:00:00.000Z"
+```
+
+That metadata is what lets `pxxl logs`, `pxxl open`, `pxxl env diff`, and `pxxl env push` work without repeating the project ID.

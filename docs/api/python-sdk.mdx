@@ -1,0 +1,199 @@
+---
+title: "Python SDK"
+sidebarTitle: "Python"
+description: "Use the Pxxl Python SDK to deploy projects, upload CDN assets, manage domains, and run cron jobs."
+---
+
+Install the Python SDK from PyPI:
+
+```bash
+pip install pxxl
+```
+
+```python
+from pxxl import PxxlClient
+
+client = PxxlClient(api_key="pxxl_...")
+```
+
+Use API keys from the dashboard. For least privilege, create keys for the surface you need: `cdn`, `domains`, `cronjobs`, `deploy`, or `all`.
+
+## CDN Assets
+
+Upload a passive public asset:
+
+```python
+asset = client.upload_asset(
+    file_path="logo.png",
+    visibility="public",
+)
+
+print(asset["publicUrl"])
+```
+
+List, download, and delete:
+
+```python
+summary = client.summary()
+assets = client.list_assets(limit=20)
+file_bytes = client.download_asset("asset_123")
+client.delete_asset("asset_123")
+```
+
+Uploads and deletes require `permission=read_write`. Listing, summaries, downloads, and usage work with `permission=read`.
+
+## Domain Search and Pricing
+
+Search for a domain and read reseller pricing:
+
+```python
+search = client.search_domains("example.cv")
+tlds = client.list_tlds()
+popular = client.popular_tlds()
+```
+
+The response includes availability, premium status, provider result, TLD, register price, renew price, and promo fields where the registry supports them.
+
+## Connect a Domain
+
+Attach a domain to a project:
+
+```python
+connected = client.connect_domain(
+    "example.com",
+    project_id="proj_123",
+)
+```
+
+Check status and verify records:
+
+```python
+check = client.check_domain("example.com")
+verify = client.verify_domain_record("example.com", project_id="proj_123")
+activation = client.activate_domain("dom_123")
+status = client.get_domain_connection_status("dom_123")
+resync = client.resync_domain_proxy("example.com")
+```
+
+`get_domain_connection_status` dynamically uses `.cv` managed zone status for `.cv` domains and the generic activation check for every other TLD. Pending external domains are auto-detected for up to 24 hours after connection, with checks every 5 minutes.
+
+Use `resync_domain_proxy` after changing DNS, SSL settings, force-HTTPS, force-www, or the connected service target. It refreshes the proxy route and certificate state without rebuilding the project.
+
+Disconnect a domain from a project:
+
+```python
+deleted = client.disconnect_domain(
+    "example.com",
+    project_id="proj_123",
+)
+```
+
+Disconnecting removes the project binding and proxy route. It does not delete the domain from your registrar.
+
+When a plan limit is reached, the SDK raises `PxxlAPIError`. Use the status code and body to show the exact limit reason.
+
+```python
+from pxxl import PxxlAPIError
+
+try:
+    client.connect_domain("example.com", project_id="proj_123")
+except PxxlAPIError as error:
+    print(error.status_code)
+    print(error.message)
+    print(error.body.decode())
+```
+
+## DNS Records
+
+For Pxxl-managed domains, you can read and modify DNS records:
+
+```python
+records = client.list_domain_dns_records("dom_123")
+
+created = client.create_domain_dns_record("dom_123", {
+    "type": "A",
+    "name": "@",
+    "value": "193.181.212.65",
+    "ttl": 60,
+})
+
+updated = client.update_domain_dns_records("dom_123", {
+    "recordId": "rec_123",
+    "type": "A",
+    "name": "@",
+    "value": "193.181.212.66",
+})
+
+client.delete_domain_dns_record("dom_123", {
+    "recordId": "rec_123",
+})
+```
+
+You cannot create conflicting apex records such as `CNAME @` and `A @` at the same time. The API returns a validation error that the SDK surfaces directly.
+
+## Certificates
+
+Download the active proxy certificate:
+
+```python
+pem = client.download_domain_certificate("dom_123")
+open("example.com.pem", "wb").write(pem)
+```
+
+## Cron Jobs
+
+Create an HTTP cron job:
+
+```python
+job = client.create_cron_job(
+    name="cache warmer",
+    schedule="*/5 * * * *",
+    url="https://example.com/api/warm-cache",
+    method="POST",
+    timeoutSeconds=10,
+)
+```
+
+Operate it:
+
+```python
+jobs = client.list_cron_jobs()
+client.trigger_cron_job(job["id"])
+runs = client.list_cron_job_runs(job["id"], limit=20)
+client.stop_cron_job(job["id"])
+client.start_cron_job(job["id"])
+```
+
+Pxxl accepts 5-field cron expressions, public `http` or `https` URLs, and `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. Private and reserved IP targets are blocked.
+
+## Deploy
+
+Deploy the current directory through the same source upload path used by the CLI:
+
+```python
+result = client.deploy(
+    directory=".",
+    name="python-api",
+    domain_choice="pxxl.app",
+    language="python",
+    framework="fastapi",
+    install_command="pip install -r requirements.txt",
+    start_command="uvicorn main:app --host 0.0.0.0 --port $PORT",
+    commit_message="Deploy from Python SDK",
+)
+
+print(result.get("deploymentUrl"))
+```
+
+The SDK excludes `.git`, `node_modules`, build caches, `.env*`, logs, private keys, service account files, and other sensitive files from generated deploy archives.
+
+## Team Context
+
+Pass `team_id` when creating the client or per method:
+
+```python
+client = PxxlClient(api_key="pxxl_...", team_id="team_123")
+domains = client.list_domains()
+```
+
+Usage limits are enforced against the owning user account even when a team context is selected.

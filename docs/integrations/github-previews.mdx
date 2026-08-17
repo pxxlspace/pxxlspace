@@ -1,0 +1,102 @@
+---
+title: "Automated GitHub Deployments and PR Preview Environments"
+sidebarTitle: "GitHub Previews"
+description: "Set up automatic deployments on every commit push and create ephemeral pull request preview environments with Pxxl's GitHub integration."
+---
+
+Pxxl integrates directly with your GitHub repository to automate deployments on every commit push and spin up isolated, live preview environments for every pull request. Once connected, your team can verify changes in a real runtime environment before any code reaches your production branch — no manual deploys required.
+
+## Branch-Aware Commit Routing
+
+When you push a commit to GitHub, Pxxl's webhook handler intercepts the payload and routes it through a four-step pipeline before triggering a build. This ensures only the right project is deployed for the right branch, and that no rogue pushes cause unexpected production changes.
+
+<Steps>
+  <Step title="Signature Verification">
+    Pxxl validates the `X-Hub-Signature-256` header in the incoming payload against the webhook secret registered in your GitHub repository. Any payload that fails verification is rejected immediately.
+  </Step>
+  <Step title="Target Extraction">
+    Pxxl reads the repository name and the target branch ref from the push event payload to determine where the commit landed.
+  </Step>
+  <Step title="Project Matching">
+    The control plane looks up all Pxxl projects associated with that repository and branch combination. Commits to branches that don't match any project are silently ignored.
+  </Step>
+  <Step title="Selective Deployment">
+    If **Auto Deploy** is enabled for the matched project, Pxxl enqueues a new build task. Commits to other branches leave all other projects untouched, preventing accidental cross-branch deployments.
+  </Step>
+</Steps>
+
+## Pull Request Previews
+
+Pull request previews are temporary, isolated environments that Pxxl provisions automatically whenever a developer opens a pull request against your configured base branch. Each preview gets its own live URL, so reviewers and stakeholders can interact with the real, running application — not a screenshot or a staging slot shared across multiple PRs.
+
+Pxxl listens for the following pull request hook activities:
+
+| Event | What happens |
+|---|---|
+| `opened` | Pxxl provisions a new isolated environment and maps a temporary preview URL. |
+| `synchronize` | Triggered when new commits are pushed to the PR source branch. The preview is rebuilt and redeployed automatically. |
+| `reopened` | Pxxl restarts the preview environment or creates a fresh one if the previous instance was cleaned up. |
+| `closed` | Pxxl shuts down the environment, deletes the associated routes, and releases all environment resources. |
+
+## Preview Lifecycles
+
+Preview environments are intentionally short-lived to conserve resources. Every preview follows this lifecycle:
+
+```text
+PR Created ──► Preview Environment Deployed ──► Live URL Mapped
+                                                    │
+                 ┌──────────────────────────────────┴──────────────────┐
+                 ▼                                                     ▼
+        PR Closed / Merged                                      72 Hours Elapsed
+                 │                                                     │
+                 ▼                                                     ▼
+     Environment Stopped & Deleted                             Cleanup Worker Runs
+```
+
+There are two paths to environment termination:
+
+- **Manual closure:** When you merge or close the pull request on GitHub, the Pxxl webhook agent receives the `closed` event and terminates the environment immediately.
+- **Automatic expiry:** If a pull request stays open for **72 hours**, a background cleanup worker stops the environment and marks its preview state as expired. You can re-open the PR to trigger a fresh preview build.
+
+## Preview Metadata Payload
+
+You can query the active deployment metadata for any preview environment using the platform API. The response gives you the full context of the running preview, including its source branch, commit SHA, and expiry timestamp.
+
+```json
+{
+  "preview": {
+    "enabled": true,
+    "kind": "pull_request",
+    "branch": "feature/refactor-auth",
+    "sha": "d3b07384d113edec49eaa6238ad5ff00",
+    "pullRequestNumber": 142,
+    "expiresAt": "2026-05-29T12:00:00Z"
+  }
+}
+```
+
+## Setting Up Previews
+
+Follow these steps to enable pull request previews for a project in your dashboard:
+
+<Steps>
+  <Step title="Open project settings">
+    Navigate to your project settings page in the Pxxl dashboard.
+  </Step>
+  <Step title="Go to Deploy Settings">
+    Select the **Deploy Settings** tab.
+  </Step>
+  <Step title="Enable Pull Request Previews">
+    Toggle on the **Pull Request Previews** switch.
+  </Step>
+  <Step title="Specify the base branch">
+    Enter the target base branch that previews should watch — typically `main` or `master`.
+  </Step>
+  <Step title="Save your settings">
+    Click **Save** to apply your configuration.
+  </Step>
+  <Step title="Open a test pull request">
+    On GitHub, open a pull request against your base branch. This triggers the initial preview build and confirms that the webhook integration is working correctly.
+  </Step>
+</Steps>
+

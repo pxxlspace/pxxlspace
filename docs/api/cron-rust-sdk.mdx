@@ -1,0 +1,49 @@
+---
+title: "Cron Rust SDK"
+sidebarTitle: "Rust SDK"
+description: "Use the Pxxl Rust SDK to create, trigger, and inspect scheduled HTTP cron jobs."
+---
+
+Install the official Rust SDK:
+
+```bash
+cargo add pxxl
+```
+
+```rust
+use pxxl::{CreateCronJob, PxxlClient};
+
+let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?;
+```
+
+Use `scope=cron`, `scope=cronjobs`, or `scope=all`. Read methods work with `permission=read`; mutations and manual triggers require `permission=read_write`.
+
+## Create a Job
+
+```rust
+let job = client.create_cron_job(CreateCronJob {
+    name: "cache warmer".into(),
+    schedule: "*/5 * * * *".into(),
+    url: "https://example.com/api/warm-cache".into(),
+    method: Some("POST".into()),
+    timeout_seconds: Some(10),
+    ..Default::default()
+}).await?;
+```
+
+## List, Trigger, and Read Runs
+
+```rust
+let jobs = client.list_cron_jobs(None).await?;
+client.trigger_cron_job(&job.id, None).await?;
+let runs = client.list_cron_job_runs(&job.id, Some(&[("page", "1"), ("limit", "20")])).await?;
+```
+
+## Validate Inputs
+
+```rust
+client.validate_cron_schedule("*/5 * * * *").await?;
+client.validate_cron_url("https://example.com/job").await?;
+```
+
+Pxxl accepts 5-field cron expressions, public `http` or `https` URLs, and `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. Private and reserved IP targets are blocked before a job is saved.

@@ -1,0 +1,74 @@
+---
+title: "Fix OAuth Callback, Redirect URI, and Code Exchange Errors"
+sidebarTitle: "OAuth Issues"
+description: "Resolve OAuth callback failures, bad verification code errors, and redirect URI mismatches when building OAuth integrations on Pxxl."
+---
+
+OAuth errors on Pxxl almost always come down to two root causes: a mismatch between the redirect URI your app sends and the one registered on the OAuth application, or an authorization code that was exchanged incorrectly. Both problems are easy to introduce and easy to fix once you know exactly what to compare. Use the accordions below to identify the specific error you are seeing and apply the right fix.
+
+<AccordionGroup>
+
+  <Accordion title="OAuth callback fails or returns to the wrong URL">
+    If the OAuth flow completes on the provider side but the user lands on the wrong page — or the callback request fails with a redirect URI error — every part of the redirect URI must match the registered value exactly.
+
+    **Check each of these in order:**
+
+    - **`redirect_uri` in the authorization URL** — the value your app appends to the authorization request URL must be present and correctly encoded.
+    - **Callback URL stored on the OAuth app** — the value registered in your Pxxl OAuth application settings must be identical to what your app sends at runtime.
+    - **Redirect URI allowlist** — the provider will reject any `redirect_uri` that is not on the approved list for the OAuth application.
+    - **HTTPS** — the callback URL must use `https://` in production. Many OAuth providers refuse plaintext HTTP callback URLs.
+    - **Trailing slash** — `https://example.com/callback` and `https://example.com/callback/` are treated as different URLs by most OAuth providers. Check both the registered value and the sent value for a trailing slash mismatch.
+
+    <Note>
+      For the full OAuth integration setup guide — including how to register callback URLs and configure scopes — see the [OAuth Integrations](/integrations/oauth) documentation.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Bad verification code error">
+    A `bad_verification_code` or equivalent error during token exchange means the authorization code your backend sent to the token endpoint was expired, already used, or mismatched with the original authorization request.
+
+    **What causes it**
+
+    Authorization codes are short-lived (typically 60 seconds or less) and single-use. The code becomes invalid as soon as any of these happen:
+
+    - It expires before your backend exchanges it.
+    - It has already been used once — even if the exchange returned an error the first time.
+    - The user refreshed the callback page, causing the browser to re-submit a code that was already consumed.
+    - The `redirect_uri` sent to the token endpoint does not match the one sent during the original authorization request.
+
+    **What NOT to do**
+
+    - **Do not exchange the code from browser JavaScript.** Client-side code is visible to anyone who inspects the page. Always exchange authorization codes from your backend server.
+    - **Do not retry the same code after a failed exchange.** Once a code has been submitted — even unsuccessfully — treat it as consumed and restart the authorization flow.
+    - **Do not reuse a code after a page refresh.** If the callback URL is re-visited or the page is refreshed, the code in the URL is stale. Redirect the user back to the authorization endpoint to get a new one.
+    - **Do not use a different `redirect_uri` during token exchange.** The `redirect_uri` parameter in your token request must be identical to the one used in the original authorization URL, even though no actual redirect happens at this stage.
+  </Accordion>
+
+  <Accordion title="Authorization redirects back with invalid_redirect_uri">
+    An `invalid_redirect_uri` error means the provider rejected the `redirect_uri` your app sent because it does not exactly match any URI registered on the OAuth application.
+
+    OAuth providers perform a strict string comparison — no pattern matching, no wildcard support. Every character must match:
+
+    | Component | Example | What to check |
+    |---|---|---|
+    | Protocol | `https://` vs `http://` | Production must use `https://` |
+    | Domain | `app.example.com` vs `example.com` | Subdomains are distinct; both must be registered separately if used |
+    | Path | `/auth/callback` vs `/auth/callback/` | Trailing slashes matter — register and send the exact same value |
+    | Query string | `/callback?source=pxxl` | Query parameters in the registered URI must match exactly |
+
+    **To fix it:**
+
+    1. Copy the exact `redirect_uri` your app sends at runtime (check your server logs or the authorization URL in the browser).
+    2. Open your OAuth application settings in the Pxxl dashboard.
+    3. Add the exact URI to the allowed redirect URIs list.
+    4. Save the change and retry the authorization flow.
+  </Accordion>
+
+</AccordionGroup>
+
+<Warning>
+  **Security reminders for OAuth integrations:**
+  - Always exchange authorization codes from your backend server, never from client-side JavaScript. The client secret and the code exchange must stay on the server.
+  - Use `https://` for all callback URLs in production. Plain HTTP exposes the authorization code in transit.
+  - Validate the `state` parameter on every callback to prevent cross-site request forgery (CSRF) attacks. Generate a random value before redirecting to the authorization endpoint, store it in the session, and verify it matches on the callback.
+</Warning>

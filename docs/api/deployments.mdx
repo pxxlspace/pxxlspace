@@ -1,0 +1,75 @@
+---
+title: "Deployments API: Read Build Status and Project Metadata"
+sidebarTitle: "Deployments API"
+description: "Query deployment status, read project metadata, and connect external monitors using the Pxxl platform API from your backend service."
+---
+
+The Pxxl platform API gives backend services read access to your deployment pipeline and project metadata. Use it to surface build results in internal dashboards, connect third-party monitoring tools, trigger alerts when a deployment fails, or generate usage reports across your workspace — all without requiring anyone to open the Pxxl dashboard.
+
+## Common Use Cases
+
+### Read Deployment Status
+
+Track build results in real time, connect external status pages, and integrate deployment outcomes into your CI notification pipelines. The deployments endpoints return the current state of each build so your backend can react to success, failure, or in-progress conditions.
+
+### Query Project Metadata
+
+Pull project names, domains, environment details, and configuration metadata to support internal tooling such as infrastructure registries, runbooks, or developer portals.
+
+### Monitor Usage
+
+Review workspace resource consumption programmatically for reporting dashboards or budget alerts. The usage endpoints surface artifact storage, project activity, and deployment frequency data.
+
+## Authentication
+
+<Note>
+Every API request must include your API key in the `Authorization` header. See [Authentication](/api/authentication) for how to create a scoped key and attach it to requests.
+</Note>
+
+## Typical Workflow
+
+<Steps>
+  <Step title="Create an API key with the right scope">
+    Navigate to **Dashboard > API Keys** and click **Create API Key**. Select only the scopes your integration needs — for deployment monitoring, read-only access to deployment and project status is sufficient.
+  </Step>
+  <Step title="Store the key in your backend environment">
+    Add the key as a secret or environment variable in your backend service. Never commit it to version control or include it in client-side code.
+  </Step>
+  <Step title="Make authenticated requests">
+    Send requests to `https://gateway.pxxl.dev/api/v3/` with the `Authorization: Bearer YOUR_KEY` header on every call.
+  </Step>
+  <Step title="Handle rate limit responses">
+    When the API returns HTTP `429 Too Many Requests`, pause and retry using exponential backoff. Do not immediately loop or retry without a delay.
+  </Step>
+  <Step title="Use webhooks for event-driven triggers">
+    For deployment automation, configure project webhooks from **Dashboard > Settings > Webhooks** to receive signed event notifications instead of polling the API on a fixed interval. Webhooks reduce API load and give you lower-latency reactions to deployment activity.
+  </Step>
+</Steps>
+
+## Webhook Events for Automation
+
+When you enable webhooks from **Dashboard > Settings > Webhooks**, Pxxl sends signed POST requests to your endpoint whenever relevant activity occurs. The deployment-related events you can subscribe to are:
+
+- **Deployment created** — a new build has been queued for a project
+- **Redeployment queued** — an existing deployment has been manually or automatically re-triggered
+- **GitHub deployment** — a push or pull request event has initiated a deployment via the GitHub integration
+- **Deployment status changed** — a running deployment has transitioned to a new state (for example, succeeded or failed)
+
+Every webhook request from Pxxl includes the following headers so your backend can validate and process the event:
+
+| Header | Purpose |
+| --- | --- |
+| `X-Pxxl-Event` | The event category (for example, `deployment`). |
+| `X-Pxxl-Action-Type` | The specific action that occurred (for example, `created`, `status_changed`). |
+| `X-Pxxl-Timestamp` | The Unix timestamp of when Pxxl dispatched the event. |
+| `X-Pxxl-Signature` | An HMAC signature your backend uses to verify the request came from Pxxl. |
+
+Verify the signature against your webhook signing secret, reject requests with stale timestamps, and return a `2xx` response only after your handler has successfully accepted the event.
+
+<Note>
+To explore all available endpoints interactively, download the [Pxxl Platform Postman Collection](https://pxxl.app/postman/pxxl-platform.postman_collection.json) and set the `base_url` and `bearer_token` environment variables before sending requests.
+</Note>
+
+<Warning>
+Guard every loop or scheduled job that calls the Pxxl API against HTTP `429 Too Many Requests`. When you receive a 429 response, stop retrying immediately and implement exponential backoff — start with a short delay and double it on each subsequent retry. Tight retry loops without backoff can exhaust your rate limit budget and delay legitimate requests.
+</Warning>

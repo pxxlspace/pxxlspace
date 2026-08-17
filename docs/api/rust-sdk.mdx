@@ -1,0 +1,185 @@
+---
+title: "Rust SDK"
+sidebarTitle: "Rust"
+description: "Use the Pxxl Rust SDK to deploy projects, upload CDN assets, manage domains, and run cron jobs."
+---
+
+Install the Rust SDK from crates.io:
+
+```bash
+cargo add pxxl
+```
+
+```rust
+use pxxl::PxxlClient;
+
+let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?;
+```
+
+The client uses `reqwest`, `serde`, and `tokio`. All network methods are async.
+
+## CDN Assets
+
+Upload a public asset:
+
+```rust
+use pxxl::{PxxlClient, UploadAsset};
+
+let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?;
+
+let asset = client.upload_asset(UploadAsset {
+    file_name: "hello.txt".into(),
+    bytes: b"hello from Pxxl".to_vec(),
+    visibility: Some("public".into()),
+    ..Default::default()
+}).await?;
+
+println!("{:?}", asset.public_url);
+```
+
+Read and delete:
+
+```rust
+let summary = client.summary().await?;
+let assets = client.list_assets(Some(&[("limit", "20")])).await?;
+let bytes = client.download_asset("asset_123").await?;
+client.delete_asset("asset_123").await?;
+```
+
+Uploads and deletes require `permission=read_write`. Listing, summaries, downloads, and usage work with `permission=read`.
+
+## Domain Search and Pricing
+
+```rust
+let search = client.search_domains("example.cv").await?;
+let tlds = client.list_tlds().await?;
+let popular = client.popular_tlds().await?;
+```
+
+Search responses include availability, premium status, TLD, register price, renew price, and promo fields where available.
+
+## Connect a Domain
+
+```rust
+let connected = client
+    .connect_domain("example.com", "proj_123", None)
+    .await?;
+
+let check = client.check_domain("example.com", None).await?;
+let activation = client.activate_domain("dom_123", None).await?;
+let status = client.domain_connection_status("dom_123", None).await?;
+let resync = client.resync_domain_proxy("example.com", None).await?;
+```
+
+`domain_connection_status` dynamically uses `.cv` managed zone status for `.cv` domains and the generic activation check for every other TLD. Pending external domains are auto-detected for up to 24 hours after connection, with checks every 5 minutes.
+
+Use `resync_domain_proxy` after changing DNS, SSL settings, force-HTTPS, force-www, or the connected service target. It refreshes the proxy route and certificate state without rebuilding the project.
+
+Disconnect a domain from a project:
+
+```rust
+let deleted = client
+    .disconnect_domain("example.com", Some("proj_123"), None)
+    .await?;
+```
+
+Disconnecting removes the project binding and proxy route. It does not delete the domain from your registrar.
+
+For team-scoped work, pass `Some("team_123")` to methods or create the client with `.with_team_id("team_123")`.
+
+## DNS Records
+
+```rust
+use pxxl::DomainDnsRecord;
+
+let records = client.list_domain_dns_records("dom_123", None).await?;
+
+let created = client.create_domain_dns_record("dom_123", DomainDnsRecord {
+    r#type: Some("A".into()),
+    name: Some("@".into()),
+    value: Some("193.181.212.65".into()),
+    ttl: Some(60),
+    ..Default::default()
+}, None).await?;
+
+client.update_domain_dns_records("dom_123", DomainDnsRecord {
+    record_id: Some("rec_123".into()),
+    r#type: Some("A".into()),
+    name: Some("@".into()),
+    value: Some("193.181.212.66".into()),
+    ..Default::default()
+}, None).await?;
+
+client.delete_domain_dns_record("dom_123", DomainDnsRecord {
+    record_id: Some("rec_123".into()),
+    ..Default::default()
+}, None).await?;
+```
+
+For `.cv` and other Pxxl-managed domains, DNS changes are validated and logged for dashboard rollback.
+
+## Certificates
+
+```rust
+let pem = client.download_domain_certificate("dom_123", None).await?;
+tokio::fs::write("example.com.pem", pem).await?;
+```
+
+## Cron Jobs
+
+```rust
+use pxxl::CreateCronJob;
+
+let job = client.create_cron_job(CreateCronJob {
+    name: "cache warmer".into(),
+    schedule: "*/5 * * * *".into(),
+    url: "https://example.com/api/warm-cache".into(),
+    method: Some("POST".into()),
+    timeout_seconds: Some(10),
+    ..Default::default()
+}).await?;
+
+client.trigger_cron_job(&job.id, None).await?;
+let runs = client.list_cron_job_runs(&job.id, Some(&[("limit", "20")])).await?;
+```
+
+Pxxl accepts 5-field cron expressions, public `http` or `https` URLs, and `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. Private and reserved IP targets are blocked.
+
+## Deploy
+
+```rust
+use pxxl::DeployInput;
+
+let result = client.deploy(DeployInput {
+    directory: Some(".".into()),
+    name: Some("rust-api".into()),
+    domain_choice: Some("pxxl.app".into()),
+    language: Some("rust".into()),
+    framework: Some("axum".into()),
+    build_command: Some("cargo build --release".into()),
+    start_command: Some("./target/release/app".into()),
+    commit_message: Some("Deploy from Rust SDK".into()),
+    ..Default::default()
+}).await?;
+
+println!("{result:?}");
+```
+
+The SDK excludes `.git`, `node_modules`, build caches, `.env*`, logs, private keys, service account files, and other sensitive files from generated deploy archives.
+
+## Error Handling
+
+The SDK returns `PxxlError::Api` for non-2xx responses:
+
+```rust
+match client.connect_domain("example.com", "proj_123", None).await {
+    Ok(domain) => println!("{domain:?}"),
+    Err(pxxl::PxxlError::Api { status, message, body }) => {
+        eprintln!("{status}: {message}");
+        eprintln!("{body}");
+    }
+    Err(error) => return Err(error),
+}
+```
+
+Plan limit responses include the exact limit reason, such as custom domain count, build minutes, artifacts, or cron jobs.

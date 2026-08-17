@@ -1,0 +1,188 @@
+---
+title: "Fix Domain 404, 503, DNS Records and SSL Issues on Pxxl"
+sidebarTitle: "Domain Issues"
+description: "Resolve domain 404 and 503 errors, fix DNS record problems, renew SSL certificates, and connect custom domains to projects on Pxxl."
+---
+
+Domains on Pxxl go through three layers before traffic reaches your app: DNS resolution, edge proxy routing, and SSL certificate coverage. A problem at any one layer produces a different symptom — a 404 means the proxy has no route for the hostname, a 503 means the route exists but the upstream is unhealthy, and a certificate warning means the proxy has not yet issued or refreshed the cert. Use the accordions below to find the symptom that matches your situation and follow the fix steps.
+
+<AccordionGroup>
+
+  <Accordion title="Domain shows 404">
+    A 404 means DNS is pointing to Pxxl, but the edge proxy has no application route registered for that hostname.
+
+    **Fix steps**
+
+    <Steps>
+      <Step title="Connect the domain to a project">
+        Open **Dashboard > Projects**, select your project, go to the **Domains** tab, and confirm the domain appears there. If it does not, click **Add Domain** and attach it.
+      </Step>
+      <Step title="Resync the proxy">
+        Open **Dashboard > Domains**, select the domain, and click **Resync Proxy**. This tells the edge to re-read the route and create a certificate request for the hostname.
+      </Step>
+      <Step title="Confirm the deployment is active">
+        Check that the latest deployment finished successfully. A healthy upstream must exist before the proxy can return a response.
+      </Step>
+      <Step title="Wait for DNS and proxy setup to finish">
+        If the domain was just created or just attached to a project, give the system a short moment to complete DNS and proxy setup, then refresh the page.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Domain shows 503">
+    A 503 means the proxy has a route for the hostname, but the upstream app is not healthy or the registered port does not match the port your app actually listens on.
+
+    **Before you change anything, check:**
+
+    - The latest deployment finished successfully.
+    - The project port in **Settings** matches the port your app listens on.
+    - The app reads the `PORT` environment variable when one is provided.
+    - The domain is attached to the current project.
+    - The proxy route was resynced after the last port or domain change.
+
+    **Fix steps**
+
+    <Steps>
+      <Step title="Open the project">
+        Go to **Dashboard > Projects** and select the affected project.
+      </Step>
+      <Step title="Check the port in Settings">
+        Open the **Settings** tab and confirm the port value matches the port your app binds to at runtime.
+      </Step>
+      <Step title="Correct the port if needed">
+        Update the port to match your app's listener. The proxy can only route to the port Pxxl registered for the container; if the values differ, the route exists but traffic never reaches the app.
+      </Step>
+      <Step title="Resync the proxy">
+        Open **Dashboard > Domains**, select the domain, and click **Resync Proxy** so the edge picks up the updated upstream target. Redeploy only if the app image itself needs a changed port or config value.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="DNS records are wrong or not resolving">
+    For domains managed by Pxxl, DNS records are handled automatically from the domain page. For external domains, configure the records at your registrar or DNS provider.
+
+    **Required records**
+
+    | Goal | Record type | Name | Value |
+    |---|---|---|---|
+    | Root domain | A | `@` | `193.181.212.65` |
+    | Subdomain | A | `app` or your subdomain label | `193.181.212.65` |
+    | Wildcard subdomains | A | `*` | `193.181.212.65` |
+
+    **Avoiding conflicts**
+
+    Remove any existing A records for the same host before adding the Pxxl records. If `@` already points to another server, replace it with `193.181.212.65`. Duplicate A records for the same hostname cause unpredictable routing.
+
+    **Propagation**
+
+    DNS changes can take a few minutes to propagate globally. If the record looks correct but SSL still fails immediately after you made the change, wait a few minutes and then click **Resync Proxy** again on the domain page.
+
+    <Note>
+      For subdomains, enter only the subdomain label in the DNS provider UI. Use `api` to create `api.example.com` — not `api.example.com`.
+    </Note>
+  </Accordion>
+
+  <Accordion title="SSL certificate is missing or wrong">
+    If your domain loads but the browser reports a missing, expired, or mismatched SSL certificate, you need to ask Pxxl to resync the proxy certificate for that domain.
+
+    **When to use Resync Proxy**
+
+    - You just pointed a domain to Pxxl.
+    - You recently connected a domain to a project.
+    - The site loads over HTTP, but HTTPS shows the wrong certificate.
+    - You bought a domain on Pxxl and DNS records are correct, but the SSL tab still shows missing coverage.
+    - You changed the project connected to a domain.
+    - You changed proxy SSL settings such as **Force HTTPS**, `www` redirect behaviour, or WebSocket support.
+
+    **Fix steps**
+
+    <Steps>
+      <Step title="Open the domain">
+        Go to **Dashboard > Domains** and select the affected domain.
+      </Step>
+      <Step title="Click Resync Proxy">
+        Click **Resync Proxy** in the domain actions area. Pxxl refreshes the proxy route and requests a dedicated certificate via SNI. You do not need to redeploy your project to refresh SSL.
+      </Step>
+      <Step title="Check the SSL tab">
+        Open the **SSL** tab and click **Renew / Resync** if you want to verify certificate stage and expiry directly.
+      </Step>
+      <Step title="Test the domain">
+        Wait briefly, then reload the domain over `https://`.
+      </Step>
+    </Steps>
+
+    **Expected SSL state after a successful resync**
+
+    | Field | Expected value |
+    |---|---|
+    | Coverage | Covered |
+    | TLS | Enabled |
+    | Browser | No certificate warning |
+    | URL | `https://yourdomain.com` loads successfully |
+  </Accordion>
+
+  <Accordion title="Connect a domain to a project">
+    Purchasing a domain and deploying a project are separate actions. A domain only receives traffic after it is attached to a project.
+
+    **From the project**
+
+    <Steps>
+      <Step title="Open the project">
+        Go to **Dashboard > Projects** and select your project.
+      </Step>
+      <Step title="Open the Domains tab">
+        Click the **Domains** tab inside the project.
+      </Step>
+      <Step title="Add the domain">
+        Click **Add Domain**, then choose an existing Pxxl domain or enter an external domain.
+      </Step>
+      <Step title="Save and resync">
+        Save the connection, then click **Resync Proxy** on the domain if the route needs refreshing.
+      </Step>
+    </Steps>
+
+    **From the domain**
+
+    <Steps>
+      <Step title="Open the domain">
+        Go to **Dashboard > Domains** and select the domain.
+      </Step>
+      <Step title="Open Settings or Subdomains">
+        Click the **Settings** or **Subdomains** tab.
+      </Step>
+      <Step title="Pick the project">
+        Select the project that should receive traffic for this domain.
+      </Step>
+      <Step title="Save and resync">
+        Save the connection, then click **Resync Proxy**.
+      </Step>
+    </Steps>
+
+    <Note>
+      For subdomains, enter only the subdomain label when the UI asks for it. Use `api` for `api.example.com`.
+    </Note>
+  </Accordion>
+
+  <Accordion title="After buying a domain on Pxxl">
+    After payment is confirmed, Pxxl starts the registration and DNS setup flow. Once the domain appears in your dashboard, complete these steps to make it live.
+
+    <Steps>
+      <Step title="Open the domain detail page">
+        Go to **Dashboard > Domains** and click the new domain.
+      </Step>
+      <Step title="Confirm DNS is managed by Pxxl">
+        Check that the DNS management indicator shows Pxxl is in control of the nameservers. If registration is still pending, wait for the domain task to finish before expecting DNS or SSL to work.
+      </Step>
+      <Step title="Connect the domain to a project">
+        Attach the domain to the project you want to serve traffic. See the "Connect a domain to a project" section above if you need detailed steps.
+      </Step>
+      <Step title="Click Resync Proxy">
+        Click **Resync Proxy** on the domain detail page to push the route to the edge.
+      </Step>
+      <Step title="Check SSL coverage">
+        Open the **SSL** tab and confirm the coverage shows **Covered**. If it does not, click **Renew / Resync** and wait a moment.
+      </Step>
+    </Steps>
+  </Accordion>
+
+</AccordionGroup>

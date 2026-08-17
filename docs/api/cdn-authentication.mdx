@@ -1,0 +1,37 @@
+---
+title: "CDN API Authentication"
+sidebarTitle: "CDN Auth"
+description: "Create safe Pxxl API keys for CDN uploads, asset reads, downloads, deletes, and usage summaries."
+---
+
+The public CDN API accepts dashboard JWT sessions and Pxxl API keys. For backend integrations, create an API key in **Dashboard > API Keys** with `scope=cdn` or `scope=all`.
+
+Use the smallest permission that fits the job:
+
+| Permission | Allowed CDN actions |
+| --- | --- |
+| `read` | List assets, get summaries, download files, read usage events |
+| `read_write` | Everything in `read`, plus upload and delete assets |
+
+Pass the key with either header:
+
+```bash
+Authorization: Bearer $PXXL_API_KEY
+```
+
+```bash
+X-Pxxl-Api-Key: $PXXL_API_KEY
+```
+
+<Warning>
+Keep CDN API keys on your server. Do not place them in client-side JavaScript, mobile apps, public repositories, screenshots, or build logs.
+</Warning>
+
+## Quick Check
+
+```bash
+curl https://gateway.pxxl.app/api/v3/cdn/summary \
+  -H "Authorization: Bearer $PXXL_API_KEY"
+```
+
+If the key is missing, expired, has the wrong scope, or does not have enough permission for the requested action, the API returns `401` or `403` with a safe error message.

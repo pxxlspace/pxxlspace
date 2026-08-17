@@ -1,0 +1,50 @@
+---
+title: "Cron Python SDK"
+sidebarTitle: "Python SDK"
+description: "Use the Pxxl Python SDK to create, trigger, and inspect scheduled HTTP cron jobs."
+---
+
+Install the official Python SDK:
+
+```bash
+pip install pxxl
+```
+
+```python
+from pxxl import PxxlClient
+
+pxxl = PxxlClient(api_key="pxxl_...")
+```
+
+Use `scope=cron`, `scope=cronjobs`, or `scope=all`. Read methods work with `permission=read`; mutations and manual triggers require `permission=read_write`.
+
+## Create a Job
+
+```python
+job = pxxl.create_cron_job(
+    name="cache warmer",
+    schedule="*/5 * * * *",
+    url="https://example.com/api/warm-cache",
+    method="POST",
+    timeoutSeconds=10,
+    headers={"User-Agent": "Pxxl-Cron/1.0"},
+)
+```
+
+## List, Trigger, and Read Runs
+
+```python
+jobs = pxxl.list_cron_jobs()
+details = pxxl.get_cron_job(job["id"])
+pxxl.trigger_cron_job(details["id"])
+runs = pxxl.list_cron_job_runs(details["id"], page=1, limit=20)
+```
+
+## Validate Inputs
+
+```python
+pxxl.validate_cron_schedule("*/5 * * * *")
+pxxl.validate_cron_url("https://example.com/job")
+```
+
+Pxxl accepts 5-field cron expressions, public `http` or `https` URLs, and `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. Private and reserved IP targets are blocked before a job is saved.

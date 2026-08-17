@@ -1,0 +1,73 @@
+---
+title: "Manage Projects: Deployments, Logs, and Scaling on Pxxl"
+sidebarTitle: "Projects"
+description: "Use the Projects page to inspect deployments, live logs, environment variables, domains, monitoring, scaling, and project settings."
+---
+
+The Projects page is the central view for every application running in your Pxxl workspace. Open **Dashboard > Projects** to see a card for each project, quickly understand its current state, and dive into the full suite of project management tabs. Whether you need to investigate a failed build, rotate an environment variable, or dial up memory for a high-traffic service, every control lives inside the project workspace.
+
+## Project Cards
+
+Each card in the project list gives you a compact snapshot of the application at a glance. Select a card to open its full project workspace.
+
+| Area | Meaning |
+| --- | --- |
+| **Screenshot** | A current preview image rendered from the live application. |
+| **Project name** | The internal Pxxl name assigned when the project was created. |
+| **Framework and repository** | The detected technology stack and the linked GitHub source repository. |
+| **Domain count** | The number of domains currently attached to the project. |
+| **Primary domain** | The main public URL shown on the card for quick access. |
+| **Latest commit / status text** | The most recent deployment context, including commit message or build state. |
+| **Last activity** | How recently any deployment or configuration change occurred. |
+
+## Project Tabs
+
+Once you open a project, a set of tabs gives you focused access to every aspect of the application's infrastructure, runtime, and configuration.
+
+| Tab | Use it for |
+| --- | --- |
+| **Overview** | An architecture canvas showing connected services, sticky notes, attached domains, and overall project context at a glance. |
+| **Deployments** | The complete build and deploy history for this project, including status, commit metadata, timestamps, and previous deploy attempts. |
+| **Live Logs** | Real-time runtime logs from the running service container — your first stop for startup errors, failed requests, and framework output. |
+| **Environment Variables** | Global workspace variables and project-scoped secrets such as API keys, database URLs, and feature flags. |
+| **Issues** | Linked issues and handoff notes that connect infrastructure problems to product work. |
+| **Domains** | Hostnames currently routed to this project and their connection state. For deeper DNS and SSL controls, use Dashboard > Domains. |
+| **Monitoring** | Runtime health, traffic metrics, and error rates. Review this tab after deploys, domain changes, and scaling updates. |
+| **Infra & Scaling** | Compute resource controls — memory, CPU, build server, and horizontal or vertical scaling settings. |
+| **Settings** | Repository connection details, build behavior, GitHub automation triggers, deployment protection rules, and destructive project actions. |
+
+## Deployments
+
+Use the **Deployments** tab to review build history, inspect individual deploy attempts, check commit metadata, and confirm which version of the application is currently serving traffic. Open this tab first whenever the app is not serving the expected version or a deployment appears stalled.
+
+## Live Logs
+
+Use **Live Logs** to inspect real-time runtime output from the running service. This is where you find application startup errors, unhandled exceptions, failed HTTP requests, and framework-level diagnostics.
+
+<Tip>
+  Open **Live Logs** immediately after a new deploy completes. If the container fails to start, the log will show the exact error — such as a missing environment variable, a wrong port binding, or a failed database connection — within seconds.
+</Tip>
+
+## Environment Variables
+
+Use **Environment Variables** for all secrets, credentials, database URLs, and runtime configuration values the application needs. The tab separates global workspace variables (shared across projects) from project-scoped variables (applied only to this deployment). Update a variable and redeploy to make the change take effect — running containers do not automatically reload new values.
+
+## Issues
+
+Use **Issues** to track project-level problems and leave handoff notes for teammates. This tab is useful for connecting infrastructure incidents to product backlogs and ensuring context is not lost during incidents or handoffs.
+
+## Domains
+
+The **Domains** tab shows which hostnames are currently routed to this project and their proxy connection state. Use this tab for application-level routing decisions. For DNS record management, nameserver configuration, SSL certificate status, and proxy security controls, open **Dashboard > Domains** and select the domain directly.
+
+## Monitoring
+
+Use **Monitoring** to review traffic patterns, error rates, and runtime health metrics. Check this tab after every deployment, domain change, or scaling adjustment to confirm the application is responding as expected.
+
+## Infra & Scaling
+
+Use **Infra & Scaling** when the application needs more resources — additional memory, increased CPU allocation, a larger build server, or a different scaling strategy. Changes made here take effect on the next deployment unless live scaling is supported for the current plan.
+
+## Settings
+
+Use **Settings** for repository connection details, build behavior overrides, GitHub automation configuration, deployment protection rules, and destructive project actions such as deleting the project or transferring ownership. Read the current value of any setting before changing it, and review the danger zone before taking irreversible actions.

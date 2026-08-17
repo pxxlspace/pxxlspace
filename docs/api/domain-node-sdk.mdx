@@ -1,0 +1,275 @@
+---
+title: "Domain Node SDK"
+sidebarTitle: "Node SDK"
+description: "Use @pxxlapp/pxxl to connect domains, resync proxy routes, disconnect domains, manage DNS records, and download certificates."
+---
+
+The Node SDK uses the same domain workflow as the Pxxl dashboard. Use it from a trusted backend, CI job, or internal tool with an API key that has `scope=domain`, `scope=domains`, or `scope=all`.
+
+## Install
+
+```bash
+npm install @pxxlapp/pxxl
+```
+
+```ts
+import { PxxlClient } from '@pxxlapp/pxxl';
+
+const pxxl = new PxxlClient({
+  apiKey: process.env.PXXL_API_KEY!,
+});
+```
+
+## Connect a domain
+
+Attach a hostname to a project. If the project already has an active deployment, Pxxl registers the proxy route immediately.
+
+<ParamField body="domain" type="string" required>
+  Hostname to connect, such as `example.com` or `api.example.com`.
+</ParamField>
+
+<ParamField body="projectId" type="string" required>
+  Project that should receive traffic for the domain.
+</ParamField>
+
+<ParamField body="microserviceId" type="string">
+  Optional microservice target for monorepos and multi-service projects.
+</ParamField>
+
+<ParamField body="serviceId" type="string">
+  Alias for `microserviceId`.
+</ParamField>
+
+<ParamField body="serviceAlias" type="string">
+  Alias for `microserviceId`.
+</ParamField>
+
+<ParamField body="teamId" type="string">
+  Spaceship context for team-owned projects and domains.
+</ParamField>
+
+```ts
+const connected = await pxxl.connectDomain({
+  domain: 'example.com',
+  projectId: 'proj_123',
+});
+
+console.log(connected.domainId);
+console.log(connected.expectedRecords);
+```
+
+For a microservice route:
+
+```ts
+const connected = await pxxl.connectDomain({
+  domain: 'api.example.com',
+  projectId: 'proj_123',
+  serviceAlias: 'api',
+});
+
+console.log(connected.serviceAlias);
+```
+
+The response includes the domain ID, status, management mode, expected DNS records, route status, and whether a deployment refresh is pending.
+
+<Tip>
+  Adding a domain does not require a redeploy when the project already has a healthy active deployment. Use `verifyDomainRecord` after setting DNS, then `resyncDomainProxy` if you changed proxy or SSL settings.
+</Tip>
+
+## Bulk connect
+
+Use `connectDomains` when users submit more than one hostname. Pxxl returns accepted and rejected domains separately, so plan-limit failures do not hide successful connections.
+
+```ts
+const result = await pxxl.connectDomains([
+  { domain: 'app.example.com', projectId: 'proj_123' },
+  { domain: 'api.example.com', projectId: 'proj_123', serviceAlias: 'api' },
+]);
+
+console.log(result.accepted);
+console.log(result.rejected);
+```
+
+Rejected items include the HTTP status, message, limit, used count, and backend details.
+
+## Verify records and activation
+
+Use these methods after the user updates DNS.
+
+<ParamField body="domain" type="string" required>
+  Hostname to verify against the expected project DNS records.
+</ParamField>
+
+<ParamField body="projectId" type="string" required>
+  Project that owns the domain binding.
+</ParamField>
+
+<ParamField body="domainId" type="string" required>
+  Pxxl domain ID returned by connect, list, or dashboard domain pages.
+</ParamField>
+
+```ts
+await pxxl.verifyDomainRecord({
+  domain: 'example.com',
+  projectId: 'proj_123',
+});
+
+await pxxl.activateDomain('dom_123');
+
+const status = await pxxl.getDomainConnectionStatus('dom_123');
+console.log(status.ssl);
+console.log(status.proxy);
+```
+
+`getDomainConnectionStatus` follows the same dynamic flow as the dashboard. It uses `.cv` managed zone status for `.cv` domains and the generic activation check for every other TLD.
+
+`getDomainZoneStatus` is still available for older code, but it now delegates to `getDomainConnectionStatus`.
+
+## Resync the proxy route
+
+Use `resyncDomainProxy` after changing DNS, SSL settings, force HTTPS, force www, the connected project, or the microservice target. It refreshes the active proxy route and certificate state without rebuilding the project.
+
+<ParamField body="domain" type="string" required>
+  Hostname whose proxy route should be refreshed.
+</ParamField>
+
+<ParamField body="teamId" type="string">
+  Spaceship context for team-owned domains.
+</ParamField>
+
+```ts
+const resync = await pxxl.resyncDomainProxy('example.com');
+
+console.log(resync.status);
+console.log(resync.message);
+```
+
+For a team-owned domain:
+
+```ts
+await pxxl.resyncDomainProxy('example.com', {
+  teamId: 'team_123',
+});
+```
+
+This method calls `POST /api/v3/cli/domains/:domain/resync`. It requires `read_write` permission.
+
+## Disconnect a domain
+
+Use `disconnectDomain` when a custom domain should stop routing to a project. It removes the project binding and proxy route. It does not delete the domain from your registrar.
+
+<ParamField body="domain" type="string" required>
+  Hostname to disconnect.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Project currently connected to the domain. Include it when possible to avoid removing the wrong binding.
+</ParamField>
+
+<ParamField body="teamId" type="string">
+  Spaceship context for team-owned domains.
+</ParamField>
+
+```ts
+await pxxl.disconnectDomain('example.com', {
+  projectId: 'proj_123',
+});
+```
+
+For a team-owned domain:
+
+```ts
+await pxxl.disconnectDomain('example.com', {
+  projectId: 'proj_123',
+  teamId: 'team_123',
+});
+```
+
+## DNS records
+
+Pxxl-managed domains can be edited through the SDK. Pxxl validates record conflicts before saving, including invalid `CNAME` and `A` combinations for the same hostname.
+
+<ParamField body="domainId" type="string" required>
+  Pxxl domain ID for the managed zone.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  DNS record type, such as `A`, `AAAA`, `CNAME`, `TXT`, or `MX`.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Record name. Use `@` for the apex/root.
+</ParamField>
+
+<ParamField body="value" type="string" required>
+  DNS record value.
+</ParamField>
+
+<ParamField body="ttl" type="number">
+  Time to live in seconds.
+</ParamField>
+
+<ParamField body="priority" type="number">
+  Required for `MX` records. Lower values are preferred first by mail senders.
+</ParamField>
+
+```ts
+const records = await pxxl.listDomainDNSRecords('dom_123');
+
+const created = await pxxl.createDomainDNSRecord('dom_123', {
+  type: 'A',
+  name: '@',
+  value: '193.181.212.65',
+  ttl: 60,
+});
+
+const mxRecord = await pxxl.createDomainDNSRecord('dom_123', {
+  type: 'MX',
+  name: '@',
+  value: 'mail.example.com',
+  priority: 10,
+  ttl: 60,
+});
+
+const updated = await pxxl.updateDomainDNSRecords('dom_123', {
+  recordId: 'rec_123',
+  type: 'A',
+  name: '@',
+  value: '193.181.212.66',
+});
+
+await pxxl.deleteDomainDNSRecord('dom_123', {
+  recordId: 'rec_123',
+});
+```
+
+`CNAME`, `MX`, and `NS` values must be hostnames such as `app.example.com`, `mail.example.com`, or `ns1.example.com`. Pxxl rejects URLs, IP addresses, spaces, `@`, and single-label values such as `mail`.
+
+## Nameservers and certificates
+
+```ts
+await pxxl.verifyDomainNameservers('dom_123');
+await pxxl.updateDomainNameservers('dom_123', ['ns1.example.com', 'ns2.example.com']);
+await pxxl.switchDomainToPxxlDNS('dom_123');
+
+const certificate = await pxxl.downloadDomainCertificate('dom_123');
+```
+
+The certificate response is a public proxy certificate PEM.
+
+## Plan limit errors
+
+If the account exceeds its custom-domain allowance, the API returns a structured error:
+
+```json
+{
+  "code": "DOMAIN_LIMIT_EXCEEDED",
+  "message": "Your current plan allows up to 1 custom domains. You already have 1. Upgrade your plan to add more domains.",
+  "limit": 1,
+  "used": 1,
+  "accepted": 0,
+  "rejected": ["example.com"]
+}
+```
+
+Use `connectDomains` when submitting multiple domains so accepted domains stay separate from rejected ones.

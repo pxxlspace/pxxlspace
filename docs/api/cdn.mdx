@@ -1,0 +1,336 @@
+---
+title: "Pxxl CDN API: Manage Assets, Bandwidth, and Proxy Logs"
+sidebarTitle: "CDN API"
+description: "Use the Pxxl CDN API to upload files to public or private storage spaces, list assets, check bandwidth usage, and retrieve proxy traffic logs."
+---
+
+The Pxxl CDN API gives your backend direct access to object storage, asset management, and edge analytics. Use it to upload build artifacts, serve static files from edge cache nodes, track monthly bandwidth consumption, and pull proxy traffic logs for security analysis — all without leaving your deployment workflow.
+
+This page covers the raw HTTP endpoints. If you would rather use a typed client, jump to the [Node SDK](/api/cdn-node-sdk) or [Go SDK](/api/cdn-go-sdk). For ready-to-deploy starter projects that already wire up uploads, see [Boilerplates](/api/cdn-boilerplates).
+
+## Endpoints
+
+| HTTP Method | API Path | Objective |
+| --- | --- | --- |
+| **GET** | `/api/v3/cdn/summary` | Query total bandwidth and remaining wallet credits. |
+| **GET** | `/api/v3/cdn/assets` | Paginate through your uploaded asset catalog. |
+| **POST** | `/api/v3/cdn/assets` | Upload a new asset to public or private spaces. |
+| **GET** | `/api/v3/cdn/usage` | Read upload, download, delete, and credit events. |
+| **GET** | `/api/v3/cdn/proxy-logs` | Retrieve traffic anomaly logs and edge events. |
+
+## Upload an Asset
+
+Send a `multipart/form-data` POST request to upload a file to your storage space. Set `visibility` to `public` for files served from edge cache nodes, or `private` for files accessed via pre-signed URLs.
+
+```bash
+curl -X POST https://gateway.pxxl.app/api/v3/cdn/assets \
+  -H "Authorization: Bearer $PXXL_API_KEY" \
+  -F "file=@./static/logo.png" \
+  -F "visibility=public"
+```
+
+## Check Usage Summary
+
+Query your current storage and bandwidth consumption, along with remaining wallet credits:
+
+```bash
+curl -H "Authorization: Bearer $PXXL_API_KEY" \
+  https://gateway.pxxl.app/api/v3/cdn/summary
+```
+
+## Response Shapes
+
+The raw HTTP API returns small envelopes such as `{ "success": true, "data": ... }`. The SDKs unwrap some of those envelopes for convenience.
+
+| Operation | Raw HTTP response | SDK return value |
+| --- | --- | --- |
+| Summary | `{ success, data }` | `data` |
+| List assets | `{ success, assets, pagination }` | Node/Python return the object; Go returns `assets`; Rust returns the raw object. |
+| Upload asset | `{ success, asset }` | `asset` |
+| Download asset | Binary response body | bytes/blob |
+| Delete asset | `{ success, message }` | void/empty success |
+| Usage | `{ success, events, creditLedger, credits }` | Node returns `events`; Python/Rust raw helpers return the object. |
+
+## Summary Response
+
+`GET /api/v3/cdn/summary` returns account-level CDN storage, traffic, analytics, space status, and cloud-credit state.
+
+```json
+{
+  "success": true,
+  "data": {
+    "totalFiles": 12,
+    "storageBytes": 4823912,
+    "uploadedBytes": 9823912,
+    "downloadedBytes": 2839912,
+    "uploadsLast24h": 3,
+    "recentAssets": [],
+    "analytics": {
+      "enabled": true,
+      "available": true,
+      "hostname": "cdn.pxxl.app",
+      "requests": 1204,
+      "bytes": 2839912,
+      "cachedBytes": 2100000,
+      "cacheHitRatio": 0.73,
+      "statusCodes": {
+        "200": 1190,
+        "404": 14
+      },
+      "countries": {
+        "Nigeria": 820,
+        "United States": 384
+      },
+      "series": [
+        {
+          "timestamp": "2026-06-29T10:00:00Z",
+          "requests": 52,
+          "bytes": 231920,
+          "cachedBytes": 180000
+        }
+      ]
+    },
+    "configured": true,
+    "storageName": "Pxxl CDN",
+    "space": {
+      "id": "cm...",
+      "name": "Default CDN Space",
+      "status": "active",
+      "suspendedAt": null
+    },
+    "credits": {
+      "enabled": true,
+      "balance": 120,
+      "usedCredits": 18,
+      "lowCreditThreshold": 0,
+      "projectedDailyStorageCredits": 1,
+      "freeMonthlyCredits": 10,
+      "uploadCreditUnitBytes": 5242880,
+      "uploadCreditsPerUnit": 2,
+      "transferCreditsPerGb": 10,
+      "storageCreditsPerGbDay": 1
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `totalFiles` | integer | Current object count for the authenticated user. |
+| `storageBytes` | integer | Current bytes stored in CDN storage. |
+| `uploadedBytes` | integer | Total bytes recorded through upload events. |
+| `downloadedBytes` | integer | Total bytes recorded through download events. |
+| `uploadsLast24h` | integer | Number of assets uploaded in the last 24 hours. |
+| `recentAssets` | array | Up to 8 recent asset objects. |
+| `analytics` | object | CDN traffic analytics for the last 24 hours, with database fallback when edge analytics is unavailable. |
+| `configured` | boolean | Whether CDN object storage is configured for the Gateway. |
+| `storageName` | string | Public storage label, currently `Pxxl CDN`. |
+| `space` | object | Current CDN space status. |
+| `credits` | object | Cloud-credit balance, rates, and projected storage cost. |
+
+## Asset Object
+
+List, upload, summary `recentAssets`, and SDK upload calls return the same safe asset shape. Provider names, bucket names, raw R2 keys, and internal tenant paths are not exposed.
+
+```json
+{
+  "id": "cm...",
+  "userId": "cmb...",
+  "projectId": "proj_123",
+  "deploymentId": "dep_123",
+  "storageName": "Pxxl CDN",
+  "key": "cdn/file/cm.../logo.png",
+  "fileName": "logo.png",
+  "contentType": "image/png",
+  "size": 18420,
+  "publicUrl": "https://cdn.pxxl.app/cdn/...",
+  "sha256": "8a5f...",
+  "etag": "\"f1a2...\"",
+  "visibility": "public",
+  "kind": "file",
+  "metadata": {
+    "file-name": "logo.png",
+    "kind": "file",
+    "sha256": "8a5f...",
+    "visibility": "public"
+  },
+  "createdAt": "2026-06-29T10:24:00Z",
+  "updatedAt": "2026-06-29T10:24:00Z"
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | CDN asset ID. |
+| `userId` | string | Owner user ID. |
+| `projectId` | string or null | Optional linked project. |
+| `deploymentId` | string or null | Optional linked deployment. |
+| `storageName` | string | Public storage label. |
+| `key` | string | Safe display key, not the provider object key. |
+| `fileName` | string | Sanitized original file name. |
+| `contentType` | string | Uploaded content type or `application/octet-stream`. |
+| `size` | integer | File size in bytes. |
+| `publicUrl` | string | CDN URL. Public passive assets can use it directly. |
+| `sha256` | string | SHA-256 digest calculated while staging the upload. |
+| `etag` | string | Storage object ETag. |
+| `visibility` | string | `public` or `private`. Unsafe active content is forced private. |
+| `kind` | string | `file` or `artifact`. |
+| `metadata` | object | Safe upload metadata. |
+| `createdAt` | string | ISO timestamp for creation. |
+| `updatedAt` | string | ISO timestamp for last update. |
+
+## List Assets Response
+
+`GET /api/v3/cdn/assets` accepts `page`, `limit`, `search`, and `kind`.
+
+```bash
+curl -H "Authorization: Bearer $PXXL_API_KEY" \
+  "https://gateway.pxxl.app/api/v3/cdn/assets?page=1&limit=25&search=logo&kind=file"
+```
+
+```json
+{
+  "success": true,
+  "assets": [
+    {
+      "id": "cm...",
+      "storageName": "Pxxl CDN",
+      "key": "cdn/file/cm.../logo.png",
+      "fileName": "logo.png",
+      "contentType": "image/png",
+      "size": 18420,
+      "publicUrl": "https://cdn.pxxl.app/cdn/...",
+      "visibility": "public",
+      "kind": "file",
+      "createdAt": "2026-06-29T10:24:00Z",
+      "updatedAt": "2026-06-29T10:24:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 25,
+    "total": 42,
+    "pages": 2
+  }
+}
+```
+
+`limit` is capped at `200`. If `page` or `limit` is invalid, Pxxl falls back to safe defaults.
+
+## Upload Asset Response
+
+`POST /api/v3/cdn/assets` stores the upload, records usage, charges cloud credits when enabled, and returns the created asset.
+
+```json
+{
+  "success": true,
+  "asset": {
+    "id": "cm...",
+    "storageName": "Pxxl CDN",
+    "key": "cdn/file/cm.../logo.png",
+    "fileName": "logo.png",
+    "contentType": "image/png",
+    "size": 18420,
+    "publicUrl": "https://cdn.pxxl.app/cdn/...",
+    "sha256": "8a5f...",
+    "etag": "\"f1a2...\"",
+    "visibility": "public",
+    "kind": "file",
+    "createdAt": "2026-06-29T10:24:00Z",
+    "updatedAt": "2026-06-29T10:24:00Z"
+  }
+}
+```
+
+If the account lacks enough cloud credits, Pxxl returns `402`:
+
+```json
+{
+  "message": "Not enough cloud credits for this CDN upload",
+  "requiredCredits": 2,
+  "balance": 0
+}
+```
+
+## Download and Delete Responses
+
+`GET /api/v3/cdn/assets/:id/download` returns the raw file bytes, not JSON. Pxxl sets safe headers such as `Content-Type`, `Content-Disposition`, `X-Content-Type-Options: nosniff`, and a locked-down content security policy.
+
+`DELETE /api/v3/cdn/assets/:id` returns:
+
+```json
+{
+  "success": true,
+  "message": "CDN asset deleted"
+}
+```
+
+## Usage Response
+
+`GET /api/v3/cdn/usage?limit=100` returns recent usage events, recent credit ledger entries, and current credit state. `limit` is capped at `500`.
+
+```json
+{
+  "success": true,
+  "events": [
+    {
+      "id": "cm...",
+      "userId": "cmb...",
+      "assetId": "cm...",
+      "eventType": "upload",
+      "source": "gateway",
+      "bytes": 18420,
+      "hostname": "cdn.pxxl.app",
+      "country": "",
+      "statusCode": 201,
+      "metadata": {
+        "key": "cdn/file/cm.../logo.png"
+      },
+      "createdAt": "2026-06-29T10:24:00Z"
+    }
+  ],
+  "creditLedger": [
+    {
+      "id": "cm...",
+      "userId": "cmb...",
+      "assetId": "cm...",
+      "eventType": "upload",
+      "bytes": 18420,
+      "rate": 0.4,
+      "credits": 2,
+      "balanceAfter": 118,
+      "metadata": {
+        "key": "cdn/file/cm.../logo.png"
+      },
+      "createdAt": "2026-06-29T10:24:00Z"
+    }
+  ],
+  "credits": {
+    "enabled": true,
+    "balance": 118,
+    "usedCredits": 2,
+    "lowCreditThreshold": 0,
+    "projectedDailyStorageCredits": 0,
+    "freeMonthlyCredits": 10,
+    "uploadCreditUnitBytes": 5242880,
+    "uploadCreditsPerUnit": 2,
+    "transferCreditsPerGb": 10,
+    "storageCreditsPerGbDay": 1
+  }
+}
+```
+
+## Get Proxy Logs
+
+Retrieve edge traffic logs and security anomaly events recorded by the Pxxl CDN proxy:
+
+```bash
+curl -H "Authorization: Bearer $PXXL_API_KEY" \
+  https://gateway.pxxl.app/api/v3/cdn/proxy-logs
+```
+
+Proxy logs include allowed and blocked request counts, risk index ratings, GeoIP concentration breakdowns, and the top IP sources contributing the highest traffic volumes to your project domains.
+
+<Tip>
+  If you accidentally expose a CDN upload API key in a client bundle, a public repository, or a build log, rotate it immediately from **Dashboard \> API Keys**. Delete the compromised key, create a replacement with the same CDN upload and read scopes, and update the secret in your backend environment before redeploying.
+</Tip>

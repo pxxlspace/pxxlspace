@@ -1,0 +1,42 @@
+---
+title: "Deploy with Pxxl CLI"
+sidebarTitle: "CLI Deploy"
+description: "Deploy a local project to Pxxl using the CLI deploy archive, pxxl.toml, and .pxxlignore."
+---
+
+`pxxl deploy` lets you ship a local project to Pxxl without pushing to GitHub first. The CLI reads `pxxl.toml`, applies `.pxxlignore`, creates a deterministic temporary ZIP of your working directory, uploads it as a private `clideploy` source asset, and queues a normal Pxxl deployment — the same build pipeline that runs for GitHub-imported projects.
+
+This is the fastest path for solo deploys, throwaway demos, CI jobs that build artifacts locally, and any workflow where you do not want every commit to trigger a deploy.
+
+```bash
+pxxl init --new vite-react-pnpm --name my-app --domain pxxl.pro
+pxxl deploy
+```
+
+## pxxl.toml
+
+```toml
+name = "my-app"
+domainChoice = "pxxl.pro"
+environment = "production"
+deployEnvironment = "prod"
+port = 3000
+framework = "vite"
+buildCommand = "npm run build"
+startCommand = "npm run preview -- --host 0.0.0.0"
+```
+
+Supported deploy metadata includes project name, domain/TLD choice, environment, deploy environment, port, language, framework, install command, build command, start command, base directory, and entry file.
+
+For GitHub-backed deployments, Gateway also supports server-side buildpack configuration in `pxxl.toml`, including `[build]`, `[packages]`, `[runtime]`, `[env]`, and `[services]`. See [pxxl.toml](/api/pxxl-toml) for the exact fields Gateway reads and validates.
+
+## Authentication
+
+Use an API key with `scope=all` or `scope=deploy` and `permission=read_write`.
+
+```bash
+pxxl login --api-key pxxl_...
+pxxl deploy --name my-app --domain pxxl.pro
+```
+
+Dashboard JWT deploys still work from the web app. The CLI path uses API-key auth without exposing storage provider details.

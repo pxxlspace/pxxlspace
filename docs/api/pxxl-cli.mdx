@@ -1,0 +1,129 @@
+---
+title: "Pxxl CLI"
+sidebarTitle: "Pxxl CLI"
+description: "Install and use the @pxxlapp/pxxl npm package for login, CLI deploys, CDN commands, database management, teams, and domain reseller lookups."
+---
+
+The Pxxl CLI is a single binary that wraps every public-facing API surface — deploys, environment variables, databases, CDN, teams, and domain reseller lookups. It is the same code path the dashboard uses, so anything you can do in the UI you can script from your terminal or CI runner.
+
+Use it to deploy a local folder with one command, push `.env` files into projects, inspect recent deployments, provision databases for preview environments, and upload static assets to the CDN — all authenticated with a single API key.
+
+## Install
+
+Install the CLI globally from npm:
+
+```bash
+npm install -g @pxxlapp/pxxl
+```
+
+The npm package publishes as `@pxxlapp/pxxl` because the bare `pxxl` name is reserved, but the installed binary is just `pxxl`.
+
+## Authenticate
+
+Log in once with a Pxxl API key:
+
+```bash
+pxxl login --api-key pxxl_...
+```
+
+The CLI validates the key before saving it, then stores credentials in your user config directory with restricted file permissions. `PXXL_API_KEY` always overrides the stored key. `PXXL_TEAM_ID` overrides the selected spaceship for scoped commands. The API endpoint is fixed to the official Pxxl Gateway.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `pxxl login` | Store an API key for local CLI use. |
+| `pxxl logout` | Remove the stored API key. |
+| `pxxl whoami` | Check the authenticated account. |
+| `pxxl doctor` | Check auth, internet, git state, config files, package manager, build commands, and deploy issues. |
+| `pxxl inspect` | Show detected framework, package manager, runtime, start command, env files, and deploy size. |
+| `pxxl init --new` | Copy a Pxxl boilerplate and write `pxxl.toml` plus `.pxxlignore`. |
+| `pxxl deploy` | Package the current project and deploy it on Pxxl. |
+| `pxxl redeploy` | Trigger a fresh deployment for an existing project. |
+| `pxxl projects ...` | List projects or inspect one project. |
+| `pxxl deployments ...` | Show recent deployments or inspect one deployment. |
+| `pxxl logs` | Fetch project runtime logs or deployment build logs. |
+| `pxxl open` | Open the current project dashboard, deployment URL, or live URL. |
+| `pxxl pull` | Clone or update the Git repo attached to a Pxxl project. |
+| `pxxl env ...` | List, diff, and push project env vars. |
+| `pxxl cdn ...` | Upload, list, download, delete, and summarize CDN assets. |
+| `pxxl team ...` | List spaceships and select one for scoped operations. |
+| `pxxl db ...` | Create, list, inspect, and manage Pxxl databases. |
+| `pxxl domains ...` | Check domains, connect custom domains, and inspect proxy stats. |
+
+## Boilerplate Init
+
+```bash
+pxxl init --new
+pxxl init --new express-bun --name my-api --domain pxxl.pro
+pxxl init --new nextjs-pnpm --name web-app --domain pxxl.pro
+```
+
+Interactive init lists clean framework names such as Express, Vite React, HTML Static, PHP, FastAPI, Go HTTP, and Rust Axum. When a framework has variants, the CLI asks for the package manager next.
+
+`pxxl init --new` reads the boilerplate manifest and writes matching `pxxl.toml` defaults for package manager, framework, port, install command, build command, and start command. It creates a new folder by default, validates the project name and selected Pxxl suffix, and can deploy the first version immediately.
+
+## Project Automation
+
+```bash
+pxxl redeploy <project-id>
+pxxl pull <project-id> ./my-app
+pxxl logs --project <project-id>
+pxxl logs --deployment <deployment-id>
+pxxl open
+pxxl env list <project-id>
+pxxl env diff <project-id> --file .env.production
+pxxl env push <project-id> --file .env
+pxxl env push <project-id> --file .env.production --global
+```
+
+`pxxl pull` clones the Git repo and branch attached to a Pxxl project. If the destination is already a git checkout, it first verifies that the local `origin` matches the project repo, checks that the working tree is clean, then fetches and fast-forwards the selected branch. It refuses to overwrite a non-git, non-empty folder.
+
+`pxxl env diff` compares local dotenv values against encrypted remote values server-side, then returns only statuses such as `same`, `changed`, `missing_remote`, and `missing_local`.
+
+Use `scope=deploy` or `scope=all` for deploy/redeploy. Use `scope=project`, `scope=env`, or `scope=all` for env reads and writes. Write operations require `permission=read_write`.
+
+## Domains
+
+```bash
+pxxl domains list
+pxxl domains check example.com
+pxxl domains connect example.com --project <project-id>
+pxxl domains connect api.example.com --project <project-id> --service api
+pxxl domains stats example.com --timeframe 30d
+```
+
+`pxxl domains check` combines local DNS checks with Pxxl-side ownership, SSL, and proxy route state. It is useful before connecting a custom domain or when debugging DNS propagation.
+
+For monorepos and multi-service projects, pass the microservice ID with `--service`, `--microservice`, or `--microservice-id`. The CLI connects the domain to that service target while keeping the main project ID as the owner.
+
+## Teams
+
+```bash
+pxxl team list
+pxxl team use <team-id>
+pxxl team current
+pxxl team clear
+```
+
+Use `scope=team`, `scope=database`, or `scope=all` to list teams. The selected spaceship is stored locally and used by database commands.
+
+## Databases
+
+```bash
+pxxl db list
+pxxl db create --name app-db --type postgres
+pxxl db get <database-id>
+pxxl db start <database-id>
+pxxl db stop <database-id>
+pxxl db restart <database-id>
+pxxl db stats <database-id>
+pxxl db tables <database-id>
+pxxl db delete <database-id>
+```
+
+Use `scope=database` or `scope=all`. Read operations work with `permission=read`; create/update/lifecycle/delete require `permission=read_write`.
+
+<Warning>
+  Keep API keys out of repositories, client bundles, screenshots, and build logs. Use a key with the smallest needed scope.
+</Warning>

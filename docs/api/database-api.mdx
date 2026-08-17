@@ -1,0 +1,128 @@
+---
+title: "Pxxl Database API"
+sidebarTitle: "Database API"
+description: "Provision, inspect, and manage Pxxl managed databases (Postgres, MySQL, MongoDB, Redis, ClickHouse, and more) from the CLI or Node SDK."
+---
+
+The Pxxl Database API lets you provision, inspect, and run lifecycle operations on managed databases from your terminal or backend code. It uses the same provisioning pipeline as the dashboard, so a database created with `pxxl db create` is identical to one created by clicking through the UI — it appears in the dashboard, can be linked to projects, and ships with the same connection credentials, backups, and metrics.
+
+Use the Database API when you want to:
+
+- Spin up a fresh database during a CI job, integration test, or per-tenant onboarding flow.
+- Restart or stop a database from an internal incident-response script without giving the operator dashboard access.
+- Pull stats, table lists, or sizes into your own monitoring dashboard.
+- Tear down ephemeral databases created for preview environments.
+
+## Supported Engines
+
+You can provision any of the following engines. Pass the value as the `--type` flag (CLI) or `type` field (SDK).
+
+| Engine | `type` value | Typical use |
+| --- | --- | --- |
+| PostgreSQL | `postgres` | Relational workloads, default choice for most apps. |
+| MySQL | `mysql` | Legacy apps and MySQL-native frameworks (Laravel, WordPress). |
+| MariaDB | `mariadb` | MySQL-compatible workloads that need MariaDB-specific features. |
+| MongoDB | `mongodb` | Document storage and flexible-schema workloads. |
+| Redis | `redis` | Caching, queues, ephemeral key-value storage. |
+| KeyDB | `keydb` | Redis-compatible multithreaded cache. |
+| Dragonfly | `dragonfly` | Modern Redis-compatible in-memory store with higher throughput. |
+| ClickHouse | `clickhouse` | Columnar analytics over large event volumes. |
+
+## CLI
+
+Install the CLI and log in once with a Pxxl API key. The CLI stores credentials locally with restricted file permissions.
+
+```bash
+npm install -g @pxxlapp/pxxl
+pxxl login --api-key pxxl_...
+```
+
+Databases belong to a **spaceship** (team). Select the spaceship you want to operate in before running database commands:
+
+```bash
+pxxl team list              # show every spaceship you belong to
+pxxl team use <team-id>     # pin a default spaceship for subsequent commands
+pxxl team current           # confirm which spaceship is active
+```
+
+<Tip>
+  `PXXL_TEAM_ID` overrides the stored selection for a single command. Useful in CI where you want to be explicit instead of relying on local state.
+</Tip>
+
+### Provisioning
+
+Create a new managed database. Pxxl returns the database ID, connection string, and credentials.
+
+```bash
+pxxl db create --name app-db --type postgres
+```
+
+### Inspecting
+
+```bash
+pxxl db list                     # all databases in the active spaceship
+pxxl db get <database-id>        # full record including connection details
+pxxl db stats <database-id>      # CPU, memory, storage usage
+pxxl db tables <database-id>     # tables/collections and row counts
+```
+
+### Lifecycle
+
+Lifecycle commands match the buttons in the dashboard. They are idempotent — starting an already-running database is a no-op.
+
+```bash
+pxxl db start <database-id>      # boot a stopped database
+pxxl db stop <database-id>       # gracefully halt the container (storage is preserved)
+pxxl db restart <database-id>    # rolling restart, useful after env changes
+pxxl db delete <database-id>     # permanently delete (storage and backups are removed)
+```
+
+<Warning>
+  `pxxl db delete` is irreversible. Once the command returns, the underlying volume is scheduled for deletion and connection strings stop resolving. Take a manual backup first if you might need the data.
+</Warning>
+
+## Node SDK
+
+The same operations are available from the `@pxxlapp/pxxl` Node package. The SDK is designed for backend automation — never instantiate it from browser code.
+
+```ts
+import { PxxlClient } from '@pxxlapp/pxxl';
+
+const pxxl = new PxxlClient({
+  apiKey: process.env.PXXL_API_KEY!,
+  teamId: process.env.PXXL_TEAM_ID, // optional; overrides the stored selection
+});
+
+// Provision
+const { database } = await pxxl.createDatabase({
+  name: 'app-db',
+  type: 'postgres',
+});
+
+// Inspect
+await pxxl.listDatabases();
+await pxxl.getDatabase(database.id);
+await pxxl.databaseStats(database.id);
+await pxxl.databaseTables(database.id);
+
+// Lifecycle
+await pxxl.startDatabase(database.id);
+await pxxl.stopDatabase(database.id);
+await pxxl.restartDatabase(database.id);
+await pxxl.deleteDatabase(database.id);
+```
+
+## API Keys and Permissions
+
+Database operations require an API key with `scope=database` or `scope=all`. Always pick the smallest permission level that fits the job — read-only keys are safe to share with monitoring jobs and on-call dashboards, while `read_write` keys should be limited to deployment automation.
+
+| Operation | Required permission |
+| --- | --- |
+| `list`, `get`, `stats`, `tables` | `read` |
+| `create`, `start`, `stop`, `restart`, `delete` | `read_write` |
+
+The Gateway re-checks spaceship membership on every request, so a stolen key cannot reach databases in spaceships the owning user does not belong to.
+
+<Warning>
+  Treat database API keys like database passwords. Store them in your secret manager, never in repositories, browser code, or build logs. Rotate immediately if a key is exposed.
+</Warning>

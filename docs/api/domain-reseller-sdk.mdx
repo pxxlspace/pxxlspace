@@ -1,0 +1,60 @@
+---
+title: "Domain Reseller SDK"
+sidebarTitle: "Domain Reseller"
+description: "Search domains, fetch TLD pricing, inspect invoices, inspect promo prices, and respect Pxxl domain API rate limits."
+---
+
+The `pxxl` package includes domain reseller methods for availability, pricing, invoices, and payment URLs.
+
+```ts
+import { PxxlClient } from '@pxxlapp/pxxl';
+
+const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY! });
+
+const search = await pxxl.searchDomains({ query: 'pxxl.cv' });
+const prices = await pxxl.listTLDs();
+const cv = await pxxl.searchTLDs('cv');
+const invoices = await pxxl.listDomainInvoices();
+const invoice = await pxxl.getDomainInvoice('invoice_id');
+const payment = await pxxl.getDomainInvoicePaymentUrl('invoice_id');
+```
+
+Domain search returns availability, purchase type, provider, TLD pricing, renewal pricing, transfer pricing, restrictions, and active promo fields such as `.cv` bonus amounts when a promo is available.
+
+## API Endpoints
+
+| Endpoint | Purpose | Rate limit bucket |
+| --- | --- | --- |
+| `GET /api/v3/domains/tlds` | List configured TLD prices. | 60 requests/minute |
+| `GET /api/v3/domains/tlds/popular` | Fetch popular TLD prices. | 60 requests/minute |
+| `GET /api/v3/domains/tlds/search?q=cv` | Search TLDs by extension. | 30 requests/minute |
+| `POST /api/v3/domains/search` | Check availability for a domain query. | 30 requests/minute |
+
+Use these endpoints from servers or trusted backend jobs. Do not expose reseller API keys in client-side code.
+
+## Domain Search Request
+
+```bash
+curl https://gateway.pxxl.app/api/v3/domains/search \
+  -H "Authorization: Bearer $PXXL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"pxxl.cv"}'
+```
+
+## Promo Fields
+
+Promotions are returned alongside the normal prices:
+
+```json
+{
+  "domain": "pxxl.cv",
+  "available": true,
+  "registerDollar": 10,
+  "registerNaira": 15000,
+  "bonusAmount": 5000,
+  "bonusAmountUSD": 3.33,
+  "bonusEndingDate": "2026-07-31"
+}
+```
+
+If a promo is absent or expired, those promo fields can be `null` or omitted.

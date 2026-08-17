@@ -1,0 +1,82 @@
+---
+title: "CLI Boilerplates"
+sidebarTitle: "Boilerplates"
+description: "Create Pxxl-ready starter projects with pxxl init --new."
+---
+
+`pxxl init --new` creates a deploy-ready project from the official Pxxl boilerplates. Each starter includes a `README.md`, a `pxxl.boilerplate.json` manifest, and deploy defaults that the CLI uses to write `pxxl.toml`.
+
+Interactive init shows clean framework names first, then asks for the package manager when a framework has multiple variants.
+
+```bash
+pxxl init --new
+pxxl init --new express-bun --name my-api --domain pxxl.pro
+pxxl init --new vite-react-npm --name web-app --domain pxxl.pro
+```
+
+## Flow
+
+1. Choose a framework.
+2. Choose a package manager when multiple variants exist.
+3. Enter a project name.
+4. Pick an eligible Pxxl domain suffix.
+5. Choose whether to create a new folder or use the current folder.
+6. Optionally deploy immediately.
+
+The CLI validates the project name and selected suffix before writing files.
+
+## Included Starters
+
+| Starter | Variants |
+| --- | --- |
+| Express | npm, pnpm, Bun, Yarn |
+| Vite React | npm, pnpm, Bun, Yarn |
+| Static HTML | static gallery |
+| PHP | basic PHP |
+| Hono | Bun |
+| Fastify | pnpm |
+| Next.js | pnpm |
+| Astro | npm |
+| Node TypeScript | npm |
+| Python | FastAPI, Flask, Django |
+| Go | standard-library HTTP |
+| Rust | Axum |
+| SvelteKit | pnpm |
+| Vue Vite | pnpm |
+| Dockerfile Node | Dockerfile-based Node service |
+
+## Manifest
+
+Each boilerplate has a `pxxl.boilerplate.json` manifest:
+
+```json
+{
+  "id": "express-bun",
+  "family": "express",
+  "displayName": "Express",
+  "packageManager": "bun",
+  "framework": "express",
+  "port": 3000,
+  "installCommand": "bun install",
+  "startCommand": "bun src/server.js"
+}
+```
+
+The manifest keeps init consistent across frameworks, package managers, and runtimes.
+
+## Deploy After Init
+
+```bash
+cd my-api
+pxxl deploy
+```
+
+If you pass `--deploy`, init creates the project and immediately uploads the first deployment:
+
+```bash
+pxxl init --new express-bun --name my-api --domain pxxl.pro --deploy
+```
+
+<Tip>
+  Boilerplate README files link back to Pxxl docs and the Pxxl deploy flow, so generated repos already explain how to ship the project.
+</Tip>

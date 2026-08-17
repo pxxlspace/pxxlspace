@@ -1,0 +1,72 @@
+---
+title: "CLI Environment Variables"
+sidebarTitle: "Environment"
+description: "List, diff, and push project environment variables with the Pxxl CLI."
+---
+
+The CLI can list remote environment variable names, compare a local `.env` file with the encrypted remote values, and push local values to a project.
+
+Remote secret values are never printed by the CLI. For `pxxl env diff`, Pxxl decrypts the remote values server-side, compares them to the local `.env`, and returns only comparison statuses.
+
+## List
+
+```bash
+pxxl env list <project-id>
+pxxl env list <project-id> --global
+```
+
+`pxxl env list` returns keys, secret status, and scope. It does not reveal secret values.
+
+## Diff
+
+```bash
+pxxl env diff <project-id>
+pxxl env diff <project-id> --file .env.production
+pxxl env diff <project-id> --global
+```
+
+Diff statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `same` | Local and remote values match. |
+| `changed` | The key exists locally and remotely, but the values differ. |
+| `missing_remote` | The key exists locally but not remotely. |
+| `missing_local` | The key exists remotely but not in the local `.env` file. |
+
+<Warning>
+  `pxxl env diff` compares values, but it does not print values. Treat the local `.env` file as sensitive and keep it excluded by `.pxxlignore`.
+</Warning>
+
+## Push
+
+```bash
+pxxl env push <project-id>
+pxxl env push <project-id> --file .env.production
+pxxl env push <project-id> --global
+pxxl env push <project-id> --force
+```
+
+`pxxl env push` reads a local dotenv file and upserts the keys into Pxxl. By default, values are stored as secrets.
+
+Use `--force` when the remote environment should be replaced by the local file:
+
+```bash
+pxxl env push <project-id> --file .env.production --force
+```
+
+If you run the command inside a folder with `pxxl.toml`, the CLI can use the saved `projectId`:
+
+```bash
+pxxl env diff
+pxxl env push --file .env.production
+```
+
+## Permissions
+
+Environment operations require an API key with `scope=env`, `scope=project`, or `scope=all`.
+
+| Operation | Required permission |
+| --- | --- |
+| `list`, `diff` | `read` |
+| `push` | `read_write` |

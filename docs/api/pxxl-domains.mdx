@@ -1,0 +1,185 @@
+---
+title: "CLI Domains"
+sidebarTitle: "Domains"
+description: "Check domains, connect custom domains, and inspect proxy stats from the Pxxl CLI."
+---
+
+The CLI domain commands cover both operational checks and proxy analytics. Use them when you want to verify DNS, see whether a hostname is already used on Pxxl, connect a custom domain, or inspect traffic stats without opening the dashboard.
+
+## List Domains
+
+```bash
+pxxl domains list
+pxxl domains list --team <team-id>
+```
+
+Lists domains available to the authenticated account or selected spaceship.
+
+## Check a Domain
+
+```bash
+pxxl domains check example.com
+```
+
+`pxxl domains check` combines local DNS checks with Pxxl-side ownership and proxy checks.
+
+| Check | Source |
+| --- | --- |
+| DNS `A`, `AAAA`, `CNAME`, `NS` | Local DNS resolver. |
+| HTTPS reachability | Public HTTPS request from your machine. |
+| Already used | Pxxl domain and proxy route records. |
+| Owned by you | Pxxl account or selected spaceship. |
+| Proxy route | Pxxl global proxy binding state. |
+| SSL | Pxxl route SSL state when available. |
+
+The command returns statuses such as `available`, `owned`, `taken`, or `blocked`.
+
+## Connect a Domain
+
+```bash
+pxxl domains connect
+pxxl domains connect example.com --project <project-id>
+pxxl domains connect app.example.com api.example.com --project <project-id>
+pxxl domains connect api.example.com --project <project-id> --service api
+```
+
+Connect attaches the domain to the project and returns the expected DNS records needed for Pxxl routing:
+
+```text
+A     @     193.181.212.65
+CNAME www   example.com
+```
+
+When you pass multiple domains, the CLI processes them one by one. Domains inside your plan allowance are connected, and domains above the allowance are shown as rejected with the plan limit and current usage.
+
+For monorepos and multi-service projects, add `--service <microservice-id>` to route the domain to a specific microservice:
+
+```bash
+pxxl domains connect api.example.com --project proj_123 --service api
+```
+
+The project ID stays the owner. The service value is stored as the routing target for that domain, so traffic goes to the selected microservice instead of the main container.
+
+After DNS propagates, verify the connection:
+
+```bash
+pxxl domains verify example.com --project <project-id>
+pxxl domains activate <domain-id>
+pxxl domains status <domain-id>
+```
+
+<Tip>
+  For production domains, set DNS first, then run `pxxl domains verify example.com --project <project-id>` for an immediate check.
+</Tip>
+
+Pxxl also auto-detects pending external domains for up to 24 hours after connection. The backend checks every 5 minutes and activates the domain once the expected `A` record resolves. Use `pxxl domains verify` when you want to force a fresh check immediately instead of waiting for the next automatic pass.
+
+## Resync Proxy
+
+```bash
+pxxl domains resync example.com
+pxxl domains resync example.com --team <team-id>
+```
+
+Use `resync` after changing DNS, SSL settings, force-HTTPS, force-www, or a project's domain target. It tells Pxxl to refresh the active proxy route and certificate state without requiring a rebuild.
+
+The command is useful when:
+
+| Situation | What resync does |
+| --- | --- |
+| DNS now points to Pxxl | Re-checks the route and queues certificate coverage. |
+| SSL shows the wrong certificate | Refreshes certificate state for the hostname. |
+| A domain was moved to another service | Pushes the route update to the proxy immediately. |
+| Proxy settings changed | Applies the latest HTTPS, WebSocket, rate-limit, and redirect configuration. |
+
+`pxxl domains resync` requires a domain-scoped API key with `read_write` permission.
+
+## Disconnect a Domain
+
+```bash
+pxxl domains disconnect example.com --project <project-id>
+pxxl domains disconnect example.com --project <project-id> --team <team-id>
+```
+
+Disconnect removes the project binding and proxy route for the domain. It does not delete the domain from your registrar or remove DNS records from an external DNS provider.
+
+Use `--project` when you know the connected project. This makes the operation precise and avoids removing the wrong binding for shared or team-owned domains.
+
+## Managed DNS Records
+
+For Pxxl-managed domains, the CLI can list and edit DNS records.
+
+```bash
+pxxl domains records <domain-id>
+pxxl domains records add <domain-id> --type A --name @ --value 193.181.212.65 --ttl 60
+pxxl domains records add <domain-id> --type MX --name @ --value mail.example.com --priority 10 --ttl 60
+pxxl domains records update <domain-id> --record-id <record-id> --type A --name @ --value 193.181.212.66
+pxxl domains records delete <domain-id> --record-id <record-id>
+```
+
+Pxxl validates record conflicts before saving. For example, the same hostname cannot be both a `CNAME` and an `A` record.
+For `MX` records, pass `--priority`; lower values are preferred first by mail senders. `CNAME`, `MX`, and `NS` values must be hostnames, not URLs, IP addresses, `@`, or single-label values.
+
+## Nameservers and Zone Status
+
+```bash
+pxxl domains nameservers verify <domain-id>
+pxxl domains nameservers set <domain-id> --values ns1.example.com,ns2.example.com
+pxxl domains nameservers reset <domain-id>
+pxxl domains status <domain-id>
+pxxl domains zone <domain-id>
+pxxl domains switch-to-pxxl-dns <domain-id>
+```
+
+Use `pxxl domains status` for the generic domain readiness check. It checks activation, proxy routing, and SSL readiness. For `.cv` domains, it also uses the managed zone-status flow.
+
+`pxxl domains zone` is kept as an alias for older scripts. Zone-status data is only available for `.cv`/Pxxl-managed zones; normal external domains fall back to the generic activation check.
+
+Use the nameserver commands when a domain is managed by Pxxl DNS or when you need to move a managed domain back to Pxxl nameservers.
+
+## Certificates
+
+```bash
+pxxl domains cert <domain-id> --out example.com.pem
+```
+
+This downloads the public proxy certificate as a PEM file.
+
+## Domain Stats
+
+```bash
+pxxl domains stats example.com
+pxxl domains stats example.com --timeframe 30d
+```
+
+Domain stats show request count, bandwidth, latency, blocked requests, errors, top countries, and top cities using the same proxy analytics pipeline as the dashboard.
+
+Supported timeframes:
+
+```text
+24h
+48h
+72h
+7d
+30d
+```
+
+## Permissions
+
+Domain commands require an API key with `scope=domain`, `scope=domains`, `scope=reselling`, or `scope=all`.
+
+| Operation | Required permission |
+| --- | --- |
+| `list`, `check`, `stats` | `read` |
+| `connect`, `verify`, `activate`, `resync`, `disconnect`, DNS writes, nameserver writes | `read_write` |
+
+## Plan Limits
+
+If your plan only allows a fixed number of custom domains, `pxxl domains connect` will connect the domains that fit and show a clear rejection for the rest:
+
+```text
+domain        status  message                                             limit  used
+extra.com     403     Your current plan allows up to 1 custom domains.     1      1
+```
+
+Upgrade the plan or remove an unused custom domain before adding more.

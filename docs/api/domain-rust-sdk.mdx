@@ -1,0 +1,261 @@
+---
+title: "Domain Rust SDK"
+sidebarTitle: "Rust SDK"
+description: "Use the Pxxl Rust SDK to connect domains, resync proxy routes, disconnect domains, manage DNS records, and download certificates."
+---
+
+The Rust SDK is async and works well for backend services, deployment automation, and internal infrastructure tooling.
+
+Use an API key with `scope=domain`, `scope=domains`, or `scope=all`. Read-only keys can list and check domains. Write keys can connect domains, resync proxy routes, disconnect domains, and modify DNS records.
+
+## Install
+
+```bash
+cargo add pxxl
+```
+
+```rust
+use pxxl::{DomainDnsRecord, PxxlClient, VerifyDomainRecord};
+
+let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?;
+```
+
+## Connect a domain
+
+Attach a hostname to a project. If the project already has an active deployment, Pxxl registers the proxy route immediately.
+
+<ParamField body="domain" type="string" required>
+  Hostname to connect, such as `example.com` or `api.example.com`.
+</ParamField>
+
+<ParamField body="project_id" type="string" required>
+  Project that should receive traffic for the domain.
+</ParamField>
+
+<ParamField body="service_alias" type="string">
+  Optional microservice target for monorepos and multi-service projects.
+</ParamField>
+
+<ParamField body="team_id" type="string">
+  Spaceship context for team-owned projects and domains.
+</ParamField>
+
+```rust
+let connected = client
+    .connect_domain("example.com", "proj_123", None)
+    .await?;
+
+println!("{connected:?}");
+```
+
+For a microservice route:
+
+```rust
+let connected = client
+    .connect_domain_to_service("api.example.com", "proj_123", "api", None)
+    .await?;
+
+println!("{connected:?}");
+```
+
+<Tip>
+  Adding a domain does not require a redeploy when the project already has a healthy active deployment. Verify DNS after updating records, then resync if proxy or SSL settings changed.
+</Tip>
+
+## Check and verify
+
+Use these methods to check availability, verify DNS, and inspect activation status.
+
+<ParamField body="domain" type="string" required>
+  Hostname to check or verify.
+</ParamField>
+
+<ParamField body="project_id" type="string" required>
+  Project that owns the domain binding.
+</ParamField>
+
+<ParamField body="domain_id" type="string" required>
+  Pxxl domain ID returned by connect, list, or dashboard domain pages.
+</ParamField>
+
+<ParamField body="team_id" type="string">
+  Spaceship context for team-owned domains.
+</ParamField>
+
+```rust
+let check = client.check_domain("example.com", None).await?;
+
+let verify = client.verify_domain_record(VerifyDomainRecord {
+    domain: "example.com".into(),
+    project_id: "proj_123".into(),
+    team_id: None,
+}).await?;
+
+let activation = client.activate_domain("dom_123", None).await?;
+
+let status = client.domain_connection_status("dom_123", None).await?;
+println!("{status:?}");
+```
+
+`verify_domain_record` performs an immediate expected-record check for the project domain. Pxxl also auto-detects pending external domains for up to 24 hours after connection, checking every 5 minutes until the expected DNS record resolves.
+
+`domain_connection_status` uses `.cv` managed zone status for `.cv` domains and the generic activation check for other TLDs. `domain_zone_status` remains available for older code and now follows the same dynamic behavior.
+
+## Resync the proxy route
+
+Use `resync_domain_proxy` after changing DNS, SSL settings, force HTTPS, force www, the connected project, or the microservice target. It refreshes the active proxy route and certificate state without rebuilding the project.
+
+<ParamField body="domain" type="string" required>
+  Hostname whose proxy route should be refreshed.
+</ParamField>
+
+<ParamField body="team_id" type="string">
+  Spaceship context for team-owned domains.
+</ParamField>
+
+```rust
+let resync = client
+    .resync_domain_proxy("example.com", None)
+    .await?;
+
+println!("{resync:?}");
+```
+
+For a team-owned domain:
+
+```rust
+let resync = client
+    .resync_domain_proxy("example.com", Some("team_123"))
+    .await?;
+```
+
+This method calls `POST /api/v3/cli/domains/:domain/resync`. It requires `read_write` permission.
+
+## Disconnect a domain
+
+Use `disconnect_domain` when a custom domain should stop routing to a project. It removes the project binding and proxy route. It does not delete the domain from your registrar.
+
+<ParamField body="domain" type="string" required>
+  Hostname to disconnect.
+</ParamField>
+
+<ParamField body="project_id" type="string">
+  Project currently connected to the domain. Include it when possible to avoid removing the wrong binding.
+</ParamField>
+
+<ParamField body="team_id" type="string">
+  Spaceship context for team-owned domains.
+</ParamField>
+
+```rust
+let deleted = client
+    .disconnect_domain("example.com", Some("proj_123"), None)
+    .await?;
+
+println!("{deleted:?}");
+```
+
+For a team-owned domain:
+
+```rust
+let deleted = client
+    .disconnect_domain("example.com", Some("proj_123"), Some("team_123"))
+    .await?;
+```
+
+## DNS records
+
+Pxxl-managed domains can be edited through the SDK. Pxxl validates record conflicts before saving, including invalid `CNAME` and `A` combinations for the same hostname.
+
+<ParamField body="domain_id" type="string" required>
+  Pxxl domain ID for the managed zone.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  DNS record type, such as `A`, `AAAA`, `CNAME`, `TXT`, or `MX`.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Record name. Use `@` for the apex/root.
+</ParamField>
+
+<ParamField body="value" type="string" required>
+  DNS record value.
+</ParamField>
+
+<ParamField body="ttl" type="number">
+  Time to live in seconds.
+</ParamField>
+
+<ParamField body="priority" type="number">
+  Required for `MX` records. Lower values are preferred first by mail senders.
+</ParamField>
+
+```rust
+let records = client.list_domain_dns_records("dom_123", None).await?;
+
+let created = client.create_domain_dns_record("dom_123", DomainDnsRecord {
+    r#type: Some("A".into()),
+    name: Some("@".into()),
+    value: Some("193.181.212.65".into()),
+    ttl: Some(60),
+    ..Default::default()
+}, None).await?;
+
+let mx_record = client.create_domain_dns_record("dom_123", DomainDnsRecord {
+    r#type: Some("MX".into()),
+    name: Some("@".into()),
+    value: Some("mail.example.com".into()),
+    priority: Some(10),
+    ttl: Some(60),
+    ..Default::default()
+}, None).await?;
+
+client.update_domain_dns_records("dom_123", DomainDnsRecord {
+    record_id: Some("rec_123".into()),
+    r#type: Some("A".into()),
+    name: Some("@".into()),
+    value: Some("193.181.212.66".into()),
+    ..Default::default()
+}, None).await?;
+
+client.delete_domain_dns_record("dom_123", DomainDnsRecord {
+    record_id: Some("rec_123".into()),
+    ..Default::default()
+}, None).await?;
+```
+
+`CNAME`, `MX`, and `NS` values must be hostnames such as `app.example.com`, `mail.example.com`, or `ns1.example.com`. Pxxl rejects URLs, IP addresses, spaces, `@`, and single-label values such as `mail`.
+
+## Certificates
+
+```rust
+let pem = client.download_domain_certificate("dom_123", None).await?;
+tokio::fs::write("example.com.pem", pem).await?;
+```
+
+## Team context
+
+```rust
+let team_client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?
+    .with_team_id("team_123");
+
+let domains = team_client.list_domains(None).await?;
+```
+
+Usage limits are still enforced against the owning user account, even when a team context is selected.
+
+## Error handling
+
+The SDK returns `PxxlError::Api` for non-2xx responses. Plan limit responses include the exact limit reason, such as custom domain count, build minutes, artifacts, or cron jobs.
+
+```rust
+match client.connect_domain("example.com", "proj_123", None).await {
+    Ok(domain) => println!("{domain:?}"),
+    Err(pxxl::PxxlError::Api { status, message, body }) => {
+        eprintln!("{status}: {message}");
+        eprintln!("{body}");
+    }
+    Err(error) => return Err(error),
+}
+```

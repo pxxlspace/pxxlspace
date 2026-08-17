@@ -1,0 +1,145 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Pxxl",
+  "theme": "maple",
+  "logo": {
+    "light": "https://media.brand.dev/b477ef75-f22a-41f0-a85b-c85119e091f9.png",
+    "dark": "https://media.brand.dev/b477ef75-f22a-41f0-a85b-c85119e091f9.png",
+    "href": "https://pxxl.app"
+  },
+  "favicon": "https://media.brand.dev/77aa8868-c2fb-4583-b67b-5c01bdfcd7fe.png",
+  "colors": {
+    "primary": "#de59db",
+    "light": "#de59db",
+    "dark": "#381838"
+  },
+  "navbar": {
+    "primary": {
+      "type": "button",
+      "label": "Deploy Now",
+      "href": "https://pxxl.app/signup"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "deployment-reference",
+              "framework-recipes"
+            ]
+          },
+          {
+            "group": "Dashboard",
+            "pages": [
+              "dashboard/overview",
+              "dashboard/projects",
+              "dashboard/deploy-project",
+              "dashboard/import-projects",
+              "dashboard/domains",
+              "dashboard/database",
+              "dashboard/api-keys",
+              "dashboard/settings-usage-webhooks"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/github-previews",
+              "integrations/oauth",
+              "integrations/cdn-proxy"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/domains",
+              "troubleshooting/deployments",
+              "troubleshooting/databases",
+              "troubleshooting/proxy-security",
+              "troubleshooting/oauth"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Integrations",
+        "groups": [
+          {
+            "group": "API Reference",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/deployments"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "api/database-api"
+            ]
+          },
+          {
+            "group": "CDN",
+            "pages": [
+              "api/cdn",
+              "api/cdn-authentication",
+              "api/cdn-uploads",
+              "api/cdn-node-sdk",
+              "api/cdn-go-sdk",
+              "api/cdn-python-sdk",
+              "api/cdn-rust-sdk",
+              "api/cdn-examples",
+              "api/cdn-boilerplates"
+            ]
+          },
+          {
+            "group": "Cron Jobs",
+            "pages": [
+              "api/cron-cli",
+              "api/cron-node-sdk",
+              "api/cron-go-sdk",
+              "api/cron-python-sdk",
+              "api/cron-rust-sdk"
+            ]
+          },
+          {
+            "group": "Domains",
+            "pages": [
+              "api/domain-reseller-sdk",
+              "api/domain-node-sdk",
+              "api/domain-go-sdk",
+              "api/domain-python-sdk",
+              "api/domain-rust-sdk"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "api/pxxl-cli",
+              "api/pxxl-diagnostics",
+              "api/pxxl-boilerplates",
+              "api/pxxl-deploy",
+              "api/pxxl-toml",
+              "api/pxxl-env",
+              "api/pxxl-domains",
+              "api/pxxl-logs-open",
+              "api/pxxlignore",
+              "api/npm-publishing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "website": "https://pxxl.app"
+    }
+  }
+}

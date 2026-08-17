@@ -1,0 +1,234 @@
+---
+title: "Configure Proxy Rules, Security Headers, and SSL Settings"
+sidebarTitle: "Proxy & Security"
+description: "Fix WebSocket issues, configure WAF rules, set up IP and country access controls, add security headers, and protect upstream services on Pxxl."
+---
+
+Every domain connected to a Pxxl project is served through the Pxxl edge proxy. The proxy sits between the public internet and your container, and it is where SSL termination, certificate management, WebSocket upgrades, traffic filtering, and upstream protection all happen. You control these behaviours from **Dashboard > Domains** — select a domain, then use the **SSL** and **Settings** tabs. After saving any change, click **Resync Proxy** to push the updated configuration to the active route immediately.
+
+## Proxy and SSL controls reference
+
+| Control | What it does | When to use it |
+|---|---|---|
+| **SSL Status** | Shows whether the current certificate covers the domain | Check after connecting a domain, changing DNS, or seeing a browser certificate warning |
+| **Resync Proxy** | Refreshes the route, upstream target, and certificate request | Use after changing DNS, connected project, port, proxy rules, or SSL state |
+| **Renew / Resync** | Rechecks certificate coverage and expiry from the SSL tab | Use when HTTPS is missing, expired, or issued for the wrong hostname |
+| **Force HTTPS** | Redirects plain HTTP traffic to HTTPS | Enable for production domains once SSL coverage is confirmed |
+| **Force www Redirect** | Sends `www.yourdomain.com` traffic to the root domain | Enable when you want one canonical hostname and no duplicate `www` traffic |
+
+## Proxy route controls reference
+
+These controls apply before traffic reaches your project container.
+
+| Setting | What it changes |
+|---|---|
+| **WebSocket Support** | Allows upgrade requests for realtime apps, dashboards, terminals, and streaming responses |
+| **Security Headers** | Adds baseline browser protection headers from the edge |
+| **Maintenance Mode** | Returns a controlled maintenance response without deleting the project route |
+| **Rate Limiting** | Throttles abusive clients by route, IP, or domain |
+| **WAF Checks** | Blocks common SQL injection, XSS, path traversal, and bad bot patterns |
+| **Allowed / Blocked IPs** | Restricts access by IP address or CIDR range |
+| **Allowed / Blocked Countries** | Restricts access by country code |
+| **HTTP Methods** | Allows or blocks methods such as `GET`, `POST`, `PUT`, or `DELETE` |
+| **Content Types** | Limits accepted request content types for the route |
+| **Request Headers** | Adds controlled headers before traffic reaches your app |
+| **Response Headers** | Adds controlled headers before responses leave the proxy |
+| **Circuit Breaker** | Temporarily pauses routing after repeated upstream failures |
+| **Retry Upstream Errors** | Retries temporary `502`, `503`, and `504` upstream responses |
+| **In-flight Limit** | Caps concurrent requests for the route |
+
+<AccordionGroup>
+
+  <Accordion title="Enable WebSocket support">
+    Enable **WebSocket Support** when your app uses upgrade requests — realtime events, terminals, collaborative dashboards, or streaming connections. Without it, the proxy drops WebSocket handshakes and the connection fails silently.
+
+    <Steps>
+      <Step title="Open the domain">
+        Go to **Dashboard > Domains** and select the domain your realtime app is connected to.
+      </Step>
+      <Step title="Open Settings">
+        Click the **Settings** tab.
+      </Step>
+      <Step title="Enable WebSocket Support">
+        Toggle **WebSocket Support** on.
+      </Step>
+      <Step title="Save">
+        Click **Save Controls**.
+      </Step>
+      <Step title="Resync the proxy">
+        Click **Resync Proxy** so the active route is updated immediately.
+      </Step>
+      <Step title="Test">
+        Reload the app and exercise the realtime feature to confirm the socket connection succeeds.
+      </Step>
+    </Steps>
+
+    **If it still fails after enabling WebSocket Support, check:**
+
+    - The project port in settings matches the port your app listens on.
+    - The app server binds to `0.0.0.0`, not only `localhost` or `127.0.0.1`.
+    - The latest deployment is healthy with no crash loops.
+    - Runtime logs do not show WebSocket server errors.
+    - The browser is connecting to the correct `https://` hostname (not HTTP).
+  </Accordion>
+
+  <Accordion title="Set up IP, country, method, and content-type access rules">
+    Use access rules when a domain should only accept traffic from specific networks, geographic regions, HTTP methods, or content types. Rules can be configured as allowlists (only permit listed values) or blocklists (deny listed values).
+
+    **Available rules**
+
+    | Rule | Use it for |
+    |---|---|
+    | **Allowed IPs** | Private dashboards, admin panels, and internal tools |
+    | **Blocked IPs** | Known abusive clients or networks |
+    | **Allowed Countries** | Region-restricted products or private launches |
+    | **Blocked Countries** | Reducing traffic from regions you do not serve |
+    | **Allowed Methods** | APIs that should only accept specific HTTP methods |
+    | **Blocked Methods** | Preventing unused methods like `TRACE` or `DELETE` |
+    | **Allowed Content Types** | Restricting uploads or API request bodies to known formats |
+    | **Blocked Content Types** | Blocking unsupported request formats before they reach your app |
+
+    **Setup steps**
+
+    <Steps>
+      <Step title="Open the domain">
+        Go to **Dashboard > Domains** and select the domain.
+      </Step>
+      <Step title="Open Settings">
+        Click the **Settings** tab.
+      </Step>
+      <Step title="Configure your rules">
+        Add IP addresses, CIDR ranges, country codes, HTTP methods, or content types to the relevant allowlists or blocklists.
+      </Step>
+      <Step title="Review the list carefully">
+        Double-check every entry before saving, especially allowlists.
+      </Step>
+      <Step title="Save">
+        Click **Save Controls**.
+      </Step>
+      <Step title="Resync the proxy">
+        Click **Resync Proxy** to push the rules to the live route.
+      </Step>
+    </Steps>
+
+    <Warning>
+      Use allowlists carefully. An IP allowlist that is too narrow will block legitimate users who connect from unexpected addresses — including users on mobile networks or VPNs. Test with a blocklist first unless you are intentionally restricting to a known set of IPs.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Add security headers and maintenance mode">
+    **Security Headers** add baseline browser protection at the edge — headers like `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` are applied to every response without requiring changes to your application code.
+
+    **Maintenance Mode** instructs the proxy to return a controlled response for all incoming traffic while keeping the route intact. Use it during planned deployments or incidents when you want to show users a clear message rather than an error.
+
+    <Steps>
+      <Step title="Open the domain">
+        Go to **Dashboard > Domains** and select the domain.
+      </Step>
+      <Step title="Open Settings">
+        Click the **Settings** tab.
+      </Step>
+      <Step title="Enable Security Headers">
+        Toggle **Security Headers** on to add baseline browser protection headers to all responses from this route.
+      </Step>
+      <Step title="Enable Maintenance Mode if needed">
+        Toggle **Maintenance Mode** on if you want the proxy to return a maintenance response. Set a custom maintenance status code if your use case requires a specific HTTP status.
+      </Step>
+      <Step title="Add custom request or response headers if needed">
+        Use the **Request Headers** and **Response Headers** fields to inject headers consistently at the proxy layer. This is useful for headers your app expects on every request. Avoid adding secrets or private tokens as response headers.
+      </Step>
+      <Step title="Save">
+        Click **Save Controls**.
+      </Step>
+      <Step title="Resync the proxy">
+        Click **Resync Proxy** to apply the changes to the active route.
+      </Step>
+    </Steps>
+
+    <Note>
+      Custom request and response headers added here are applied at the edge proxy and appear on every request or response for this route. Use them for consistent cross-cutting concerns like correlation IDs or permitted origins, not for app-specific logic.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Protect upstreams with circuit breaker and retries">
+    Use these controls when a project is temporarily unhealthy, overloaded, or returning intermittent errors. They reduce the impact of upstream instability without requiring an immediate redeploy.
+
+    **Upstream protection controls**
+
+    | Control | What it does |
+    |---|---|
+    | **Circuit Breaker** | Pauses routing briefly after repeated upstream failures, preventing a flood of requests from hitting an already-unhealthy container |
+    | **Retry Upstream Errors** | Automatically retries temporary `502`, `503`, and `504` responses from the upstream before returning an error to the client |
+    | **In-flight Limit** | Caps the number of concurrent requests the proxy will send to the upstream at one time, protecting it from being overwhelmed |
+
+    **Setup steps**
+
+    <Steps>
+      <Step title="Open the domain">
+        Go to **Dashboard > Domains** and select the domain connected to the project you want to protect.
+      </Step>
+      <Step title="Open Settings">
+        Click the **Settings** tab.
+      </Step>
+      <Step title="Configure upstream protection">
+        Enable the **Circuit Breaker**, **Retry Upstream Errors**, and/or **In-flight Limit** controls as needed for your situation.
+      </Step>
+      <Step title="Save">
+        Click **Save Controls**.
+      </Step>
+      <Step title="Resync the proxy">
+        Click **Resync Proxy** to push the protection configuration to the live route.
+      </Step>
+      <Step title="Monitor after enabling">
+        Watch the usage and proxy analytics pages after enabling these controls to confirm they are behaving as expected and not masking a deeper issue.
+      </Step>
+      <Step title="Investigate the root cause">
+        Use the breathing room these controls provide to investigate and fix the underlying problem — a crashing container, a slow query, or a resource limit.
+      </Step>
+    </Steps>
+
+    <Warning>
+      Do not use **Retry Upstream Errors** as a substitute for a working deployment. If every request to your upstream fails, retries only add latency before returning the same error. Fix the deployment or the project port first, then enable retries as a resilience buffer for intermittent failures.
+    </Warning>
+  </Accordion>
+
+</AccordionGroup>
+
+## Common symptoms quick reference
+
+| Symptom | What to check first |
+|---|---|
+| Browser shows the wrong certificate | Open the **SSL** tab, then click **Resync Proxy** |
+| `www` does not load | Check the `www` DNS A record points to Pxxl, then click **Resync Proxy** |
+| HTTP works but HTTPS shows a certificate warning | Confirm SSL coverage is **Covered**, then enable **Force HTTPS** only after coverage is confirmed |
+| Realtime sockets fail silently | Enable **WebSocket Support**, save, and resync |
+| Legitimate users are being blocked | Review country, IP, method, content-type, and WAF rules for overly broad allowlists or blocklists |
+| Domain returns `503` | Check the project port and confirm the upstream is healthy before changing any SSL or proxy rules |
+
+## Safe update order
+
+Always follow this sequence when making changes to a domain's proxy or SSL settings to avoid accidentally taking your domain offline.
+
+<Steps>
+  <Step title="Confirm DNS">
+    Confirm the domain DNS records point to Pxxl (`193.181.212.65`) and have propagated.
+  </Step>
+  <Step title="Confirm the project connection">
+    Confirm the domain is connected to the correct project and the latest deployment is healthy.
+  </Step>
+  <Step title="Resync the proxy">
+    Open **SSL** and click **Resync Proxy** to establish a clean baseline before making any other changes.
+  </Step>
+  <Step title="Update proxy controls">
+    Open **Settings** and make your desired changes — security headers, access rules, upstream protection, etc.
+  </Step>
+  <Step title="Save">
+    Click **Save Controls**.
+  </Step>
+  <Step title="Resync again">
+    Click **Resync Proxy** a second time so the active route picks up the new settings immediately.
+  </Step>
+  <Step title="Test">
+    Test the root domain and the `www` hostname over `https://` to confirm everything is working as expected.
+  </Step>
+</Steps>

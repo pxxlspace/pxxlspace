@@ -1,0 +1,58 @@
+---
+title: "Cron CLI"
+sidebarTitle: "CLI"
+description: "Create, validate, trigger, and inspect Pxxl HTTP cron jobs from the pxxl CLI."
+---
+
+Pxxl cron jobs run scheduled HTTP requests through the same worker used by the dashboard. Use the CLI for internal jobs, cache warmers, health checks, webhook retries, and simple scheduled automation.
+
+## API Key Scope
+
+Use an API key with `scope=cron`, `scope=cronjobs`, or `scope=all`.
+
+| Operation | Permission |
+| --- | --- |
+| list, get, runs, validate | `read` |
+| create, update, delete, start, stop, trigger | `read_write` |
+
+## Commands
+
+```bash
+pxxl cron list
+pxxl cron create
+pxxl cron create --name cleanup --schedule "*/5 * * * *" --url https://example.com/job --method POST
+pxxl cron get <cron-job-id>
+pxxl cron update <cron-job-id> --schedule "0 * * * *"
+pxxl cron stop <cron-job-id>
+pxxl cron start <cron-job-id>
+pxxl cron trigger <cron-job-id>
+pxxl cron runs <cron-job-id>
+pxxl cron validate-schedule "*/5 * * * *"
+pxxl cron validate-url https://example.com/job
+```
+
+Run `pxxl cron create` without flags to enter the interactive flow. The CLI asks for the name, schedule, URL, method, optional project, timeout, and headers JSON.
+
+## Constraints
+
+| Field | Rule |
+| --- | --- |
+| Schedule | 5-field cron expressions only. |
+| URL | Public `http` or `https` URLs only. |
+| Blocked targets | Private, localhost, link-local, multicast, and reserved IP ranges are rejected. |
+| Method | `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. |
+| Timeout | 1 to 30 seconds. |
+| Stored response | Response body is capped at 10 KB in run history. |
+| Failure policy | Jobs are auto-disabled after 3 consecutive failures. |
+
+## Plan Limits
+
+When your plan limit is reached, the CLI prints the allowed limit and current usage instead of a generic request failure.
+
+```txt
+Cron job limit reached Your current plan allows up to 5 cron jobs.
+Limit    5
+Current 5
+```
+
+Upgrade your plan or delete an unused cron job before creating another one.

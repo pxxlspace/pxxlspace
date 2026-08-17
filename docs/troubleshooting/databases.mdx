@@ -1,0 +1,53 @@
+---
+title: "Troubleshoot Database Visibility and Connection Issues"
+sidebarTitle: "Database Issues"
+description: "Fix database visibility problems in Pxxl projects by attaching databases as sub-services and configuring connection environment variables."
+---
+
+Creating a database and deploying a project are separate actions on Pxxl. Simply provisioning a database does not make it visible or reachable inside a project — you must explicitly attach the database as a sub-service and pass its connection URL into the project's environment variables. Once those two steps are complete and the project is redeployed, your runtime container will have access to the database at startup.
+
+<AccordionGroup>
+
+  <Accordion title="Database not visible inside a project">
+    If you created a database but cannot select it from a project, or your application cannot connect at runtime, follow these steps to attach and expose it correctly.
+
+    <Steps>
+      <Step title="Confirm the database is active">
+        Open **Dashboard > Database** and check that the database status shows active. A database that is still provisioning or in an error state cannot accept connections.
+      </Step>
+      <Step title="Open the project overview or architecture view">
+        Navigate to the project you want to connect the database to.
+      </Step>
+      <Step title="Add the database as a sub-service">
+        In the project overview or architecture view, add the existing database as a sub-service. This registers the database as a dependency of the project and makes the connection details available.
+      </Step>
+      <Step title="Add the database URL to environment variables">
+        In the project **Environment** settings, add the connection string as an environment variable — typically named `DATABASE_URL`. Copy the value from the database detail page.
+      </Step>
+      <Step title="Redeploy the project">
+        Trigger a new deployment so the running container starts with the updated environment. Environment variable changes do not take effect in already-running containers.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Container checklist">
+    Use this checklist to verify everything is configured correctly before investigating further.
+
+    | Check | What to confirm |
+    |---|---|
+    | Runtime envs saved | `DATABASE_URL` (or your chosen variable name) appears in the project environment settings and has the correct value |
+    | App reads `DATABASE_URL` | Your application code reads the connection string from the environment variable at startup, not from a hardcoded string |
+    | Database is active | The database status in **Dashboard > Database** shows active, not provisioning or errored |
+    | Project was redeployed | A deployment ran *after* the environment variable was added — changes only apply to new deployments |
+    | Migrations are safe | Schema migrations run as part of a controlled startup step or a separate job, not automatically on every container restart |
+
+    <Note>
+      If your application runs migrations automatically on startup, make sure they are idempotent. Running migrations on every restart in a multi-instance deployment can cause race conditions.
+    </Note>
+  </Accordion>
+
+</AccordionGroup>
+
+<Tip>
+  For the complete database setup flow — including provisioning, connection string formats, and backups — see the [Database documentation](/dashboard/database).
+</Tip>

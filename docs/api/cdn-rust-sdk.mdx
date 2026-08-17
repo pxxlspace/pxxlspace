@@ -1,0 +1,77 @@
+---
+title: "Pxxl CDN Rust SDK"
+sidebarTitle: "Rust SDK"
+description: "Use the Pxxl Rust SDK to upload, list, download, delete CDN assets, and read CDN summaries."
+---
+
+Install the official Rust SDK:
+
+```bash
+cargo add pxxl
+```
+
+```rust
+use pxxl::{PxxlClient, UploadAsset};
+
+let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?;
+
+let asset = client.upload_asset(UploadAsset {
+    file_name: "hello.txt".into(),
+    bytes: b"hello from Pxxl".to_vec(),
+    visibility: Some("public".into()),
+    ..Default::default()
+}).await?;
+
+println!("{:?}", asset.public_url);
+```
+
+## Upload an Image
+
+Read the image bytes and pass an image filename. Public image uploads return a URL you can use directly in frontend markup, Open Graph tags, avatars, and galleries.
+
+```rust
+use pxxl::{PxxlClient, UploadAsset};
+
+let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?;
+let bytes = tokio::fs::read("./public/og-image.png").await?;
+
+let image = client.upload_asset(UploadAsset {
+    file_name: "og-image.png".into(),
+    bytes,
+    visibility: Some("public".into()),
+    ..Default::default()
+}).await?;
+
+println!("{:?}", image.public_url);
+```
+
+```html
+<img src="https://cdn.pxxl.app/..." alt="Product preview" />
+```
+
+## Common Operations
+
+```rust
+let summary = client.summary().await?;
+let assets = client.list_assets(Some(&[("limit", "25")])).await?;
+let file_bytes = client.download_asset(&asset.id).await?;
+client.delete_asset(&asset.id).await?;
+```
+
+## Return Values
+
+The Rust SDK uses typed structs where available and raw JSON where the API response is still broad:
+
+| Method | Returns |
+| --- | --- |
+| `summary()` | `CdnSummary`. |
+| `list_assets()` | Raw JSON object with `assets` and `pagination`. |
+| `upload_asset()` | `CdnAsset`. |
+| `download_asset()` | `Vec<u8>` containing the file body. |
+| `delete_asset()` | `()` when the delete succeeds. |
+
+`CdnAsset` currently exposes `id`, `file_name`, `size`, `public_url`, and `visibility`. Use `list_assets()` when you need the full raw asset object with metadata, hashes, project IDs, deployment IDs, timestamps, and pagination.
+
+<Tip>
+Use `scope=cdn` and `permission=read_write` for upload services. Use `permission=read` for reporting jobs that only list or download assets.
+</Tip>

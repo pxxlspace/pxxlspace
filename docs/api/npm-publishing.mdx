@@ -1,0 +1,40 @@
+---
+title: "Publish the Pxxl CLI to npm"
+sidebarTitle: "npm Publishing"
+description: "Release the root @pxxlapp/pxxl package with tests, dry-run packaging, 2FA, and a smoke install."
+---
+
+Run this from the root of `pxxlspace/pxxlspace`.
+
+```bash
+npm ci
+npm test
+npm run build
+node dist/cli.js --version
+node dist/cli.js --help
+npm pack --dry-run
+npm whoami
+npm version patch -m "chore(release): %s"
+npm publish --access public --provenance
+```
+
+The package publishes as `@pxxlapp/pxxl` because npm blocks the bare `pxxl` name for similarity with existing packages. The installed binary remains `pxxl`.
+
+Recommended release checks:
+
+| Check | Why |
+| --- | --- |
+| `npm test` | Builds the SDK and runs CLI/unit tests. |
+| `npm pack --dry-run` | Confirms only `dist`, docs, boilerplates, skills, and package metadata ship. |
+| npm 2FA | Protects releases from account compromise. |
+| provenance | Adds publish-chain metadata where supported. |
+| smoke install | Verifies the binary works after publish. |
+
+```bash
+release_version="$(node -p "require('./package.json').version")"
+verify_dir="$(mktemp -d)"
+npm view "@pxxlapp/pxxl@$release_version" version
+npm install --prefix "$verify_dir" "@pxxlapp/pxxl@$release_version"
+"$verify_dir/node_modules/.bin/pxxl" --version
+"$verify_dir/node_modules/.bin/pxxl" --help
+```

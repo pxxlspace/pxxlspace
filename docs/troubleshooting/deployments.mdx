@@ -1,0 +1,85 @@
+---
+title: "Fix Deployment Failures, Port Errors, and Static Site 404s"
+sidebarTitle: "Deployment Issues"
+description: "Troubleshoot build failures, expired artifacts, incorrect project ports, and static site 404 routing errors on Pxxl. Covers rollback and SPA fixes."
+---
+
+Most deployment issues on Pxxl fall into one of three categories: an old build artifact that can no longer be rolled back to, a port mismatch that causes a 503 after you change your app's listener, or a static site returning 404s on nested routes because the hosting mode does not match your build output. Use the accordions below to identify your situation and follow the fix steps.
+
+<AccordionGroup>
+
+  <Accordion title="Build artifact expired">
+    Pxxl stores build artifacts for a window defined by your plan's retention policy. The deployment history always remains visible in the dashboard, but once an artifact ages out of the retention window, rollback can no longer recreate the container image from that old build.
+
+    **What artifact retention means**
+
+    When you trigger a rollback, Pxxl needs the original image layers to recreate the container exactly. If those layers have expired, the rollback entry is visible but non-functional — the platform has no image to launch.
+
+    **Your options**
+
+    - **Redeploy the same commit.** Push or select the commit again to trigger a fresh build from source. The resulting image will be functionally identical to the expired one.
+    - **Upgrade your plan.** Higher-tier plans keep artifacts for longer, giving you more rollback headroom for critical releases.
+    - **Tag releases in Git.** Keep a named tag (for example `v2.4.1`) on every release commit so you can always find and redeploy the exact version even after the artifact expires.
+
+    <Tip>
+      Use Git tags for production releases. A tag makes it trivial to redeploy a specific version without searching through commit history.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Changed project port causing 503">
+    The Pxxl edge proxy routes traffic through the runtime route registry to the active container port for your project. If you change the port your app listens on — either in your code or in project settings — make sure the project port matches the app listener and resync the proxy so the active upstream is refreshed.
+
+    **Why port alignment matters**
+
+    Pxxl registers the active container port in the runtime route map. If your app process binds to a different port inside the container, TCP connections from the proxy are refused and the upstream is considered unhealthy. Updating the port in settings is necessary, and a redeploy is only required when the running image itself needs the changed port/config value.
+
+    **Fix steps**
+
+    <Steps>
+      <Step title="Open the project">
+        Go to **Dashboard > Projects** and select the affected project.
+      </Step>
+      <Step title="Go to Settings">
+        Open the **Settings** tab.
+      </Step>
+      <Step title="Update the port">
+        Change the port value to match the port your application actually binds to at startup.
+      </Step>
+      <Step title="Redeploy the project">
+        Trigger a new deployment. This rebuilds or re-pulls the image and starts the container with the updated port label.
+      </Step>
+      <Step title="Resync the proxy for each connected domain">
+        Open **Dashboard > Domains**, select each domain connected to this project, and click **Resync Proxy** so the edge upstream target reflects the new port.
+      </Step>
+    </Steps>
+
+    <Note>
+      Where possible, configure your app to read the `PORT` environment variable at startup. This makes it easier to keep the app and Pxxl settings aligned without code changes.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Static site returns 404 on nested routes">
+    If a static site works fine at `/` but returns 404 when you navigate to a nested path like `/blog` or `/dashboard`, the problem is a mismatch between how your build output is structured and how the project is configured to serve it.
+
+    **Plain HTML sites vs. SPAs**
+
+    | Site type | How routing works | What you need |
+    |---|---|---|
+    | Plain HTML | The server looks for a real file at the requested path | `blog/index.html`, `dashboard/index.html`, etc. must exist in the build output |
+    | SPA (React, Vue, Svelte, etc.) | The client-side router handles all paths | The server must fall back to `index.html` for every path that is not a static asset |
+
+    **How to fix it**
+
+    - **Plain HTML site:** Make sure your build step generates a real file for each URL. For example, `/blog` requires either `blog.html` or `blog/index.html` in the output directory.
+    - **SPA build:** Confirm the project was detected as the correct framework (for example React Vite) before deployment. Pxxl uses the framework detection to configure the correct fallback behaviour. If the framework was misidentified, update the framework setting and redeploy.
+
+    **Redeploy after changing settings**
+
+    Changing the framework or build output configuration only takes effect on the next deployment. Trigger a redeploy after making any framework or output directory change.
+
+    <Warning>
+      Serving an SPA without a fallback rule means every direct link or browser refresh to a nested path will return 404. Always confirm the correct framework is selected before deploying a client-side router application.
+    </Warning>
+  </Accordion>
+
+</AccordionGroup>

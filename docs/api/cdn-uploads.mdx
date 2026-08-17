@@ -1,0 +1,49 @@
+---
+title: "Upload Files to Pxxl CDN"
+sidebarTitle: "CDN Uploads"
+description: "Upload public and private assets to Pxxl CDN with API-key authentication, usage limits, and safe content handling."
+---
+
+Use `POST /api/v3/cdn/assets` with `multipart/form-data`.
+
+```bash
+curl https://gateway.pxxl.app/api/v3/cdn/assets \
+  -H "Authorization: Bearer $PXXL_API_KEY" \
+  -F "file=@./static/logo.png" \
+  -F "visibility=public"
+```
+
+The key must have `scope=cdn` or `scope=all` and `permission=read_write`.
+
+## Visibility
+
+| Value | Behavior |
+| --- | --- |
+| `public` | Returns a `publicUrl` for passive assets that can be safely served from the CDN. |
+| `private` | Stores the file without returning a public CDN URL. Use the authenticated download endpoint. |
+
+Active content types such as HTML, JavaScript, XML, and SVG are forced away from unsafe public serving. Downloads use `nosniff`, a locked-down content security policy, and attachment disposition.
+
+## Billing and Limits
+
+Pxxl checks CDN upload size before sending the object to storage. If the account is suspended, over the upload limit, or lacks enough cloud credits, the API rejects the upload before provider storage is touched.
+
+## Response
+
+```json
+{
+  "success": true,
+  "asset": {
+    "id": "cm...",
+    "storageName": "Pxxl CDN",
+    "key": "cdn/file/cm.../logo.png",
+    "fileName": "logo.png",
+    "contentType": "image/png",
+    "size": 18420,
+    "publicUrl": "https://...",
+    "visibility": "public"
+  }
+}
+```
+
+The public response never exposes the provider bucket, internal tenant folder, R2 endpoint, or raw storage errors.

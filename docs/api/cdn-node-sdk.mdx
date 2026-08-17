@@ -1,0 +1,80 @@
+---
+title: "Pxxl CDN Node SDK"
+sidebarTitle: "Node SDK"
+description: "Use the @pxxlapp/pxxl Node package from backend Node.js applications to upload, list, download, delete CDN assets, and query domains."
+---
+
+The official Node SDK lives in the public Pxxl repository:
+
+```bash
+npm install @pxxlapp/pxxl
+```
+
+```ts
+import { PxxlClient } from '@pxxlapp/pxxl';
+
+const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY! });
+
+const asset = await pxxl.uploadAsset({
+  file: new Blob(['hello from Pxxl']),
+  fileName: 'hello.txt',
+  visibility: 'public',
+});
+
+console.log(asset.publicUrl);
+```
+
+## Upload an Image
+
+Use a `File`, `Blob`, or file buffer and keep the original image extension in `fileName`. Public image uploads return a `publicUrl` that you can use directly in an `<img>` tag, Open Graph image, avatar, or product gallery.
+
+```ts
+import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
+import { PxxlClient } from '@pxxlapp/pxxl';
+
+const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY! });
+const imagePath = './public/og-image.png';
+const imageBytes = await readFile(imagePath);
+
+const image = await pxxl.uploadAsset({
+  file: new Blob([imageBytes], { type: 'image/png' }),
+  fileName: basename(imagePath),
+  visibility: 'public',
+});
+
+console.log(image.publicUrl);
+```
+
+```html
+<img src="https://cdn.pxxl.app/..." alt="Product preview" />
+```
+
+## Common Operations
+
+```ts
+const summary = await pxxl.summary();
+const listed = await pxxl.listAssets({ limit: 25 });
+const file = await pxxl.downloadAsset(asset.id);
+await pxxl.deleteAsset(asset.id);
+const events = await pxxl.usage(100);
+```
+
+## Return Values
+
+The Node SDK unwraps the CDN API response envelopes so the common values are easier to use:
+
+| Method | Returns |
+| --- | --- |
+| `summary()` | CDN summary object from the API `data` field. |
+| `listAssets()` | `{ assets, pagination }`. |
+| `uploadAsset()` | Created asset object. |
+| `downloadAsset()` | `Blob` containing the file bytes. |
+| `deleteAsset()` | Resolves with no value when the delete succeeds. |
+| `usage(limit)` | Recent CDN usage `events`. |
+
+Asset objects include `id`, `userId`, optional `projectId`, optional `deploymentId`, `storageName`, `key`, `fileName`, `contentType`, `size`, `publicUrl`, `sha256`, `etag`, `visibility`, `kind`, `metadata`, `createdAt`, and `updatedAt`.
+
+<Tip>
+Use `scope=cdn` and `permission=read_write` for upload services. Use `permission=read` for reporting jobs that only list or download assets.
+</Tip>

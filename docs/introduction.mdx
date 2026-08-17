@@ -1,0 +1,71 @@
+---
+title: "Pxxl Platform Overview: What It Is and How It Works"
+sidebarTitle: "Introduction"
+description: "Discover what Pxxl is, who it is built for, and how it deploys your GitHub repository to a live, production-ready URL without servers."
+---
+
+Pxxl is an Africa-first cloud deployment platform built for developers who want to ship quickly without managing servers. You connect a GitHub repository, tell Pxxl how to build and start your application, and the platform handles container provisioning, TLS certificates, routing, and edge caching. Within seconds your project is reachable at a live URL — no DevOps knowledge required.
+
+## What You Can Deploy
+
+Pxxl supports every major runtime and deployment pattern. If your code runs on a server or outputs static files, Pxxl can host it.
+
+<CardGroup cols={2}>
+  <Card title="Web Apps" icon="browser">
+    React, Vue, Svelte, Astro, Next.js, Nuxt, and any other frontend framework that produces a build output or runs a dev server.
+  </Card>
+  <Card title="APIs & Backends" icon="server">
+    Express, NestJS, FastAPI, Flask, Django, Go, Laravel, Spring Boot, Rails, ASP.NET Core, Actix, and more.
+  </Card>
+  <Card title="Databases" icon="database">
+    Provision managed PostgreSQL, MySQL, and MongoDB instances directly from the Pxxl dashboard — no external provider needed.
+  </Card>
+  <Card title="Static Sites" icon="globe">
+    Plain HTML/CSS/JS projects, documentation sites, and any pre-built output you want served over a CDN with zero runtime cost.
+  </Card>
+</CardGroup>
+
+## Dashboard Overview
+
+Every Pxxl project is managed through a centralised dashboard. The nine tabs give you full visibility and control over every aspect of your deployment.
+
+| Tab | Purpose |
+|---|---|
+| **Overview** | At-a-glance health summary: deployment status, uptime, recent activity, and resource usage for the selected project. |
+| **Projects** | List and manage all your Pxxl projects. Create new projects, archive old ones, and switch between them. |
+| **Deploy** | Configure and trigger a new deployment: choose a repository, set build commands, environment variables, and the target branch. |
+| **Deployments** | Full history of every deployment run — status, commit SHA, build logs, and the option to roll back to any previous release. |
+| **Domains** | Add custom domains, verify DNS ownership, and manage TLS certificates for your projects. |
+| **CDN** | Configure edge caching rules, cache-control headers, and cache invalidation for static assets. |
+| **API Keys** | Create scoped API keys for CI/CD pipelines, third-party integrations, and programmatic access to the Pxxl API. |
+| **Database** | Provision, connect, and inspect managed database instances linked to your projects. |
+| **Cron Jobs** | Schedule recurring tasks — define a cron expression and the command or HTTP endpoint Pxxl should trigger. |
+
+## Core Workflow
+
+Pxxl walks every new project through six stages the first time you deploy. Subsequent deployments skip straight to the build phase.
+
+<Steps>
+  <Step title="Repository Connection">
+    Authorise Pxxl to access your GitHub account from **Dashboard → Settings → GitHub**. Select the repository and, if needed, set a **Base Directory** to scope the build context to a monorepo subdirectory.
+  </Step>
+  <Step title="Stack Verification">
+    Pxxl inspects your repository for language lock files (`package-lock.json`, `requirements.txt`, `go.mod`, `Gemfile`, etc.) and pre-fills the install, build, and start commands. Review and override them on the Deploy form if the auto-detected values do not match your project.
+  </Step>
+  <Step title="Initial Build">
+    Pxxl clones your repository, runs the install command inside a clean container, executes the build command, and then starts your application with the start command. Build logs stream in real time on the **Deployments** tab.
+  </Step>
+  <Step title="Domain Routing">
+    Once the container is healthy, Pxxl assigns a `yourproject.pxxl.pro` subdomain and provisions a TLS certificate automatically. Add a custom domain from the **Domains** tab at any time.
+  </Step>
+  <Step title="Data & Environment Setup">
+    Set sensitive configuration — database URLs, API secrets, feature flags — as environment variables on the Deploy form. They are injected into your container at runtime and never exposed in build logs.
+  </Step>
+  <Step title="Edge Verification">
+    Pxxl runs an end-to-end health check against your live URL. If the check passes, traffic is routed to your new container. If it fails, Pxxl halts the rollout and preserves the previous deployment so your site stays up.
+  </Step>
+</Steps>
+
+<Note>
+  Ready to deploy your first project? Follow the [Quickstart guide](/quickstart) to go from zero to a live URL in under five minutes.
+</Note>

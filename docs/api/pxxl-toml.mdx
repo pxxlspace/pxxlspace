@@ -1,0 +1,293 @@
+---
+title: "pxxl.toml"
+sidebarTitle: "pxxl.toml"
+description: "Configure Pxxl builds with the exact pxxl.toml fields supported by the Gateway buildpack pipeline."
+---
+
+`pxxl.toml` lets a repository override Pxxl buildpack detection with versioned build configuration.
+
+Gateway reads this file during GitHub-backed deployments. It fetches `pxxl.toml` from the deployment commit SHA. If the project has a base directory, Gateway checks `baseDirectory/pxxl.toml` first, then falls back to the repository root `pxxl.toml`.
+
+<Note>
+  For local `pxxl deploy`, the CLI also reads top-level deploy metadata such as `name`, `domainChoice`, and `projectId`. The Gateway buildpack fields below are the fields applied during server-side builds.
+</Note>
+
+## Build configuration
+
+Use the `[build]` table to override the detected language, framework, commands, versions, output directory, base directory, and port.
+
+```toml
+[build]
+language = "python"
+framework = "flask"
+packageManager = "pip"
+runtime = "3.12"
+baseDirectory = "/"
+port = 3000
+installCommand = "pip install -r requirements.txt"
+buildCommand = ""
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT"
+```
+
+<ParamField body="build.language" type="string">
+  Overrides the detected buildpack language. Known languages include `javascript`, `html`, `python`, `php`, `go`, `rust`, `java`, `csharp`, `ruby`, and `dart`.
+</ParamField>
+
+<ParamField body="build.runtime" type="string">
+  Sets the runtime value. If the value is a known buildpack language, Gateway also treats it as the language.
+</ParamField>
+
+<ParamField body="build.framework" type="string">
+  Overrides the detected framework, such as `flask`, `laravel`, `nextjs`, `vite`, or `tanstack-start`.
+</ParamField>
+
+<ParamField body="build.packageManager" type="string">
+  Overrides the package manager used by the build plan. For JavaScript projects, this also updates the buildpack tag and default package-manager commands when the detected defaults are still in use.
+</ParamField>
+
+<ParamField body="build.installCommand" type="string">
+  Overrides the install command. Alias: `build.install`. Maximum length: `400` characters.
+</ParamField>
+
+<ParamField body="build.buildCommand" type="string">
+  Overrides the build command. Aliases: `build.command`, `build.build`. Maximum length: `400` characters.
+</ParamField>
+
+<ParamField body="build.startCommand" type="string">
+  Overrides the runtime start command. Alias: `build.start`. Maximum length: `400` characters.
+</ParamField>
+
+<ParamField body="build.entryFile" type="string">
+  Sets the entry file. Alias: `build.entry`.
+</ParamField>
+
+<ParamField body="build.outputDirectory" type="string">
+  Sets the build output directory. Alias: `build.output`.
+</ParamField>
+
+<ParamField body="build.baseDirectory" type="string">
+  Sets the repository subdirectory used for the primary service build.
+</ParamField>
+
+<ParamField body="build.port" type="number">
+  Sets the app port. Gateway accepts ports from `1` through `65535`.
+</ParamField>
+
+<ParamField body="build.runtimeVersion" type="string">
+  Overrides the buildpack runtime version.
+</ParamField>
+
+<ParamField body="build.nodeVersion" type="string">
+  Sets the Node.js version stored on the project build settings.
+</ParamField>
+
+<ParamField body="build.pythonVersion" type="string">
+  Sets the Python version stored on the project build settings.
+</ParamField>
+
+<ParamField body="build.goVersion" type="string">
+  Sets the Go version stored on the project build settings.
+</ParamField>
+
+<ParamField body="build.rustVersion" type="string">
+  Sets the Rust version stored on the project build settings.
+</ParamField>
+
+## System packages
+
+Use `[packages]` for OS packages needed by the buildpack image.
+
+```toml
+[packages]
+build = ["coreutils", "cmake"]
+runtime = ["curl"]
+```
+
+<ParamField body="packages.build" type="string[]">
+  Installs packages in the build stage. Use this for compilers, build tools, and native dependency compilation.
+</ParamField>
+
+<ParamField body="packages.runtime" type="string[]">
+  Installs packages in the final runtime image. Use this only for binaries your app needs after it starts.
+</ParamField>
+
+<ParamField body="runtime.packages" type="string[]">
+  Also installs packages in the final runtime image. Gateway merges this with `packages.runtime`.
+</ParamField>
+
+For Alpine-based buildpacks, packages render as:
+
+```dockerfile
+RUN echo '[pxxl] build packages -> coreutils cmake' && apk add --no-cache coreutils cmake
+```
+
+For Debian-based buildpacks, packages render as:
+
+```dockerfile
+RUN apt-get update && apt-get install -y --no-install-recommends coreutils cmake && rm -rf /var/lib/apt/lists/*
+```
+
+Package names must match this pattern:
+
+```text
+^[A-Za-z0-9][A-Za-z0-9+._-]{0,79}$
+```
+
+Gateway rejects more than `80` total packages across global and service-specific package lists.
+
+## Environment variables
+
+Use `[env]` for non-secret build environment defaults.
+
+```toml
+[env]
+PYTHONUNBUFFERED = "1"
+APP_ENV = "production"
+```
+
+Environment keys must match this pattern:
+
+```text
+^[A-Za-z_][A-Za-z0-9_]*$
+```
+
+Gateway rejects more than `80` keys. Each value can be up to `8192` characters.
+
+<Warning>
+  Do not commit secrets to `pxxl.toml`. Use dashboard environment variables or `pxxl env push` for API keys, tokens, database URLs, and private credentials.
+</Warning>
+
+## Services
+
+Use `[services.<alias>]` to override build settings for a saved microservice or monorepo service.
+
+```toml
+[services.api]
+baseDirectory = "apps/api"
+language = "python"
+framework = "flask"
+packageManager = "pip"
+installCommand = "pip install -r requirements.txt"
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT"
+port = 3000
+buildPackages = ["coreutils"]
+runtimePackages = ["curl"]
+
+[services.web]
+baseDirectory = "apps/web"
+language = "javascript"
+framework = "vite"
+packageManager = "pnpm"
+installCommand = "pnpm install --frozen-lockfile"
+buildCommand = "pnpm build"
+startCommand = "pnpm preview --host 0.0.0.0 --port $PORT"
+port = 3000
+```
+
+Service aliases must match the saved service alias on the project. During a multi-service build, Gateway applies the matching service table to that service only.
+
+<ParamField body="services.<alias>.baseDirectory" type="string">
+  Overrides the base directory for that service.
+</ParamField>
+
+<ParamField body="services.<alias>.language" type="string">
+  Overrides the service language.
+</ParamField>
+
+<ParamField body="services.<alias>.runtime" type="string">
+  Overrides the service runtime.
+</ParamField>
+
+<ParamField body="services.<alias>.framework" type="string">
+  Overrides the service framework.
+</ParamField>
+
+<ParamField body="services.<alias>.packageManager" type="string">
+  Overrides the service package manager.
+</ParamField>
+
+<ParamField body="services.<alias>.installCommand" type="string">
+  Overrides the service install command. Alias: `install`.
+</ParamField>
+
+<ParamField body="services.<alias>.buildCommand" type="string">
+  Overrides the service build command. Aliases: `command`, `build`.
+</ParamField>
+
+<ParamField body="services.<alias>.startCommand" type="string">
+  Overrides the service start command. Alias: `start`.
+</ParamField>
+
+<ParamField body="services.<alias>.entryFile" type="string">
+  Overrides the service entry file. Alias: `entry`.
+</ParamField>
+
+<ParamField body="services.<alias>.outputDirectory" type="string">
+  Overrides the service output directory. Alias: `output`.
+</ParamField>
+
+<ParamField body="services.<alias>.port" type="number">
+  Overrides the service port.
+</ParamField>
+
+<ParamField body="services.<alias>.runtimeVersion" type="string">
+  Overrides the buildpack runtime version for that service.
+</ParamField>
+
+<ParamField body="services.<alias>.buildPackages" type="string[]">
+  Adds build-stage packages for that service.
+</ParamField>
+
+<ParamField body="services.<alias>.runtimePackages" type="string[]">
+  Adds runtime-stage packages for that service.
+</ParamField>
+
+## Native dependency example
+
+This example fixes Python packages that need GNU `cp` during native wheel compilation.
+
+```toml
+[packages]
+build = ["coreutils"]
+```
+
+If the package is only needed after the app starts, use runtime packages instead:
+
+```toml
+[packages]
+runtime = ["curl"]
+```
+
+## Complete example
+
+```toml
+[build]
+language = "python"
+framework = "flask"
+packageManager = "pip"
+runtime = "3.12"
+baseDirectory = "/"
+port = 3000
+installCommand = "pip install --upgrade pip setuptools wheel maturin && pip install -r requirements.txt"
+buildCommand = ""
+startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT"
+
+[packages]
+build = ["coreutils"]
+runtime = []
+
+[env]
+PYTHONUNBUFFERED = "1"
+```
+
+## Validation summary
+
+Gateway validates `pxxl.toml` before applying it.
+
+| Area | Rule |
+| --- | --- |
+| Commands | `build.install`, `build.command`, and `build.start` are limited to `400` characters. |
+| Environment keys | Maximum `80` keys. Keys must match `^[A-Za-z_][A-Za-z0-9_]*$`. |
+| Environment values | Each value is limited to `8192` characters. |
+| Packages | Maximum `80` total package entries. Names must match `^[A-Za-z0-9][A-Za-z0-9+._-]{0,79}$`. |
+| Ports | Build ports are applied only when they are between `1` and `65535`. |

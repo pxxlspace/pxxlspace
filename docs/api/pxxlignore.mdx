@@ -1,0 +1,31 @@
+---
+title: ".pxxlignore"
+sidebarTitle: ".pxxlignore"
+description: "Control which files the Pxxl CLI packages for deploys."
+---
+
+`pxxl deploy` reads `.pxxlignore` before creating the deploy archive. The default ignore file excludes heavy folders, local caches, Git metadata, local env files, the ignore file itself, and secret-like files.
+
+```gitignore
+.git
+.git/**
+node_modules
+node_modules/**
+.env
+.env.*
+*.log
+dist
+build
+.next
+.turbo
+.cache
+.config/pxxl
+.pxxlignore
+pxxl-source.zip
+```
+
+The packager also refuses sensitive filenames such as private keys, PEM files, service-account files, and credentials JSON files.
+
+<Tip>
+Keep build output ignored when Pxxl should build the app from source. Remove a build directory from `.pxxlignore` only when you intentionally want to deploy prebuilt static output.
+</Tip>

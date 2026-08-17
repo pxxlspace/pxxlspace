@@ -1,0 +1,113 @@
+---
+title: "Provision Managed Databases and Connect Them to Projects"
+sidebarTitle: "Database"
+description: "Provision PostgreSQL, MySQL, or MongoDB databases, link them to projects, and pass connection credentials through environment variables."
+---
+
+Pxxl provides managed PostgreSQL, MySQL, and MongoDB databases as workspace resources. You provision a database once in the dashboard, then link it to any project that needs it. The connection is recorded in the project's architecture view, but your application still receives credentials through environment variables — the same pattern you use for any other secret. This separation keeps database provisioning clean and lets multiple projects share a single database instance when needed.
+
+Open **Dashboard > Database** to manage all databases in the workspace.
+
+## Create a Database
+
+<Steps>
+  <Step title="Open the Database page">
+    Navigate to **Dashboard > Database** and click **Create Database**.
+  </Step>
+  <Step title="Choose the engine">
+    Select the database engine your application requires: **PostgreSQL**, **MySQL**, or **MongoDB**.
+  </Step>
+  <Step title="Select the project or workspace scope">
+    Choose the owning project or set the database as a workspace-level resource that can be shared across projects.
+  </Step>
+  <Step title="Configure name, region, and resources">
+    Enter a descriptive name for the database, select the region closest to your application containers, and review the resource settings (storage, compute tier).
+  </Step>
+  <Step title="Create and wait for active status">
+    Click **Create** and wait for the database status to become **active**. Provisioning typically completes within a few minutes. A pending database may not accept connections yet.
+  </Step>
+  <Step title="Copy connection credentials">
+    Open the database detail page once it is active. Copy the connection URL, username, password, host, port, and database name — you will need these values in the next steps.
+  </Step>
+</Steps>
+
+## Link a Database to a Project
+
+Linking records the relationship between the database and a project so it appears in the project architecture view.
+
+<Steps>
+  <Step title="Open the project">
+    Navigate to **Dashboard > Projects** and select the project that should use the database.
+  </Step>
+  <Step title="Open the architecture or project overview area">
+    Switch to the **Overview** tab inside the project workspace to see the architecture canvas.
+  </Step>
+  <Step title="Add the database service">
+    Select the database service action on the canvas, then choose **Existing database** from the options.
+  </Step>
+  <Step title="Select and confirm">
+    Pick the target database from the dropdown list and confirm the connection. The database now appears in the project architecture alongside the application container.
+  </Step>
+</Steps>
+
+## Add Connection Values to the Container
+
+Linking the database only records the relationship in the dashboard. Your application container needs the actual credentials as environment variables to connect at runtime.
+
+<Steps>
+  <Step title="Open Environment Variables">
+    Select the project, then open the **Environment Variables** tab.
+  </Step>
+  <Step title="Add the connection variables">
+    Add the variables your framework expects. Use the values you copied from the database detail page.
+  </Step>
+  <Step title="Use the external database URL">
+    When your runtime container connects over the public database endpoint, use the external connection URL shown on the database detail page — not a localhost address.
+  </Step>
+  <Step title="Save the variables">
+    Save all environment variables. They will be injected into the container on the next deployment.
+  </Step>
+  <Step title="Redeploy the project">
+    Trigger a new deployment so the updated container starts with the new environment variables. Existing running containers do not automatically reload new values.
+  </Step>
+</Steps>
+
+## Connection Variable Examples
+
+<CodeGroup>
+
+```bash PostgreSQL
+DATABASE_URL=postgres://user:password@db.pxxl.pro:5432/app
+PGHOST=db.pxxl.pro
+PGPORT=5432
+PGDATABASE=app
+PGUSER=user
+PGPASSWORD=password
+```
+
+```bash MySQL
+DATABASE_URL=mysql://user:password@db.pxxl.pro:3306/app
+MYSQL_HOST=db.pxxl.pro
+MYSQL_PORT=3306
+MYSQL_DATABASE=app
+MYSQL_USER=user
+MYSQL_PASSWORD=password
+```
+
+</CodeGroup>
+
+## Container Checklist
+
+Before marking the database integration complete, verify each item in this checklist.
+
+| Check | Why it matters |
+| --- | --- |
+| **Runtime environment variables are saved** | Containers receive database credentials exclusively through environment variables — there is no automatic credential injection. |
+| **The application reads `DATABASE_URL` or matching DB variables** | Hardcoded local connection strings will fail after deployment. Ensure the application reads from the environment. |
+| **The database status is active** | Databases in a pending or provisioning state may not accept connections. Wait for the active status before deploying. |
+| **The project was redeployed after variables were saved** | Running containers do not automatically reload new environment values. A redeploy is always required. |
+| **Migrations are idempotent** | Run migrations in a way that is safe to repeat, so that redeploys do not corrupt existing data. |
+
+## Cron Jobs
+
+If your application needs to run recurring scheduled tasks — such as nightly database cleanup, report generation, or periodic data sync — use **Dashboard > Cron Job**. Cron jobs in Pxxl send HTTP requests to an endpoint in your application on a schedule you define. Keep cron endpoints idempotent: Pxxl may retry requests after network or runtime failures, so the target endpoint should handle repeated calls safely without side effects.

@@ -1,0 +1,74 @@
+---
+title: "Pxxl CDN Python SDK"
+sidebarTitle: "Python SDK"
+description: "Use the Pxxl Python SDK to upload, list, download, delete CDN assets, and read CDN summaries."
+---
+
+Install the official Python SDK:
+
+```bash
+pip install pxxl
+```
+
+```python
+from pxxl import PxxlClient
+
+pxxl = PxxlClient(api_key="pxxl_...")
+
+asset = pxxl.upload_asset(
+    file_path="logo.png",
+    visibility="public",
+)
+
+print(asset["publicUrl"])
+```
+
+## Upload an Image
+
+Pass the image file path directly. Pxxl keeps image uploads as passive CDN assets, so the returned `publicUrl` can be used in pages, emails, avatars, product galleries, and social preview metadata.
+
+```python
+from pxxl import PxxlClient
+
+pxxl = PxxlClient(api_key="pxxl_...")
+
+image = pxxl.upload_asset(
+    file_path="./public/og-image.png",
+    visibility="public",
+)
+
+print(image["publicUrl"])
+```
+
+```html
+<img src="https://cdn.pxxl.app/..." alt="Product preview" />
+```
+
+## Common Operations
+
+```python
+summary = pxxl.summary()
+assets = pxxl.list_assets(limit=25)
+file_bytes = pxxl.download_asset(asset["id"])
+pxxl.delete_asset(asset["id"])
+```
+
+## Return Values
+
+The Python SDK keeps CDN objects as dictionaries:
+
+| Method | Returns |
+| --- | --- |
+| `summary()` | CDN summary dictionary from the API `data` field. |
+| `list_assets()` | Raw list response with `assets` and `pagination`. |
+| `upload_asset()` | Created asset dictionary. |
+| `download_asset()` | `bytes` containing the file body. |
+| `delete_asset()` | `None` when the delete succeeds. |
+
+Asset dictionaries include `id`, `userId`, optional `projectId`, optional `deploymentId`, `storageName`, `key`, `fileName`, `contentType`, `size`, `publicUrl`, `sha256`, `etag`, `visibility`, `kind`, `metadata`, `createdAt`, and `updatedAt`.
+
+<Tip>
+Use `scope=cdn` and `permission=read_write` for upload services. Use `permission=read` for reporting jobs that only list or download assets.
+</Tip>
+
+The SDK excludes provider details, bucket names, and internal object paths from public responses.

@@ -1,0 +1,113 @@
+---
+title: "Pxxl Dashboard Settings, Usage Reports, and Webhooks"
+sidebarTitle: "Settings & Webhooks"
+description: "Manage workspace settings, review usage and billing, configure notifications, and set up signed webhooks for deployment and project lifecycle events."
+---
+
+The Settings and Usage area of the Pxxl dashboard gives you workspace-wide controls for your account profile, GitHub connection, connected apps, billing, security, and notification preferences. It also surfaces resource usage reports and lets you configure signed webhooks that push deployment and lifecycle events to your own backend systems. Before changing anything in this area, confirm that the workspace switcher at the top of the dashboard shows the correct workspace — these controls apply to the entire workspace.
+
+## Usage
+
+Open **Dashboard > Usage** to understand how the workspace is consuming platform resources.
+
+| Area | What to review |
+| --- | --- |
+| **Artifact storage** | How much deployment and build artifact storage is in use against the current plan limit. |
+| **Project usage** | Which projects are consuming the most resources — useful before cleanup, cost optimization, or plan changes. |
+| **Recent deployments** | Recent build activity and deployment frequency, which can help explain unexpected usage increases. |
+| **Activity chart** | A time-series view of project creation, deletion, deployment events, and webhook activity. |
+| **Usage limits** | Whether the workspace is approaching any plan, storage, credit, or traffic ceiling. |
+
+Review this page before deleting artifacts, changing plans, investigating unexpected billing changes, or explaining an activity spike to your team.
+
+## Invoices and Billing
+
+Open **Dashboard > Invoices** for a complete record of past payments and invoice status. For plan management, payment method updates, and subscription controls, open **Dashboard > Settings > Billing**.
+
+Use invoices for payment history and audit records. Use the billing settings tab for any changes to your plan or payment configuration.
+
+## Settings Tabs
+
+Open **Dashboard > Settings** to manage all account and workspace preferences. The settings page is organized into tabs — use this table to navigate directly to the control you need.
+
+| Tab | What it is for |
+| --- | --- |
+| **Profile** | Your display name, email-facing profile details, and account identity shown inside the dashboard. |
+| **GitHub** | Your connected GitHub account, current repository access state, and reconnect or disconnect actions. Use this tab when repository imports or automatic deployments are not behaving as expected. |
+| **Projects** | Workspace-level project preferences and project defaults that apply across all new projects. Project-specific runtime settings still live under **Projects > [project] > Settings**. |
+| **Connected Apps** | OAuth applications and external tools that currently have authorized access to the account. Revoke any app you no longer use or do not recognize. |
+| **Security** | Password management, two-factor authentication, and device security controls. Review this tab before changing authentication methods or device protections. |
+| **Billing** | Plan selection, payment methods, subscription management, and billing controls. |
+| **Login History** | Recent sign-in records including device, location, and timestamp. Use this tab to investigate unfamiliar access. |
+| **Notifications** | Email and in-dashboard notification preferences — choose which events trigger alerts for your account. |
+| **Customization** | Workspace appearance, theme, and dashboard presentation preferences. |
+| **Webhooks** | Configure signed event delivery for project, deployment, environment, and profile activity across the workspace. |
+
+## Webhooks
+
+Use the **Webhooks** tab under Settings to deliver signed Pxxl events to your backend systems in real time. Webhooks are ideal for triggering downstream actions — such as Slack notifications, external monitoring updates, or CI/CD pipeline steps — whenever a deployment or project lifecycle event occurs.
+
+### Webhook Controls
+
+| Control | What it does |
+| --- | --- |
+| **Enable Webhook** | Turns event delivery on or off for the workspace without deleting the configuration. |
+| **Webhook URL** | The HTTPS endpoint that receives all subscribed event POST requests. Must be a publicly reachable URL. |
+| **Event subscriptions** | Select which events Pxxl sends to your endpoint. Subscribe only to the events your backend needs to process. |
+| **Signing secret** | A shared secret your backend uses to verify that incoming requests genuinely originated from Pxxl. |
+| **Save Webhook** | Persists the URL, event subscriptions, enabled state, and signing secret. |
+
+### Webhook Events
+
+Pxxl can deliver the following events to your endpoint:
+
+- **project.created** — A new project was created in the workspace.
+- **project.updated** — An existing project's configuration was changed.
+- **project.deleted** — A project was removed from the workspace.
+- **deployment.created** — A new deployment was queued or started.
+- **redeployment.queued** — A redeployment was queued for an existing project.
+- **github.deployment** — A deployment was triggered directly from a GitHub push or pull-request event.
+- **deployment.status_changed** — A deployment moved to a new status (e.g., building, succeeded, failed).
+- **environment.updated** — Environment variables for a project were added, changed, or removed.
+- **user.profile_updated** — The user profile associated with the workspace was updated.
+
+### Webhook Request Headers
+
+Every webhook request from Pxxl includes the following headers. Your backend should read and validate these before processing the payload.
+
+| Header | Purpose |
+| --- | --- |
+| `X-Pxxl-Event` | The event category name, such as `project` or `deployment`. |
+| `X-Pxxl-Action-Type` | The specific action within the event category, such as `created` or `status_changed`. |
+| `X-Pxxl-Timestamp` | The Unix timestamp (in seconds) at which Pxxl generated the event. |
+| `X-Pxxl-Signature` | An HMAC signature of the request body computed using your signing secret. |
+
+<Warning>
+  **Always verify the webhook signature before trusting the payload.**
+
+  1. Compute an HMAC-SHA256 of the raw request body using your signing secret.
+  2. Compare your computed signature to the value in `X-Pxxl-Signature` using a constant-time comparison to prevent timing attacks.
+  3. Check `X-Pxxl-Timestamp` and reject any event older than a few minutes — this prevents replay attacks.
+  4. Return a `2xx` HTTP response only after your backend has successfully accepted and validated the event. If you return an error, Pxxl may retry delivery.
+  5. Never expose your signing secret in client-side code or public repositories.
+</Warning>
+
+## Safe Settings Update Pattern
+
+<Steps>
+  <Step title="Confirm the active workspace">
+    Check the workspace switcher at the top of the dashboard. Settings changes apply to the entire workspace — make sure you are in the right one.
+  </Step>
+  <Step title="Open the relevant settings tab">
+    Navigate to the specific tab for the setting you want to change. Read the current value before editing.
+  </Step>
+  <Step title="Make and save the change">
+    Update the setting carefully. For tabs that include destructive actions — such as disconnecting GitHub or revoking a connected app — confirm your intent before saving.
+  </Step>
+  <Step title="Test webhooks before enabling them for production events">
+    Configure your backend endpoint and send a test request from your own backend before enabling high-volume or critical event subscriptions. Confirm that signature verification works and that your endpoint responds with a `2xx` status code.
+  </Step>
+  <Step title="Save only when everything is correct">
+    For webhooks specifically, confirm the URL, event subscription list, and signing secret are all correct before clicking **Save Webhook**. An incorrect URL or missing secret will cause delivery failures silently until you catch them in your monitoring.
+  </Step>
+</Steps>

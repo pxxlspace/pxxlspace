@@ -1,0 +1,19 @@
+# Source: https://pxxl.app/docs/quick-fixes
+
+Quick Fixes
+
+# Quick Fixes
+
+Direct fixes for common deployment, domain, DNS, SSL, proxy, database, and OAuth issues on Pxxl.
+
+Use these pages when something is almost working, but the browser still shows a certificate warning, a 503, a 404, a domain is not attached to the right project, or an OAuth flow is not returning where you expect.
+
+## [Common Fixes](https://pxxl.app/#common-fixes)
+
+[SSL certificate is missing or wrong\\ \\ Resync the proxy and check certificate coverage.](https://pxxl.app/docs/quick-fixes/ssl-certificate) [Domain shows 503\\ \\ Fix unhealthy upstreams, wrong ports, or stale proxy routes.](https://pxxl.app/docs/quick-fixes/domain-503) [Domain shows 404\\ \\ Create the hostname route and attach it to a deployment.](https://pxxl.app/docs/quick-fixes/domain-404) [Connect a domain to a project\\ \\ Attach existing domains, external domains, and subdomains.](https://pxxl.app/docs/quick-fixes/connect-domain) [DNS records are wrong\\ \\ Point root domains and subdomains to the Pxxl load balancer.](https://pxxl.app/docs/quick-fixes/dns-records) [Changed a project port\\ \\ Update the project port, labels, and proxy route together.](https://pxxl.app/docs/quick-fixes/project-port) [Static site route returns 404\\ \\ Choose the right static output mode for HTML sites and SPAs.](https://pxxl.app/docs/quick-fixes/static-route-404) [Rollback artifact expired\\ \\ Understand artifact retention and redeploy an old commit.](https://pxxl.app/docs/quick-fixes/artifact-expired) [Database is not visible\\ \\ Attach an existing database and pass its URL to the project.](https://pxxl.app/docs/quick-fixes/database-not-visible) [OAuth callback fails\\ \\ Match callback URLs, redirect URIs, and HTTPS settings.](https://pxxl.app/docs/quick-fixes/oauth-callback) [OAuth bad verification code\\ \\ Avoid expired, reused, or mismatched authorization codes.](https://pxxl.app/docs/quick-fixes/oauth-bad-verification-code) [After buying a domain\\ \\ Finish registration, DNS, project connection, and SSL setup.](https://pxxl.app/docs/quick-fixes/after-buying-domain) [Lock down a domain\\ \\ Use proxy rules for HTTPS, WAF checks, rate limits, headers, and maintenance mode.](https://pxxl.app/docs/quick-fixes/domain-security) [Domain proxy and SSL settings\\ \\ Configure certificates, force HTTPS, www redirects, WebSockets, WAF rules, headers, and proxy resync.](https://pxxl.app/docs/quick-fixes/domain-proxy-ssl-settings) [Force HTTPS and www redirects\\ \\ Make HTTPS canonical and redirect www traffic to the root domain.](https://pxxl.app/docs/quick-fixes/force-https-www) [Enable WebSocket support\\ \\ Fix realtime apps, socket connections, terminal streams, and dashboards.](https://pxxl.app/docs/quick-fixes/websocket-support) [WAF checks and rate limits\\ \\ Block common attacks and throttle abusive traffic at the edge.](https://pxxl.app/docs/quick-fixes/proxy-waf-rate-limits) [Proxy access rules\\ \\ Use IP, country, method, and content-type rules safely.](https://pxxl.app/docs/quick-fixes/proxy-access-rules) [Headers and maintenance mode\\ \\ Add security headers, response headers, and controlled maintenance pages.](https://pxxl.app/docs/quick-fixes/proxy-headers-maintenance) [Upstream protection\\ \\ Use retries, circuit breakers, and in-flight limits for unhealthy apps.](https://pxxl.app/docs/quick-fixes/proxy-upstream-protection)
+
+[Framework Recipes\\ \\ Select a supported language or stack category, then copy the deployment configuration that matches your project.](https://pxxl.app/docs/frameworks) [SSL certificate is missing or wrong\\ \\ Refresh a domain certificate when HTTPS is missing, expired, or issued for another hostname.](https://pxxl.app/docs/quick-fixes/ssl-certificate)
+
+### On this page
+
+[Common Fixes](https://pxxl.app/#common-fixes)

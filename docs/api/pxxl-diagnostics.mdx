@@ -1,0 +1,75 @@
+---
+title: "CLI Diagnostics"
+sidebarTitle: "Diagnostics"
+description: "Use pxxl doctor and pxxl inspect to verify auth, local project config, package manager detection, build commands, and deploy archive size before deploying."
+---
+
+`pxxl doctor` and `pxxl inspect` help you catch deployment issues before you upload a source archive. They are local-first commands, so they still work when a project has not been deployed yet.
+
+Use these commands before a first deploy, after changing build scripts, or when a deploy fails because the runtime was detected incorrectly.
+
+## Doctor
+
+```bash
+pxxl doctor
+pxxl doctor --json
+pxxl doctor --dir ./apps/web
+```
+
+`pxxl doctor` checks the things that usually break deploys:
+
+| Check | What it verifies |
+| --- | --- |
+| Auth | The stored API key or `PXXL_API_KEY` can authenticate with Pxxl. |
+| Internet | The official Pxxl Gateway is reachable. |
+| Git state | The current folder is a git repo and whether it has local changes. |
+| `pxxl.toml` | Project metadata exists for repeat deploys. |
+| `.pxxlignore` | Local-only files are excluded from deploy archives. |
+| Package manager | Lockfile/package manager detection. |
+| Framework | Framework detection from dependencies. |
+| Build command | The build script or configured build command. |
+| Start command | The runtime command Pxxl should use. |
+| Env files | Local env files that can be pushed with `pxxl env push`. |
+| Deploy archive | The packaged archive can be created and fits safety limits. |
+
+<Tip>
+  `pxxl doctor` marks a dirty git tree as a warning, not a failure. You can still deploy local files, but the warning helps you notice uncommitted changes before shipping.
+</Tip>
+
+## Inspect
+
+```bash
+pxxl inspect
+pxxl inspect --json
+pxxl inspect --dir ./apps/web
+```
+
+`pxxl inspect` prints the detected deploy shape:
+
+| Field | Meaning |
+| --- | --- |
+| Framework | Detected framework such as Vite, Astro, Next.js, TanStack Router, Express, Hono, Fastify, PHP, or static. |
+| Package manager | `npm`, `pnpm`, `yarn`, or `bun`. |
+| Runtime | Node, PHP, static, or another supported runtime. |
+| Install | Install command inferred from the lockfile. |
+| Build | Build command from `pxxl.toml` or `package.json`. |
+| Start | Start command from `pxxl.toml`, server output files, or package scripts. |
+| Env files | Local `.env` files found in the project folder. |
+| Deploy size | The size of the deterministic source archive after `.pxxlignore`. |
+
+For TanStack and other Node SSR projects, the CLI checks common server output entrypoints before falling back to preview scripts:
+
+```text
+node dist/server.js
+node dist/server/index.js
+node .output/server/index.mjs
+node .output/server/index.js
+node server.js
+```
+
+If detection is wrong, set the exact command in `pxxl.toml`:
+
+```toml
+buildCommand = "pnpm build"
+startCommand = "node dist/server.js"
+```

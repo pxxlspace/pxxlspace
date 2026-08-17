@@ -61,7 +61,7 @@ The [`sdks/`](sdks/) directory contains clients for other languages:
 - [`sdks/`](sdks/) — language SDKs and the JavaScript CLI source.
 - [`boilerplates/`](boilerplates/) — starters used by `pxxl init --new`.
 - [`examples/`](examples/) — copyable deployment and SDK examples.
-- [`guides/`](guides/) — CLI, domain, CDN, database, and npm release guides.
+- [`docs/`](docs/) — the Mintlify documentation site for Pxxl.
 
 ## Development
 

@@ -1,0 +1,98 @@
+---
+title: "CDN Storage Spaces, Asset Uploads, and Edge Proxy Monitoring"
+sidebarTitle: "CDN & Proxy"
+description: "Create CDN storage spaces, upload assets via API, and analyze real-time edge proxy traffic, security events, and DDoS mitigation on Pxxl."
+---
+
+Pxxl combines object storage with edge-routing protection, letting you host application assets and monitor visitor traffic patterns from a single dashboard. CDN spaces give your files a globally cached home, while the Rust reverse proxy stands in front of every project and gives you real-time visibility into allowed traffic, blocked threats, and security events — all without configuring a separate CDN provider or WAF.
+
+## CDN Spaces
+
+A CDN Space is an isolated bucket you configure to store your application's resources. Pxxl organizes spaces into three access types based on how the files are consumed:
+
+<CardGroup cols={3}>
+  <Card title="Public Assets" icon="globe">
+    Served directly from Pxxl's edge cache nodes with optimal HTTP cache headers. Use this for static images, stylesheets, fonts, and client-side binaries that anyone can access.
+  </Card>
+  <Card title="Private Assets" icon="lock">
+    Accessed via pre-signed, short-lived URLs. Use this for user uploads, transaction reports, and any internal file that should never be publicly reachable.
+  </Card>
+  <Card title="Build Artifacts" icon="box-archive">
+    Archived container images and compiled packages preserved for fast version rollbacks. Pxxl retains these automatically as part of your deployment history.
+  </Card>
+</CardGroup>
+
+## Uploading Assets via API
+
+Upload a file to your public storage space using the CDN assets endpoint. Authenticate with your Pxxl API key and pass the file as a multipart form field:
+
+```bash
+curl -X POST https://gateway.pxxl.dev/api/v3/cdn/assets \
+  -H "Authorization: Bearer $PXXL_API_KEY" \
+  -F "file=@./static/logo.png" \
+  -F "visibility=public"
+```
+
+To list the assets already stored in your spaces, use the GET variant of the same endpoint:
+
+```bash
+curl -H "Authorization: Bearer $PXXL_API_KEY" \
+  https://gateway.pxxl.dev/api/v3/cdn/assets
+```
+
+### Checking Usage Summaries
+
+Track storage limits and monthly network egress consumption with the summary endpoint:
+
+```bash
+curl -H "Authorization: Bearer $PXXL_API_KEY" \
+  https://gateway.pxxl.dev/api/v3/cdn/summary
+```
+
+The response includes the following fields:
+
+| Field | Description |
+|---|---|
+| `activeSpaceCount` | Total number of CDN spaces you have created. |
+| `bandwidthBytesOut` | Total egress bytes served from edge cache nodes in the current billing period. |
+| `totalObjectsStored` | Total count of files currently stored across all your spaces. |
+| `remainingCredits` | Wallet balance available for CDN upgrades and additional egress capacity. |
+
+## Proxy Protection Logs
+
+Navigate to your project overview in the Pxxl dashboard and select **Proxy Logs** to see real-time HTTP traffic routed through the Rust reverse proxy. These logs give you a live view of what is reaching your container and what is being stopped at the edge. You can also retrieve log data programmatically using the proxy logs endpoint:
+
+```bash
+curl -H "Authorization: Bearer $PXXL_API_KEY" \
+  https://gateway.pxxl.dev/api/v3/cdn/proxy-logs
+```
+
+The following metrics are available in the Proxy Logs panel:
+
+| Metric | What it measures |
+|---|---|
+| **Allowed Requests** | Safe HTTP requests that passed all security checks and were forwarded to your container upstream. |
+| **Blocked Requests** | Malicious or non-compliant requests that the edge proxy rejected before they reached your application. |
+| **Risk Index** | A security rating (Low, Medium, or High) derived from the ratio of blocked requests, rapid IP spikes, and security rule triggers. |
+| **GeoIP Concentration** | Visitor counts grouped by country and region, showing where your traffic originates. |
+| **Top IP Sources** | Monitored IP addresses contributing the highest traffic volumes to your project. |
+
+## DDoS Mitigation and Security Rules
+
+The Pxxl edge proxy uses a layered rule engine to intercept threats before they reach your runtime container. The following rules run on every request:
+
+1. **Rate Limiting (Token Bucket):** Restricts the number of requests per second on a per-IP basis. When a source exceeds the configured threshold, the proxy returns `429 Too Many Requests` and stops forwarding traffic from that IP until the token bucket refills.
+2. **IP Blacklisting:** Immediately rejects requests originating from known malicious subnets or any IP addresses you have manually added to your project's blacklist.
+3. **Geo-Blocking:** Drops all traffic from geographic regions you have marked as restricted in your project settings, before the request reaches your application code.
+4. **Anomaly Detection:** Flags rapid, concentrated request spikes on inactive domains or endpoints whose traffic pattern does not match known search-engine bot signatures — a common indicator of credential stuffing or scraping campaigns.
+
+## Operational Best Practices
+
+<Tip>
+  Keep your CDN setup healthy and your hosting costs predictable by following these four practices:
+
+  - **Cache assets:** Serve static files — images, fonts, scripts, stylesheets — directly from CDN spaces instead of bundling them inside your project container. This reduces container egress costs and improves load times for end users.
+  - **Monitor IP patterns:** Review the Top IP Sources list in Proxy Logs weekly to detect scraping bots or automated attack scripts before they inflate your bandwidth bill.
+  - **Set egress alerts:** Configure email alerts in your billing tab to notify you when bandwidth egress crosses 80% of your current tier limit, so you can upgrade before hitting a hard cap.
+  - **Rotate keys:** Rotate your CDN upload API keys immediately if they are accidentally exposed in client-side bundles, public build logs, or open-source repositories.
+</Tip>

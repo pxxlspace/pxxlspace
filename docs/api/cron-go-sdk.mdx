@@ -1,0 +1,62 @@
+---
+title: "Cron Go SDK"
+sidebarTitle: "Go SDK"
+description: "Use the Pxxl Go SDK to create, trigger, and inspect scheduled HTTP cron jobs."
+---
+
+Install the Go SDK:
+
+```bash
+go get github.com/pxxlspace/pxxlspace/sdks/go/pxxl
+```
+
+```go
+client, err := pxxl.NewClient(os.Getenv("PXXL_API_KEY"))
+if err != nil {
+  log.Fatal(err)
+}
+```
+
+Use `scope=cron`, `scope=cronjobs`, or `scope=all`. Read methods work with `permission=read`; mutations and manual triggers require `permission=read_write`.
+
+## Create a Job
+
+```go
+job, err := client.CreateCronJob(context.Background(), pxxl.CreateCronJobInput{
+  Name: "cache warmer",
+  Schedule: "*/5 * * * *",
+  URL: "https://example.com/api/warm-cache",
+  Method: "POST",
+  TimeoutSeconds: 10,
+  Headers: map[string]string{
+    "User-Agent": "Pxxl-Cron/1.0",
+  },
+})
+if err != nil {
+  log.Fatal(err)
+}
+
+fmt.Println(job.ID)
+```
+
+## List, Trigger, and Read Runs
+
+```go
+jobs, err := client.ListCronJobs(context.Background(), "")
+details, err := client.GetCronJob(context.Background(), jobs[0].ID, "")
+triggered, err := client.TriggerCronJob(context.Background(), details.ID, "")
+runs, err := client.ListCronJobRuns(context.Background(), details.ID, nil)
+```
+
+## Validate Inputs
+
+```go
+schedule, err := client.ValidateCronSchedule(context.Background(), "*/5 * * * *")
+url, err := client.ValidateCronURL(context.Background(), "https://example.com/job")
+```
+
+Pxxl accepts 5-field cron expressions, public `http` or `https` URLs, and `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. Private and reserved IP targets are blocked before a job is saved.
+
+## Plan Limit Errors
+
+The Go SDK returns `*pxxl.APIError` for non-2xx API responses. When the cron job plan limit is reached, inspect `StatusCode` and `Details` for `CRON_JOB_LIMIT_REACHED`, `limit`, and `current`.

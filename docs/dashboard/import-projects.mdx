@@ -1,0 +1,112 @@
+---
+title: "Import Projects from Vercel, Netlify, Render, or Railway"
+sidebarTitle: "Import Projects"
+description: "Migrate existing projects to Pxxl from Vercel, Netlify, Render, or Railway — import metadata, build settings, and environment variables automatically."
+---
+
+Project import lets you bring an existing application from another hosting platform into Pxxl without starting from scratch. When you supply a provider API key, Pxxl reads the project's repository connection, detected framework, build commands, install commands, start commands, and available environment variables — then pre-fills the Pxxl project creation form with that data. The result is a normal Pxxl project that you manage exactly like any other project after creation.
+
+Open **Dashboard > Projects > Add New > Import Project** to begin. You can also open **Dashboard > Deploy Project** and choose the import option when it is available.
+
+## Import Flow
+
+<Steps>
+  <Step title="Provider access">
+    Choose your current hosting provider — Vercel, Netlify, Render, or Railway — paste your provider API key, decide whether to save it encrypted for future imports, then click **Fetch Projects**. Pxxl calls the provider API and loads your available projects.
+  </Step>
+  <Step title="Select project">
+    Search the fetched project list and select the application or service you want to move to Pxxl. The project card may show the provider name, repository URL, detected framework, build command, install command, start command, and a summary of available environment variables.
+
+    If a project is missing from the list, verify that the provider token belongs to the correct account or team, confirm that the GitHub owner or organization is connected to your Pxxl workspace, then fetch again.
+  </Step>
+  <Step title="Confirm create">
+    Review every field that Pxxl pre-filled from the provider before creating the project. When everything is correct, click **Create Pxxl project**.
+
+    | Field | What to verify |
+    | --- | --- |
+    | **Project name** | Becomes the Pxxl project name and suggested subdomain. Use lowercase letters, numbers, and hyphens. |
+    | **Port** | The port your application listens on inside the runtime. Node.js apps commonly use `3000`, but apps should read `PORT` when possible. |
+    | **Domain option** | Choose whether Pxxl should create a Pxxl subdomain immediately. Custom domains can be added later from the project or domain pages. |
+    | **GitHub branch** | The branch Pxxl deploys first. |
+    | **Commands** | Review install, build, and start commands. Override provider values if the application needs different commands on Pxxl. |
+    | **Environment variables** | Import available provider variables and add any missing or masked values manually. |
+  </Step>
+</Steps>
+
+## Provider Key Guides
+
+<Tabs>
+  <Tab title="Netlify">
+    Netlify tokens are useful for importing site metadata, repository connections, build settings, and environment variables the Netlify API exposes.
+
+    1. Open **Netlify > User settings > Applications**.
+    2. Scroll to **Personal access tokens**.
+    3. Click **New access token**.
+    4. Give the token a clear label, such as `Pxxl import`.
+    5. Choose a short expiration when possible.
+    6. Create the token and copy it once — Netlify will not show it again.
+    7. Return to Pxxl, paste the token into the provider key field, keep **Save encrypted key** enabled only if you plan future Netlify imports, then click **Fetch Projects**.
+  </Tab>
+  <Tab title="Vercel">
+    Choose the same Vercel token scope that owns the project. A personal-only token will not return projects that belong to a team.
+
+    1. Open **Vercel > Account Settings > Tokens**.
+    2. Enter a token name such as `Pxxl import`.
+    3. Select the team or personal account that owns the project.
+    4. Choose a short expiration.
+    5. Create the token and copy it once.
+    6. Paste the token into Pxxl and click **Fetch Projects**.
+  </Tab>
+  <Tab title="Render">
+    Render imports are service-oriented. After fetching, select the specific service that maps to the web application you want Pxxl to create.
+
+    1. Open **Render > Account settings > API Keys**.
+    2. Click **Create API Key**.
+    3. Name the key to identify the migration.
+    4. Create the key and copy it once.
+    5. Paste the key into Pxxl and click **Fetch Projects**.
+  </Tab>
+  <Tab title="Railway">
+    Railway projects can contain multiple services. Pick the service that represents the web app or API you want Pxxl to deploy.
+
+    1. Open **Railway > Account settings > Tokens**.
+    2. Create an account token for the workspace that owns the project.
+    3. Copy the token once.
+    4. Paste the token into Pxxl and click **Fetch Projects**.
+  </Tab>
+</Tabs>
+
+## Environment Variables During Import
+
+Providers do not always expose secret values through their APIs after a variable has been created. When a provider returns only variable names or masked values, you must add the real values manually — either in the import form before creating the project, or afterwards under **Project > Environment Variables**.
+
+Recommended pattern:
+
+1. Import non-secret metadata automatically from the provider.
+2. Add required secrets and masked values manually in the confirm-create form.
+3. Click **Create Pxxl project** and monitor the first build.
+4. Open **Project > Live Logs** if the application does not start — a missing variable is the most common cause.
+5. Rotate or revoke the provider token once the project is running and migration is confirmed complete.
+
+## After Import
+
+Once the Pxxl project exists, manage it exactly as you would any project created directly from GitHub.
+
+| Next step | Where to go |
+| --- | --- |
+| Check build status | **Project > Deployments** |
+| Watch runtime output | **Project > Live Logs** |
+| Add or correct secrets | **Project > Environment Variables** |
+| Attach a custom domain | **Project > Domains** or [Manage Domains](dashboard/domains) |
+| Tune resources | **Project > Infra & Scaling** |
+| Change repository or protection settings | **Project > Settings** |
+
+<Warning>
+  **Security checklist — follow these steps for every import:**
+
+  1. Use provider tokens with the shortest practical expiration.
+  2. Save the key encrypted in Pxxl only when you expect future imports from that provider.
+  3. Never paste provider tokens into screenshots, chat messages, commits, or support tickets.
+  4. Revoke one-time migration tokens from the provider dashboard after the project imports successfully.
+  5. Rotate any imported application secrets — database passwords, third-party API keys — if they may have been exposed during the migration process.
+</Warning>

@@ -1,0 +1,281 @@
+---
+title: "Build OAuth Integrations on Top of Pxxl User Accounts"
+sidebarTitle: "OAuth"
+description: "Build OAuth integrations on Pxxl: create apps, configure scopes, run the authorization code flow, exchange tokens, and verify signed webhook events."
+---
+
+OAuth integrations let your product ask a signed-in Pxxl user to share permissioned account data through a consent screen — without requiring them to hand over a password or a personal API key. Use this guide when you want a CLI tool, customer portal, partner app, internal workflow, or marketplace flow to connect to a Pxxl account on behalf of a user.
+
+## What You Can Build
+
+| Use case | What OAuth gives you |
+|---|---|
+| Customer dashboards | Let users connect Pxxl without sharing passwords or personal API keys. |
+| CLI tools | Authorize a local or external CLI with a short-lived OAuth code. |
+| Partner apps | Request only the scopes needed for your integration. |
+| Internal automation | Pair a user identity with a backend workflow and signed webhook events. |
+| Marketplace flows | Connect a user once, then refresh your own integration state from approved scopes. |
+
+## Create an OAuth App
+
+Navigate to **Dashboard > Integrations** and click **Create Integration** to register your OAuth application. Fill in the fields below:
+
+| Field | Purpose |
+|---|---|
+| Application name | The name users see on the authorization consent screen. |
+| Project link | Public URL for your product, dashboard, or integration. |
+| Webhook URL | Your backend endpoint that receives `oauth.authorized`, `oauth.denied`, and `oauth.revoked` events. |
+| Callback URL | The default redirect URL Pxxl uses after a user authorizes your app. |
+| Redirect URIs | The exact URLs that are allowed to receive authorization codes. These must match precisely, including protocol, path, and trailing slash. |
+| Scopes | The user data your app is permitted to request. |
+
+<Warning>
+  The dashboard displays your `client_secret` **only once** at creation time. Store it in your backend secret store immediately — never in client-side code, public repositories, or environment variables that ship with a frontend bundle. If you rotate the secret later, update your backend before sending new authorization traffic through that app.
+</Warning>
+
+## Setup Checklist
+
+1. Open **Dashboard > Integrations**.
+2. Click **Create Integration**.
+3. Add a clear application name and logo so users recognize the app during consent.
+4. Set the public project link for the product requesting access.
+5. Add your backend webhook URL if you want instant `oauth.authorized`, `oauth.denied`, and `oauth.revoked` events.
+6. Add the exact callback URL your backend uses after authorization.
+7. Add every allowed redirect URI — these must match exactly, including protocol, path, and trailing slash.
+8. Choose the smallest scope set needed for the first version of your integration.
+9. Copy the client ID and client secret into your backend secret store.
+10. Test the authorization URL in a private browser window to verify the full consent flow end-to-end.
+
+## Scopes
+
+Request only the scopes your product genuinely needs. Users see each requested scope on the consent screen.
+
+| Scope | Data returned |
+|---|---|
+| `profile` | User name and profile picture. |
+| `email` | Primary email address and verification state. |
+| `github` | Linked GitHub ID, login, name, email, and avatar (when the user has connected GitHub). |
+| `key` | Stable public Pxxl user key. |
+
+## Authorization URL
+
+Redirect the user to the Pxxl authorization endpoint to begin the OAuth flow:
+
+```bash
+https://pxxl.app/auth/oauth/authorize?response_type=code&client_id=YOUR_CLIENT_ID&redirect_uri=https%3A%2F%2Fexample.com%2Foauth%2Fpxxl%2Fcallback&scope=profile%20email%20github&state=YOUR_CSRF_STATE
+```
+
+| Query parameter | Description |
+|---|---|
+| `response_type` | Must be `code` for the authorization code flow. |
+| `client_id` | Your OAuth application's client ID. |
+| `redirect_uri` | Must exactly match one of the redirect URIs registered on your OAuth app. You can also use `callback_url` as the parameter name for browser flows that already use that convention. |
+| `scope` | Space-separated list of scopes to request. |
+| `state` | A random, unguessable value you generate. Pxxl returns it unchanged in the callback — validate it before trusting the authorization code. |
+
+If the user is not currently signed in to Pxxl, the platform stores the authorization request, routes them through login, and returns them to the consent screen automatically.
+
+## Consent Screen Behavior
+
+The consent screen displays your application name, logo, project link, the requested scopes, and the Pxxl account that will authorize access. If a user has already approved your app with the same or a narrower set of scopes, Pxxl skips the consent screen and redirects them immediately with a fresh one-time code. If you request a new scope the user has not previously approved, they must explicitly authorize the expanded access before Pxxl issues a code.
+
+## Exchange the Code
+
+Once Pxxl redirects the user back to your `redirect_uri` with a `code` parameter, exchange it for a bearer token from your backend. Authorization codes are single-use and expire quickly — exchange them immediately.
+
+<CodeGroup>
+```bash Request
+curl -X POST https://gateway.pxxl.app/api/v3/auth/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "grant_type": "authorization_code",
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "code": "CODE_FROM_CALLBACK",
+    "redirect_uri": "https://example.com/oauth/pxxl/callback"
+  }'
+```
+
+```json Response
+{
+  "access_token": "pxxl_oat_...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "profile email github"
+}
+```
+</CodeGroup>
+
+## Read User Info
+
+Use the bearer token to fetch the authorized user's profile data from the userinfo endpoint:
+
+<CodeGroup>
+```bash Request
+curl https://gateway.pxxl.app/api/v3/auth/oauth/userinfo \
+  -H "Authorization: Bearer pxxl_oat_..."
+```
+
+```json Response
+{
+  "sub": "public-user-key",
+  "name": "Ada Lovelace",
+  "picture": "https://...",
+  "email": "ada@example.com",
+  "emailVerified": true,
+  "github": {
+    "id": "12345",
+    "login": "ada",
+    "name": "Ada Lovelace",
+    "email": "ada@example.com",
+    "avatarUrl": "https://..."
+  }
+}
+```
+</CodeGroup>
+
+Only the fields covered by the approved scopes are returned. Fields belonging to scopes you did not request will be absent from the response.
+
+## OAuth Webhooks
+
+When a user authorizes, denies, or revokes your application, the Pxxl backend dispatches a signed webhook POST to your configured **Webhook URL**. This lets your backend instantly map the incoming authorization code to a stable Pxxl user ID — so by the time the user lands on your callback URL with the `code` parameter, your system already knows who they are and can render the page immediately.
+
+### Webhook Headers
+
+Every webhook dispatch includes the following security headers:
+
+| Header | Description |
+|---|---|
+| `X-Pxxl-Signature` | An HMAC-SHA256 signature generated using your app's hashed client secret as the signing key. Verify this on every request. |
+| `X-Pxxl-Timestamp` | A Unix timestamp (in seconds) indicating when the webhook was dispatched. Use this to reject replay attacks older than 5 minutes. |
+| `X-Pxxl-Event` | The event name: `oauth.authorized`, `oauth.denied`, or `oauth.revoked`. |
+| `X-Pxxl-Action-Type` | The same event name, included for receivers that route by action header. |
+
+### Event Payloads
+
+**`oauth.authorized`** — Sent when a user accepts the consent screen or repeats a previously approved authorization request.
+
+```json
+{
+  "event": "oauth.authorized",
+  "timestamp": 1716723456,
+  "data": {
+    "code": "pxxl_code_abc123xyz...",
+    "userId": "3b7b2518e38d7285a864d38202d...",
+    "scopes": ["profile", "email"]
+  }
+}
+```
+
+**`oauth.denied`** — Sent when a signed-in user rejects the consent screen.
+
+```json
+{
+  "event": "oauth.denied",
+  "timestamp": 1716723456,
+  "data": {
+    "userId": "3b7b2518e38d7285a864d38202d...",
+    "scopes": ["profile", "email"],
+    "redirectUri": "https://example.com/oauth/pxxl/callback",
+    "reason": "access_denied",
+    "deniedAt": "2026-05-31T06:45:00Z"
+  }
+}
+```
+
+**`oauth.revoked`** — Sent when a user removes your app from their connected apps in Pxxl settings.
+
+```json
+{
+  "event": "oauth.revoked",
+  "timestamp": 1716723456,
+  "data": {
+    "userId": "3b7b2518e38d7285a864d38202d...",
+    "scopes": ["profile", "email"],
+    "reason": "user_revoked",
+    "revokedAt": "2026-05-31T06:50:00Z"
+  }
+}
+```
+
+<Note>
+  If you trigger a test webhook using the developer tools endpoint `POST /api/v3/auth/oauth/apps/:id/test-webhook`, the `event` field will be `"oauth.test"` instead of a production event name.
+</Note>
+
+### Signature Verification
+
+Verify every incoming webhook before trusting its contents:
+
+1. Concatenate the `X-Pxxl-Timestamp` value, a period `.`, and the **raw** request body string: `timestamp + "." + rawBody`.
+2. Hash your raw `client_secret` using SHA-256 (hex-encoded) to derive the signing key.
+3. Compute the HMAC-SHA256 signature of the concatenated string using that key.
+4. Perform a **constant-time** comparison between your computed signature and the `X-Pxxl-Signature` header value to prevent timing attacks.
+
+Here is a ready-to-use Node.js implementation:
+
+```javascript
+const crypto = require('crypto');
+
+/**
+ * Verify a Pxxl webhook signature.
+ * @param {string} rawBody        - Raw JSON payload string from the request body
+ * @param {string} timestamp      - Value from the X-Pxxl-Timestamp header
+ * @param {string} signatureHeader - Value from the X-Pxxl-Signature header
+ * @param {string} clientSecret   - Your raw OAuth application Client Secret
+ * @returns {boolean} true if the signature is valid, false otherwise
+ */
+function verifyPxxlWebhook(rawBody, timestamp, signatureHeader, clientSecret) {
+  // 1. Derive the signing key by hashing the raw client secret (SHA-256 hex)
+  const key = crypto.createHash('sha256').update(clientSecret).digest('hex');
+
+  // 2. Concatenate the timestamp and raw body payload
+  const message = `${timestamp}.${rawBody}`;
+
+  // 3. Compute the expected HMAC-SHA256 signature
+  const expectedSignature = crypto
+    .createHmac('sha256', key)
+    .update(message)
+    .digest('hex');
+
+  // 4. Perform a timing-safe, constant-time comparison
+  return crypto.timingSafeEqual(
+    Buffer.from(signatureHeader, 'utf-8'),
+    Buffer.from(expectedSignature, 'utf-8')
+  );
+}
+```
+
+## Repeat Consent and Automatic Bypass
+
+Once a user has authorized your application with a set of scopes, they will not see the consent screen again when they visit the authorization URL with the same or a narrower subset of those scopes. Pxxl verifies their active authorization status in the database, generates a new one-time code, and redirects them to your callback URL instantly. If you request a new scope the user has not previously approved, the consent screen reappears showing only the new permissions that require explicit approval.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Authorization redirects back with invalid_redirect_uri">
+    The `redirect_uri` query parameter must exactly match one of the redirect URIs saved on your OAuth app. Check the protocol (`http` vs `https`), domain, path, query string, and trailing slash — all must be identical.
+  </Accordion>
+  <Accordion title="Token exchange returns bad_verification_code">
+    Authorization codes are short-lived and single-use. Exchange the code immediately from your backend after receiving it in the callback. Never retry the same code after a failed exchange attempt — each retry requires a fresh authorization code.
+  </Accordion>
+  <Accordion title="User sees the consent screen again unexpectedly">
+    Pxxl skips consent only when the user has already approved your app with the same or a narrower scope set. If you added a new scope to your authorization URL since the last approval, the user must explicitly approve the expanded permissions.
+  </Accordion>
+  <Accordion title="Webhook signature verification fails">
+    Make sure you are verifying the **raw** request body string — not a parsed or re-serialized JSON object. Use the `X-Pxxl-Timestamp` header value and your raw `client_secret` (hashed with SHA-256) as the signing key. Even a single extra byte or re-ordered key in the JSON will produce a different signature.
+  </Accordion>
+</AccordionGroup>
+
+## Security Checklist
+
+<Warning>
+  Follow every item in this checklist before shipping your OAuth integration to production:
+
+  - Keep `client_secret` on your backend server only — never expose it in client-side code or public repos.
+  - Validate the `state` parameter before trusting a callback to prevent CSRF attacks.
+  - Always verify the `X-Pxxl-Signature` header on every incoming webhook using the timestamp and client secret.
+  - Reject webhook payloads where `X-Pxxl-Timestamp` is older than 5 minutes to prevent replay attacks.
+  - Use exact HTTPS callback URLs in production — never plain HTTP.
+  - Exchange authorization codes immediately after receiving them; they expire quickly and can only be used once.
+  - Request only the scopes your product genuinely needs — not every available scope.
+</Warning>

@@ -1,0 +1,80 @@
+---
+title: "Cron Node SDK"
+sidebarTitle: "Node SDK"
+description: "Use @pxxlapp/pxxl to manage scheduled HTTP cron jobs from Node.js."
+---
+
+Install the official SDK:
+
+```bash
+npm install @pxxlapp/pxxl
+```
+
+```ts
+import { PxxlAPIError, PxxlClient } from '@pxxlapp/pxxl';
+
+const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY! });
+```
+
+Use `scope=cron`, `scope=cronjobs`, or `scope=all`. Read methods work with `permission=read`; mutations and manual triggers require `permission=read_write`.
+
+## Create a Job
+
+```ts
+const job = await pxxl.createCronJob({
+  name: 'cache warmer',
+  schedule: '*/5 * * * *',
+  url: 'https://example.com/api/warm-cache',
+  method: 'POST',
+  timeoutSeconds: 10,
+  headers: {
+    'User-Agent': 'Pxxl-Cron/1.0',
+  },
+});
+
+console.log(job.id);
+```
+
+## List and Inspect
+
+```ts
+const { cronJobs } = await pxxl.listCronJobs();
+const job = await pxxl.getCronJob(cronJobs[0].id);
+const runs = await pxxl.listCronJobRuns(job.id, { page: 1, limit: 20 });
+```
+
+## Control Jobs
+
+```ts
+await pxxl.stopCronJob(job.id);
+await pxxl.startCronJob(job.id);
+await pxxl.triggerCronJob(job.id);
+await pxxl.deleteCronJob(job.id);
+```
+
+## Validate Inputs
+
+```ts
+await pxxl.validateCronSchedule('*/5 * * * *');
+await pxxl.validateCronURL('https://example.com/job');
+```
+
+Pxxl accepts 5-field cron expressions, public `http` or `https` URLs, and `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. Private and reserved IP targets are blocked before a job is saved.
+
+## Plan Limit Errors
+
+If your account exceeds the cron job limit, the SDK throws `PxxlAPIError` with structured details:
+
+```ts
+try {
+  await pxxl.createCronJob({
+    name: 'extra job',
+    schedule: '*/5 * * * *',
+    url: 'https://example.com/job',
+  });
+} catch (error) {
+  if (error instanceof PxxlAPIError && error.details?.code === 'CRON_JOB_LIMIT_REACHED') {
+    console.log(error.details.limit, error.details.current);
+  }
+}
+```

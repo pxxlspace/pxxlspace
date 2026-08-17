@@ -1,0 +1,27 @@
+---
+title: "CDN API Examples"
+sidebarTitle: "Examples"
+description: "Copy working Node.js and Go examples for uploading files to Pxxl CDN from your backend."
+---
+
+Example projects are available in the public repository:
+
+- `examples/node-cdn-upload`
+- `examples/go-cdn-upload`
+
+## Node Upload
+
+```bash
+export PXXL_API_KEY="pxxl_..."
+npm install
+npm start ./logo.png
+```
+
+## Go Upload
+
+```bash
+export PXXL_API_KEY="pxxl_..."
+go run . ./logo.png
+```
+
+Both examples keep the key in the server environment and use the same `/api/v3/cdn/assets` upload flow as the SDKs.

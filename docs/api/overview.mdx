@@ -1,0 +1,90 @@
+---
+title: "Pxxl Platform API: Endpoints, Auth, and Common Areas"
+sidebarTitle: "Overview"
+description: "Explore the Pxxl API for automating deployments, managing CDN assets, reading usage data, and building OAuth integrations from your backend."
+---
+
+The Pxxl Platform API is the programmatic surface behind everything you can do in the dashboard. It is designed for backend automation, so you can deploy projects, provision databases, upload to the CDN, query usage, and build third-party integrations from your own code — without anyone manually logging in.
+
+This reference is split into focused sections so you can jump straight to the workflow you care about:
+
+- **API Reference** — base URL, authentication, deployments, and webhooks.
+- **Database** — provision and manage managed databases from the CLI or Node SDK.
+- **CDN** — upload assets, list files, check bandwidth, and pull edge traffic logs.
+- **CLI** — install the `pxxl` command and deploy from your terminal.
+- **Domain Reseller** — search availability, fetch TLD pricing, and inspect invoices.
+
+Every endpoint expects an API key issued from **Dashboard \> API Keys**. Keep that key on a server you control — never inside browser bundles, mobile apps, or public repositories.
+
+## Postman Collection
+
+To quickly explore all available endpoints, download the curated Pxxl Platform Postman collection:
+
+[Download Pxxl Platform Postman Collection](https://pxxl.app/postman/pxxl-platform.postman_collection.json)
+
+After importing the collection, set two environment variables before sending any requests:
+
+- `base_url` — for example, `https://gateway.pxxl.dev/api/v3`
+- `bearer_token` — your platform API key from **Dashboard \> API Keys**
+
+## Base URL
+
+Every API request targets the following base URL:
+
+```text
+https://gateway.pxxl.dev/api/v3
+```
+
+All paths in this documentation are relative to this base.
+
+## Common API Areas
+
+Use the API for server-side automation only. Keep API keys in backend secrets and expose only your own controlled endpoints to browsers or mobile clients.
+
+| Area | Typical Use |
+| --- | --- |
+| **Deployments** | Read deployment status, track build results, and connect external monitors. |
+| **Projects** | Query project metadata and support internal operations tooling. |
+| **CDN** | Upload, list, and audit CDN assets from a backend service. |
+| **Usage** | Review workspace usage for reporting or alerts. |
+| **OAuth integrations** | Build permissioned integrations that users explicitly authorize. |
+| **Webhooks** | Receive signed event notifications when dashboard activity changes. |
+
+## API Integration Checklist
+
+<Note>
+  Before shipping any custom API integration, confirm that your backend handles each of these cases:
+
+  - **API Key Scopes:** Ensure your key is limited to the exact scopes your integration requires.
+  - **Rate Limiting:** Guard loops to handle HTTP `429 Too Many Requests` responses gracefully using exponential backoff.
+  - **Input Validation:** Validate all request payloads before forwarding them to Pxxl.
+  - **Token Expiration:** If you use OAuth tokens, implement active validation loops to request fresh tokens before executing user actions.
+</Note>
+
+## Explore the API
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Create scoped API keys and attach them to every platform request using the `Authorization` header.
+  </Card>
+
+  <Card title="Deployments API" icon="rocket" href="/api/deployments">
+    Query deployment status, read project metadata, and subscribe to signed deployment webhooks.
+  </Card>
+
+  <Card title="Database API" icon="database" href="/api/database-api">
+    Provision Postgres, MySQL, MongoDB, Redis, and ClickHouse databases from the CLI or Node SDK.
+  </Card>
+
+  <Card title="CDN API" icon="cloud-arrow-up" href="/api/cdn">
+    Upload files to public or private storage spaces, list assets, and retrieve bandwidth usage and proxy logs.
+  </Card>
+
+  <Card title="Pxxl CLI" icon="terminal" href="/api/pxxl-cli">
+    Install the `pxxl` command for local deploys, env management, database control, and CDN uploads.
+  </Card>
+
+  <Card title="Domain Reseller" icon="globe" href="/api/domain-reseller-sdk">
+    Search domain availability, fetch TLD pricing, and manage reseller invoices from your backend.
+  </Card>
+</CardGroup>

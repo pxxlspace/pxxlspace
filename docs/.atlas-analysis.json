@@ -1,0 +1,98 @@
+{
+  "projectType": "saas",
+  "projectName": "Pxxl",
+  "projectDescription": "Pxxl is an Africa-first cloud deployment platform that lets developers ship websites, APIs, databases, and custom domains from GitHub to a live URL without manual server configuration.",
+  "theme": "luma",
+  "primaryColor": "#fcfcfc",
+  "lightColor": "#de59db",
+  "darkColor": "#381838",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "deployment-reference",
+              "framework-recipes"
+            ]
+          },
+          {
+            "group": "Dashboard",
+            "pages": [
+              "dashboard/overview",
+              "dashboard/projects",
+              "dashboard/deploy-project",
+              "dashboard/import-projects",
+              "dashboard/domains",
+              "dashboard/database",
+              "dashboard/api-keys",
+              "dashboard/settings-usage-webhooks"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/github-previews",
+              "integrations/oauth",
+              "integrations/cdn-proxy"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/domains",
+              "troubleshooting/deployments",
+              "troubleshooting/databases",
+              "troubleshooting/proxy-security",
+              "troubleshooting/oauth"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "API",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/cdn",
+              "api/deployments"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Git-based deployments from GitHub — push code to get a live URL",
+    "Framework auto-detection for Node.js, Python, Go, PHP, Ruby, Java, .NET, Rust, and more",
+    "Custom domain management with DNS, SSL, subdomains, and nameserver controls",
+    "Managed databases — PostgreSQL, MySQL, and MongoDB",
+    "CDN object storage with public and private spaces",
+    "Edge proxy with DDoS protection, WAF rules, rate limiting, and geo-blocking",
+    "Pull request preview deployments with automatic 72-hour expiry",
+    "OAuth integrations for building third-party apps on top of Pxxl accounts",
+    "Signed webhooks for deployment, project, and OAuth lifecycle events",
+    "Cron job scheduler for recurring HTTP tasks",
+    "Import projects from Vercel, Netlify, Render, and Railway",
+    "Scoped API keys for backend automation and CDN workflows"
+  ],
+  "publicApiSurface": [
+    "GET /api/v3/cdn/summary",
+    "GET /api/v3/cdn/assets",
+    "POST /api/v3/cdn/assets",
+    "GET /api/v3/cdn/proxy-logs",
+    "POST /api/v3/auth/oauth/token",
+    "GET /api/v3/auth/oauth/userinfo",
+    "POST /api/v3/auth/oauth/apps/:id/test-webhook",
+    "Authorization: Bearer <API_KEY> header authentication",
+    "OAuth scopes: profile, email, github, key",
+    "Webhook events: project.created, project.updated, project.deleted, deployment.created, deployment.status_changed, environment.updated, user.profile_updated, oauth.authorized, oauth.denied, oauth.revoked"
+  ]
+}

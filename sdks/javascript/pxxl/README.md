@@ -129,7 +129,7 @@ pxxl invoices payment-url <invoice-id>
 pxxl cron create --name refresh --schedule '*/15 * * * *' --url https://example.com/cron
 ```
 
-Run `pxxl --help` or see [`guides/pxxl-cli.md`](../../../guides/pxxl-cli.md)
+Run `pxxl --help` or see [`Pxxl CLI docs`](../../../docs/api/pxxl-cli.mdx)
 for the full command list.
 
 ## Development
@@ -144,4 +144,4 @@ npm pack --dry-run
 ```
 
 The source and tests for this package are in this directory. Publishing steps
-are documented in [`guides/npm-publishing.md`](../../../guides/npm-publishing.md).
+are documented in [`the npm publishing guide`](../../../docs/api/npm-publishing.mdx).
