@@ -1,7 +1,7 @@
 {
   "name": "@pxxlapp/pxxl",
   "version": "0.1.12",
-  "description": "Official Pxxl CLI and SDK for deploys, CDN assets, and domain reseller workflows.",
+  "description": "Official Pxxl CLI and JavaScript SDK for deploys, storage, domains, billing, cron jobs, and platform operations.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,19 +14,23 @@
   "bin": {
     "pxxl": "dist/cli.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "examples",
     "boilerplates",
     "guides",
     "skills",
-    "README.md",
-    "readme.md"
+    "readme.md",
+    "sdks/javascript/pxxl/README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/*.test.mjs",
-    "pack:dry-run": "npm pack --dry-run"
+    "test": "npm run build && node --test sdks/javascript/pxxl/test/*.test.mjs",
+    "pack:dry-run": "npm pack --dry-run",
+    "prepublishOnly": "npm test"
   },
   "devDependencies": {
     "@types/node": "^22.20.0",

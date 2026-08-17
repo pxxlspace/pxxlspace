@@ -1,10 +1,11 @@
-import { access, readFile, readdir, writeFile, mkdir, copyFile, chmod, rm } from "node:fs/promises";
+import { access, chmod, copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, basename } from "node:path";
 import { zipSync } from "fflate";
 import ignore from "ignore";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlInvoices, PxxlProjects, PxxlStorage, PxxlTeams, } from "./resources.js";
 export const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
 export const MAX_DEPLOY_FILES = 12000;
 export const MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024;
@@ -77,6 +78,12 @@ export class PxxlClient {
         const response = await this.request("/cdn/summary");
         return response.data;
     }
+    async getCDNSpace() {
+        return this.request("/cdn/space");
+    }
+    async createCDNSpace(input = {}) {
+        return this.request("/cdn/space", { method: "POST", body: JSON.stringify(input) });
+    }
     async listAssets(input = {}) {
         const params = new URLSearchParams();
         Object.entries(input).forEach(([key, value]) => {
@@ -98,6 +105,10 @@ export class PxxlClient {
             form.append("projectId", input.projectId);
         if (input.deploymentId)
             form.append("deploymentId", input.deploymentId);
+        if (input.bucketId)
+            form.append("bucketId", input.bucketId);
+        if (input.path)
+            form.append("path", input.path);
         const response = await this.request("/cdn/assets", { method: "POST", body: form, skipContentType: true });
         return response.asset;
     }
@@ -108,9 +119,62 @@ export class PxxlClient {
     async deleteAsset(id) {
         await this.request(`/cdn/assets/${encodeURIComponent(id)}`, { method: "DELETE" });
     }
+    async listStorageObjects(bucketId, input = {}) {
+        return this.listAssets({ ...input, bucketId });
+    }
+    async uploadStorageObject(bucketId, input) {
+        return this.uploadAsset({ ...input, bucketId });
+    }
+    async downloadStorageObject(id) {
+        return this.downloadAsset(id);
+    }
+    async deleteStorageObject(id) {
+        return this.deleteAsset(id);
+    }
     async usage(limit = 100) {
         const response = await this.request(`/cdn/usage?limit=${encodeURIComponent(limit)}`);
         return response.events;
+    }
+    async listStorageBuckets() {
+        return this.request("/storage/buckets");
+    }
+    async getStorageBucket(id) {
+        return this.request(`/storage/buckets/${encodeURIComponent(id)}`);
+    }
+    async createStorageBucket(input) {
+        return this.request("/storage/buckets", { method: "POST", body: JSON.stringify(input) });
+    }
+    async updateStorageBucket(id, input) {
+        return this.request(`/storage/buckets/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
+    }
+    async deleteStorageBucket(id) {
+        await this.request(`/storage/buckets/${encodeURIComponent(id)}`, { method: "DELETE" });
+    }
+    async storageAnalytics(id, timeframe = "30d") {
+        const result = await this.request(`/storage/buckets/${encodeURIComponent(id)}/analytics?timeframe=${encodeURIComponent(timeframe)}`);
+        return result.analytics;
+    }
+    async storageBilling(input = {}) {
+        return this.request(`/storage/billing${querySuffix(input)}`);
+    }
+    async listStorageAccessKeys(bucketId) {
+        const result = await this.request(`/storage/buckets/${encodeURIComponent(bucketId)}/access-keys`);
+        return Array.isArray(result) ? { keys: result } : result;
+    }
+    async createStorageAccessKey(bucketId, input = {}) {
+        return this.request(`/storage/buckets/${encodeURIComponent(bucketId)}/access-keys`, { method: "POST", body: JSON.stringify(input) });
+    }
+    async deleteStorageAccessKey(bucketId, keyId) {
+        await this.request(`/storage/buckets/${encodeURIComponent(bucketId)}/access-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+    }
+    async projectTraffic(projectId, input = {}) {
+        return this.request(`/projects/${encodeURIComponent(projectId)}/analytics/traffic${querySuffix(input)}`);
+    }
+    async domainTraffic(domainId, input = {}) {
+        return this.request(`/domains/my/${encodeURIComponent(domainId)}/analytics${querySuffix(input)}`);
+    }
+    async userDomainTraffic(domain, timeframe = "24h") {
+        return this.request(`/user/analytics${querySuffix({ domain, timeframe })}`);
     }
     async listTLDs() {
         return this.request("/domains/tlds");
@@ -123,6 +187,79 @@ export class PxxlClient {
     }
     async searchDomains(input) {
         return this.request("/domains/search", { method: "POST", body: JSON.stringify(input) });
+    }
+    async getTLD(tld) {
+        return this.request(`/domains/tlds/${encodeURIComponent(tld)}`);
+    }
+    async domainDNSLookup(domain, type) {
+        return this.request("/domains/dns/lookup", {
+            method: "POST",
+            body: JSON.stringify({ domain, ...(type ? { type } : {}) }),
+        });
+    }
+    async bulkDomainDNSLookup(domains) {
+        return this.request("/domains/dns/bulk-lookup", { method: "POST", body: JSON.stringify({ domains }) });
+    }
+    async verifyDomainRegistration(domain) {
+        return this.request("/domains/verify-registration", { method: "POST", body: JSON.stringify({ domain }) });
+    }
+    async listDomainAddons(input = {}) {
+        return this.request(`/cli/domains/addons${querySuffix(input)}`);
+    }
+    async getDomainAddon(id) {
+        return this.request(`/cli/domains/addons/${encodeURIComponent(id)}`);
+    }
+    async purchaseDomain(input) {
+        const payload = { ...input };
+        const customerId = input.customerId ?? input.contactId;
+        delete payload.customerId;
+        if (customerId !== undefined) {
+            payload.contactId = typeof customerId === "string" && /^\d+$/.test(customerId) ? Number(customerId) : customerId;
+        }
+        const result = await this.request("/cli/domainprovider/domain/register", { method: "POST", body: JSON.stringify(payload) });
+        return {
+            ...result.data,
+            invoice: result.data.invoice ?? { id: result.data.invoiceId, status: "pending" },
+        };
+    }
+    async createDomainAddonInvoice(domainId, addonIds, currency = "NGN") {
+        const result = await this.request(`/cli/domainprovider/domain/${encodeURIComponent(domainId)}/addons/invoice`, { method: "POST", body: JSON.stringify({ addonIds, currency }) });
+        return result.data;
+    }
+    async createDomainOrder(input) {
+        const contactId = input.contactId ?? input.customerId;
+        return this.request("/cli/domain-orders", { method: "POST", body: JSON.stringify({ domains: input.domains, contactId }) });
+    }
+    async listDomainOrders() {
+        return this.request("/cli/domain-orders");
+    }
+    async getDomainOrder(id) {
+        return this.request(`/cli/domain-orders/${encodeURIComponent(id)}`);
+    }
+    async updateDomainOrderDuration(domainId, duration) {
+        return this.request(`/cli/domain-orders/domains/${encodeURIComponent(domainId)}/duration`, { method: "PUT", body: JSON.stringify({ duration }) });
+    }
+    async addDomainOrderAddons(domainId, addonIds) {
+        return this.request(`/cli/domain-orders/domains/${encodeURIComponent(domainId)}/addons`, { method: "POST", body: JSON.stringify({ addonIds }) });
+    }
+    async createCustomer(input) {
+        const result = await this.request("/cli/contacts", { method: "POST", body: JSON.stringify(input) });
+        return result.contact;
+    }
+    async listCustomers() {
+        const result = await this.request("/cli/contacts");
+        return { customers: result.contacts, count: result.count };
+    }
+    async getCustomer(id) {
+        const result = await this.request(`/cli/contacts/${encodeURIComponent(id)}`);
+        return result.contact;
+    }
+    async updateCustomer(id, input) {
+        const result = await this.request(`/cli/contacts/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) });
+        return result.contact;
+    }
+    async deleteCustomer(id) {
+        await this.request(`/cli/contacts/${encodeURIComponent(id)}`, { method: "DELETE" });
     }
     async listDomains(teamId = this.teamId) {
         return this.request(`/cli/domains${teamQuery(teamId)}`);
@@ -445,6 +582,35 @@ export class PxxlClient {
     async getDomainInvoicePaymentUrl(id, teamId = this.teamId) {
         return this.request(`/cli/domainprovider/invoice/${encodeURIComponent(id)}/payment-url${teamQuery(teamId)}`);
     }
+    async getPaymentUrl(id, currency, teamId = this.teamId) {
+        const result = await this.request(`/cli/domainprovider/invoice/${encodeURIComponent(id)}/payment-url${querySuffix({ currency, teamId })}`);
+        return result.data ?? result;
+    }
+    async payDomainInvoice(id, teamId = this.teamId) {
+        const result = await this.request("/cli/domainprovider/invoice/pay", { method: "POST", body: JSON.stringify({ invoiceId: id, ...(teamId ? { teamId } : {}) }) });
+        return result.data ?? result;
+    }
+    async bachsPayDomainInvoice(id, input = {}) {
+        return this.request("/cli/domainprovider/invoice/bachs-pay", { method: "POST", body: JSON.stringify({ invoiceId: id, ...input }) });
+    }
+    async polarPayDomainInvoice(id, teamId = this.teamId) {
+        return this.request("/cli/domainprovider/invoice/polar-pay", { method: "POST", body: JSON.stringify({ invoiceId: id, ...(teamId ? { teamId } : {}) }) });
+    }
+    async listPurchasedDomains() {
+        return this.request("/cli/purchased-domains");
+    }
+    async listInvoices(input = {}) {
+        return this.request(`/cli/invoices${querySuffix(input)}`);
+    }
+    async getInvoice(id, teamId = this.teamId) {
+        return this.request(`/cli/invoices/${encodeURIComponent(id)}${teamQuery(teamId)}`);
+    }
+    async createInvoice(input) {
+        return this.request("/cli/invoices", { method: "POST", body: JSON.stringify(input) });
+    }
+    async createInvoicePaymentLink(id) {
+        return this.request(`/cli/invoices/${encodeURIComponent(id)}/payment-link`, { method: "POST", body: JSON.stringify({}) });
+    }
     async cancelDomainInvoice(id, teamId = this.teamId) {
         return this.request(`/cli/domainprovider/invoice/${encodeURIComponent(id)}/cancel${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
     }
@@ -513,6 +679,44 @@ export class PxxlClient {
 }
 export const PxxlCDN = PxxlClient;
 export const PxxlCDNError = PxxlAPIError;
+/**
+ * Unified platform client. Flat PxxlClient methods remain available for
+ * compatibility, while grouped resources keep larger integrations readable.
+ */
+export class Pxxl extends PxxlClient {
+    assets;
+    cdn;
+    storage;
+    analytics;
+    projects;
+    deployments;
+    domains;
+    customers;
+    invoices;
+    billing;
+    cronjobs;
+    cron;
+    teams;
+    databases;
+    constructor(options = {}) {
+        super(options);
+        this.assets = new PxxlAssets(this);
+        this.cdn = this.assets;
+        this.storage = new PxxlStorage(this);
+        this.analytics = new PxxlAnalytics(this);
+        this.projects = new PxxlProjects(this);
+        this.deployments = new PxxlDeployments(this);
+        this.domains = new PxxlDomains(this);
+        this.customers = new PxxlCustomers(this);
+        this.invoices = new PxxlInvoices(this);
+        this.billing = new PxxlBilling(this);
+        this.cronjobs = new PxxlCronJobs(this);
+        this.cron = this.cronjobs;
+        this.teams = new PxxlTeams(this);
+        this.databases = new PxxlDatabases(this);
+    }
+}
+export { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlInvoices, PxxlProjects, PxxlStorage, PxxlTeams, };
 export const defaultPxxlIgnore = [
     ".git",
     ".git/**",
@@ -677,6 +881,14 @@ function requiredConfig(value, key) {
     if (!value || !String(value).trim())
         throw new Error(`Missing ${key}. Add it to pxxl.toml or pass a CLI flag.`);
     return String(value).trim();
+}
+function querySuffix(input) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(input)) {
+        if (value !== undefined && value !== null && value !== "")
+            params.set(key, String(value));
+    }
+    return params.size ? `?${params.toString()}` : "";
 }
 function teamQuery(teamId) {
     return teamId && teamId.trim() ? `?teamId=${encodeURIComponent(teamId.trim())}` : "";

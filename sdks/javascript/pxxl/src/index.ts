@@ -1,10 +1,24 @@
-import { access, readFile, readdir, writeFile, mkdir, copyFile, chmod, rm } from "node:fs/promises";
+import { access, chmod, copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, basename } from "node:path";
 import { zipSync } from "fflate";
 import ignore from "ignore";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import {
+  PxxlAnalytics,
+  PxxlAssets,
+  PxxlBilling,
+  PxxlCronJobs,
+  PxxlCustomers,
+  PxxlDatabases,
+  PxxlDeployments,
+  PxxlDomains,
+  PxxlInvoices,
+  PxxlProjects,
+  PxxlStorage,
+  PxxlTeams,
+} from "./resources.js";
 
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
@@ -19,6 +33,215 @@ export interface PxxlClientOptions {
   teamId?: string;
   fetchImpl?: typeof fetch;
 }
+
+export type DomainCurrency = "NGN" | "USD";
+
+export interface CustomerInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address1: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  organization?: string;
+  address2?: string;
+  isDefault?: boolean;
+}
+
+export interface Customer extends CustomerInput {
+  id: number | string;
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type UpdateCustomerInput = Partial<CustomerInput>;
+
+export interface DomainPurchaseItem {
+  domainName: string;
+  tld?: string;
+  name?: string;
+  price?: string;
+  years?: number;
+  isFreeDomain?: boolean;
+  addons?: Array<{ id: string }>;
+  nameservers?: string[];
+}
+
+export interface DomainInvoiceContact {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  phonecc?: string;
+  phonenum?: string;
+  [key: string]: unknown;
+}
+
+export interface DomainInvoiceAddress {
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  [key: string]: unknown;
+}
+
+export interface PurchaseDomainInput {
+  domains: DomainPurchaseItem[];
+  customerId?: number | string;
+  contactId?: number | string;
+  contact?: DomainInvoiceContact;
+  address?: DomainInvoiceAddress;
+  total?: string;
+  currency?: DomainCurrency;
+  teamId?: string;
+}
+
+export interface DomainAddon {
+  id: string;
+  name: string;
+  description?: string;
+  price?: number;
+  priceDollar?: number;
+  type?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PaymentUrl {
+  paymentUrl: string;
+  checkoutUrl?: string;
+  reference?: string;
+  invoiceId: string;
+  currency?: DomainCurrency | string;
+  paymentUrlExpiresAt?: string;
+  [key: string]: unknown;
+}
+
+export interface DomainPurchaseResult {
+  invoiceId: string;
+  invoice: DomainInvoice;
+  computedTotal?: number;
+  taxAmount?: number;
+  grandTotal?: number;
+  currency?: DomainCurrency | string;
+  domains?: DomainPurchaseItem[];
+  domainErrors?: string[];
+  [key: string]: unknown;
+}
+
+export interface DomainOrder {
+  id: number | string;
+  contactId?: number | null;
+  status?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface DomainRegistrationVerification {
+  domain: DomainSearchResult;
+  [key: string]: unknown;
+}
+
+export interface DomainDNSRecord {
+  type: string;
+  value: string[];
+  ttl?: number;
+}
+
+export interface DomainDNSLookupResult {
+  domain: string;
+  nameservers?: string[];
+  records: Record<string, DomainDNSRecord>;
+  status: string;
+  [key: string]: unknown;
+}
+
+export type StorageVisibility = "private" | "public";
+export type StorageKeyPermission = "read" | "read_write";
+
+export interface StorageBucket {
+  id: string;
+  userId?: string;
+  name: string;
+  slug?: string;
+  visibility: StorageVisibility;
+  status: string;
+  storageLimitBytes?: number;
+  bandwidthLimitBytes?: number;
+  storageBytes?: number;
+  bandwidthBytes?: number;
+  objectCount?: number;
+  metadata?: Record<string, unknown>;
+  suspendedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StorageAccessKey {
+  id: string;
+  name: string;
+  accessKeyId: string;
+  secretAccessKey?: string;
+  secretPrefix?: string;
+  permission: StorageKeyPermission;
+  status: string;
+  endpoint: string;
+  region: string;
+  bucket: string;
+  pathStyle: boolean;
+  createdAt?: string;
+  lastUsedAt?: string | null;
+}
+
+export interface StorageBucketAnalytics {
+  requests: number;
+  bandwidthBytes: number;
+  uploadedBytes: number;
+  downloadedBytes: number;
+  uploadCount: number;
+  downloadCount: number;
+  objectCount: number;
+  publicObjects: number;
+  privateObjects: number;
+  largestObjectBytes: number;
+  averageObjectBytes: number;
+  contentTypes: Record<string, number>;
+  recentActivity: Array<Record<string, unknown>>;
+  timeline?: Array<Record<string, unknown>>;
+  storageExhaustion?: Record<string, unknown> | null;
+  bandwidthExhaustion?: Record<string, unknown> | null;
+}
+
+export interface StorageBillingResponse {
+  billing: Record<string, unknown>;
+  entries: Array<Record<string, unknown>>;
+  usageMonths?: Array<Record<string, unknown>>;
+  invoices?: Array<Record<string, unknown>>;
+}
+
+export interface CreateStorageBucketInput {
+  name: string;
+  visibility?: StorageVisibility;
+  region?: string;
+  cacheMode?: string;
+  versioning?: boolean;
+}
+
+export interface UpdateStorageBucketInput {
+  name?: string;
+  visibility?: StorageVisibility;
+}
+
+export interface CreateStorageAccessKeyInput {
+  name?: string;
+  permission?: StorageKeyPermission;
+}
+
+export type AnalyticsTimeframe = "24h" | "48h" | "72h" | "7d" | "30d" | string;
 
 export interface CDNAsset {
   id: string;
@@ -51,6 +274,13 @@ export interface CDNSummary {
   storageName: string;
 }
 
+export interface CDNSpace {
+  id: string;
+  name: string;
+  status: string;
+  suspendedAt?: string | null;
+}
+
 export interface UploadAssetInput {
   file: Blob;
   fileName: string;
@@ -58,6 +288,8 @@ export interface UploadAssetInput {
   kind?: CDNAssetKind;
   projectId?: string;
   deploymentId?: string;
+  bucketId?: string;
+  path?: string;
 }
 
 export interface ListAssetsInput {
@@ -65,6 +297,7 @@ export interface ListAssetsInput {
   limit?: number;
   search?: string;
   kind?: CDNAssetKind;
+  bucketId?: string;
 }
 
 export interface DomainTLD {
@@ -355,6 +588,53 @@ export interface DomainInvoice {
   grandTotal?: number;
 }
 
+export interface InvoiceListItem {
+  id: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  source?: string;
+  type?: string;
+  status: string;
+  total?: number;
+  taxAmount?: number;
+  grandTotal?: number;
+  currency?: string;
+  paymentUrl?: string | null;
+  expiresAt?: string;
+  paidAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface InvoiceListResult {
+  invoices: InvoiceListItem[];
+  count: number;
+  error?: boolean;
+}
+
+export interface InvoiceDetailResult {
+  invoice: Record<string, unknown>;
+  domains?: unknown[];
+  registrations?: unknown[];
+  grandTotal?: number;
+  source?: string;
+  error?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CreateInvoiceInput {
+  domainOrderId: number | string;
+}
+
+export interface PaymentLinkResult {
+  paymentUrl?: string;
+  authorizationUrl?: string;
+  reference?: string;
+  invoiceId?: string;
+  [key: string]: unknown;
+}
+
 export interface DeployConfig {
   name?: string;
   domainChoice?: string;
@@ -469,6 +749,14 @@ export class PxxlClient {
     return response.data;
   }
 
+  async getCDNSpace(): Promise<{ space: CDNSpace; storageName?: string }> {
+    return this.request("/cdn/space");
+  }
+
+  async createCDNSpace(input: { name?: string } = {}): Promise<{ space: CDNSpace; storageName?: string }> {
+    return this.request("/cdn/space", { method: "POST", body: JSON.stringify(input) });
+  }
+
   async listAssets(input: ListAssetsInput = {}): Promise<{ assets: CDNAsset[]; pagination: unknown }> {
     const params = new URLSearchParams();
     Object.entries(input).forEach(([key, value]) => {
@@ -486,6 +774,8 @@ export class PxxlClient {
     if (input.kind) form.append("kind", input.kind);
     if (input.projectId) form.append("projectId", input.projectId);
     if (input.deploymentId) form.append("deploymentId", input.deploymentId);
+    if (input.bucketId) form.append("bucketId", input.bucketId);
+    if (input.path) form.append("path", input.path);
     const response = await this.request<{ asset: CDNAsset }>("/cdn/assets", { method: "POST", body: form, skipContentType: true });
     return response.asset;
   }
@@ -499,9 +789,83 @@ export class PxxlClient {
     await this.request(`/cdn/assets/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
+  async listStorageObjects(bucketId: string, input: Omit<ListAssetsInput, "bucketId"> = {}): Promise<{ assets: CDNAsset[]; pagination: unknown }> {
+    return this.listAssets({ ...input, bucketId });
+  }
+
+  async uploadStorageObject(bucketId: string, input: Omit<UploadAssetInput, "bucketId">): Promise<CDNAsset> {
+    return this.uploadAsset({ ...input, bucketId });
+  }
+
+  async downloadStorageObject(id: string): Promise<Blob> {
+    return this.downloadAsset(id);
+  }
+
+  async deleteStorageObject(id: string): Promise<void> {
+    return this.deleteAsset(id);
+  }
+
   async usage(limit = 100): Promise<unknown[]> {
     const response = await this.request<{ events: unknown[] }>(`/cdn/usage?limit=${encodeURIComponent(limit)}`);
     return response.events;
+  }
+
+  async listStorageBuckets(): Promise<{ buckets: StorageBucket[]; total?: number; access?: unknown }> {
+    return this.request("/storage/buckets");
+  }
+
+  async getStorageBucket(id: string): Promise<{ bucket: StorageBucket; access?: unknown }> {
+    return this.request(`/storage/buckets/${encodeURIComponent(id)}`);
+  }
+
+  async createStorageBucket(input: CreateStorageBucketInput): Promise<{ bucket: StorageBucket; access?: unknown }> {
+    return this.request("/storage/buckets", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async updateStorageBucket(id: string, input: UpdateStorageBucketInput): Promise<{ bucket: StorageBucket; access?: unknown }> {
+    return this.request(`/storage/buckets/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
+  }
+
+  async deleteStorageBucket(id: string): Promise<void> {
+    await this.request(`/storage/buckets/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async storageAnalytics(id: string, timeframe = "30d"): Promise<StorageBucketAnalytics> {
+    const result = await this.request<{ analytics: StorageBucketAnalytics }>(
+      `/storage/buckets/${encodeURIComponent(id)}/analytics?timeframe=${encodeURIComponent(timeframe)}`,
+    );
+    return result.analytics;
+  }
+
+  async storageBilling(input: { bucketId?: string; limit?: number } = {}): Promise<StorageBillingResponse> {
+    return this.request(`/storage/billing${querySuffix(input)}`);
+  }
+
+  async listStorageAccessKeys(bucketId: string): Promise<{ keys: StorageAccessKey[] }> {
+    const result = await this.request<StorageAccessKey[] | { keys: StorageAccessKey[] }>(
+      `/storage/buckets/${encodeURIComponent(bucketId)}/access-keys`,
+    );
+    return Array.isArray(result) ? { keys: result } : result;
+  }
+
+  async createStorageAccessKey(bucketId: string, input: CreateStorageAccessKeyInput = {}): Promise<{ key: StorageAccessKey; notice?: string }> {
+    return this.request(`/storage/buckets/${encodeURIComponent(bucketId)}/access-keys`, { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async deleteStorageAccessKey(bucketId: string, keyId: string): Promise<void> {
+    await this.request(`/storage/buckets/${encodeURIComponent(bucketId)}/access-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+  }
+
+  async projectTraffic(projectId: string, input: { timeframe?: AnalyticsTimeframe; domain?: string } = {}): Promise<unknown> {
+    return this.request(`/projects/${encodeURIComponent(projectId)}/analytics/traffic${querySuffix(input)}`);
+  }
+
+  async domainTraffic(domainId: string, input: { timeframe?: AnalyticsTimeframe; teamId?: string } = {}): Promise<unknown> {
+    return this.request(`/domains/my/${encodeURIComponent(domainId)}/analytics${querySuffix(input)}`);
+  }
+
+  async userDomainTraffic(domain: string, timeframe: AnalyticsTimeframe = "24h"): Promise<unknown> {
+    return this.request(`/user/analytics${querySuffix({ domain, timeframe })}`);
   }
 
   async listTLDs(): Promise<{ tlds: DomainTLD[]; count: number }> {
@@ -518,6 +882,103 @@ export class PxxlClient {
 
   async searchDomains(input: DomainSearchInput): Promise<{ query: string; results: DomainSearchResult[]; count: number; latency?: number; cached?: boolean }> {
     return this.request("/domains/search", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async getTLD(tld: string): Promise<{ tld: DomainTLD }> {
+    return this.request(`/domains/tlds/${encodeURIComponent(tld)}`);
+  }
+
+  async domainDNSLookup(domain: string, type?: string): Promise<DomainDNSLookupResult> {
+    return this.request("/domains/dns/lookup", {
+      method: "POST",
+      body: JSON.stringify({ domain, ...(type ? { type } : {}) }),
+    });
+  }
+
+  async bulkDomainDNSLookup(domains: string[]): Promise<{ results: Record<string, DomainDNSLookupResult>; count: number }> {
+    return this.request("/domains/dns/bulk-lookup", { method: "POST", body: JSON.stringify({ domains }) });
+  }
+
+  async verifyDomainRegistration(domain: string): Promise<DomainRegistrationVerification> {
+    return this.request("/domains/verify-registration", { method: "POST", body: JSON.stringify({ domain }) });
+  }
+
+  async listDomainAddons(input: { type?: string } = {}): Promise<{ addons: DomainAddon[]; count: number }> {
+    return this.request(`/cli/domains/addons${querySuffix(input)}`);
+  }
+
+  async getDomainAddon(id: string): Promise<{ addon: DomainAddon }> {
+    return this.request(`/cli/domains/addons/${encodeURIComponent(id)}`);
+  }
+
+  async purchaseDomain(input: PurchaseDomainInput): Promise<DomainPurchaseResult> {
+    const payload = { ...input } as Record<string, unknown>;
+    const customerId = input.customerId ?? input.contactId;
+    delete payload.customerId;
+    if (customerId !== undefined) {
+      payload.contactId = typeof customerId === "string" && /^\d+$/.test(customerId) ? Number(customerId) : customerId;
+    }
+    const result = await this.request<{ error: boolean; data: { invoice?: DomainInvoice; invoiceId: string; [key: string]: unknown } }>(
+      "/cli/domainprovider/domain/register",
+      { method: "POST", body: JSON.stringify(payload) },
+    );
+    return {
+      ...result.data,
+      invoice: result.data.invoice ?? { id: result.data.invoiceId, status: "pending" },
+    } as DomainPurchaseResult;
+  }
+
+  async createDomainAddonInvoice(domainId: string, addonIds: string[], currency: DomainCurrency = "NGN"): Promise<unknown> {
+    const result = await this.request<{ data: unknown }>(
+      `/cli/domainprovider/domain/${encodeURIComponent(domainId)}/addons/invoice`,
+      { method: "POST", body: JSON.stringify({ addonIds, currency }) },
+    );
+    return result.data;
+  }
+
+  async createDomainOrder(input: { domains: string[]; customerId?: number | string; contactId?: number | string }): Promise<unknown> {
+    const contactId = input.contactId ?? input.customerId;
+    return this.request("/cli/domain-orders", { method: "POST", body: JSON.stringify({ domains: input.domains, contactId }) });
+  }
+
+  async listDomainOrders(): Promise<{ orders: DomainOrder[]; count: number }> {
+    return this.request("/cli/domain-orders");
+  }
+
+  async getDomainOrder(id: number | string): Promise<unknown> {
+    return this.request(`/cli/domain-orders/${encodeURIComponent(id)}`);
+  }
+
+  async updateDomainOrderDuration(domainId: number | string, duration: number): Promise<unknown> {
+    return this.request(`/cli/domain-orders/domains/${encodeURIComponent(domainId)}/duration`, { method: "PUT", body: JSON.stringify({ duration }) });
+  }
+
+  async addDomainOrderAddons(domainId: number | string, addonIds: string[]): Promise<unknown> {
+    return this.request(`/cli/domain-orders/domains/${encodeURIComponent(domainId)}/addons`, { method: "POST", body: JSON.stringify({ addonIds }) });
+  }
+
+  async createCustomer(input: CustomerInput): Promise<Customer> {
+    const result = await this.request<{ contact: Customer }>("/cli/contacts", { method: "POST", body: JSON.stringify(input) });
+    return result.contact;
+  }
+
+  async listCustomers(): Promise<{ customers: Customer[]; count: number }> {
+    const result = await this.request<{ contacts: Customer[]; count: number }>("/cli/contacts");
+    return { customers: result.contacts, count: result.count };
+  }
+
+  async getCustomer(id: number | string): Promise<Customer> {
+    const result = await this.request<{ contact: Customer }>(`/cli/contacts/${encodeURIComponent(id)}`);
+    return result.contact;
+  }
+
+  async updateCustomer(id: number | string, input: UpdateCustomerInput): Promise<Customer> {
+    const result = await this.request<{ contact: Customer }>(`/cli/contacts/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) });
+    return result.contact;
+  }
+
+  async deleteCustomer(id: number | string): Promise<void> {
+    await this.request(`/cli/contacts/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
   async listDomains(teamId = this.teamId): Promise<{ domains: Array<DomainSummary | string>; total?: number; success?: boolean }> {
@@ -886,6 +1347,49 @@ export class PxxlClient {
     return this.request(`/cli/domainprovider/invoice/${encodeURIComponent(id)}/payment-url${teamQuery(teamId)}`);
   }
 
+  async getPaymentUrl(id: string, currency?: DomainCurrency, teamId = this.teamId): Promise<PaymentUrl> {
+    const result = await this.request<{ data: PaymentUrl }>(
+      `/cli/domainprovider/invoice/${encodeURIComponent(id)}/payment-url${querySuffix({ currency, teamId })}`,
+    );
+    return result.data ?? result as unknown as PaymentUrl;
+  }
+
+  async payDomainInvoice(id: string, teamId = this.teamId): Promise<PaymentUrl> {
+    const result = await this.request<{ data: PaymentUrl }>(
+      "/cli/domainprovider/invoice/pay",
+      { method: "POST", body: JSON.stringify({ invoiceId: id, ...(teamId ? { teamId } : {}) }) },
+    );
+    return result.data ?? result as unknown as PaymentUrl;
+  }
+
+  async bachsPayDomainInvoice(id: string, input: { currency?: string; baseCurrency?: string; paymentMethod?: string; teamId?: string } = {}): Promise<unknown> {
+    return this.request("/cli/domainprovider/invoice/bachs-pay", { method: "POST", body: JSON.stringify({ invoiceId: id, ...input }) });
+  }
+
+  async polarPayDomainInvoice(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request("/cli/domainprovider/invoice/polar-pay", { method: "POST", body: JSON.stringify({ invoiceId: id, ...(teamId ? { teamId } : {}) }) });
+  }
+
+  async listPurchasedDomains(): Promise<{ domains: Array<Record<string, unknown>>; count: number }> {
+    return this.request("/cli/purchased-domains");
+  }
+
+  async listInvoices(input: { status?: string; teamId?: string } = {}): Promise<InvoiceListResult> {
+    return this.request(`/cli/invoices${querySuffix(input)}`);
+  }
+
+  async getInvoice(id: string, teamId = this.teamId): Promise<InvoiceDetailResult> {
+    return this.request(`/cli/invoices/${encodeURIComponent(id)}${teamQuery(teamId)}`);
+  }
+
+  async createInvoice(input: CreateInvoiceInput): Promise<InvoiceDetailResult> {
+    return this.request("/cli/invoices", { method: "POST", body: JSON.stringify(input) });
+  }
+
+  async createInvoicePaymentLink(id: string): Promise<PaymentLinkResult> {
+    return this.request(`/cli/invoices/${encodeURIComponent(id)}/payment-link`, { method: "POST", body: JSON.stringify({}) });
+  }
+
   async cancelDomainInvoice(id: string, teamId = this.teamId): Promise<unknown> {
     return this.request(`/cli/domainprovider/invoice/${encodeURIComponent(id)}/cancel${teamQuery(teamId)}`, { method: "POST", body: JSON.stringify({}) });
   }
@@ -949,6 +1453,60 @@ export class PxxlClient {
 
 export const PxxlCDN = PxxlClient;
 export const PxxlCDNError = PxxlAPIError;
+
+/**
+ * Unified platform client. Flat PxxlClient methods remain available for
+ * compatibility, while grouped resources keep larger integrations readable.
+ */
+export class Pxxl extends PxxlClient {
+  readonly assets: PxxlAssets;
+  readonly cdn: PxxlAssets;
+  readonly storage: PxxlStorage;
+  readonly analytics: PxxlAnalytics;
+  readonly projects: PxxlProjects;
+  readonly deployments: PxxlDeployments;
+  readonly domains: PxxlDomains;
+  readonly customers: PxxlCustomers;
+  readonly invoices: PxxlInvoices;
+  readonly billing: PxxlBilling;
+  readonly cronjobs: PxxlCronJobs;
+  readonly cron: PxxlCronJobs;
+  readonly teams: PxxlTeams;
+  readonly databases: PxxlDatabases;
+
+  constructor(options: PxxlClientOptions = {}) {
+    super(options);
+    this.assets = new PxxlAssets(this);
+    this.cdn = this.assets;
+    this.storage = new PxxlStorage(this);
+    this.analytics = new PxxlAnalytics(this);
+    this.projects = new PxxlProjects(this);
+    this.deployments = new PxxlDeployments(this);
+    this.domains = new PxxlDomains(this);
+    this.customers = new PxxlCustomers(this);
+    this.invoices = new PxxlInvoices(this);
+    this.billing = new PxxlBilling(this);
+    this.cronjobs = new PxxlCronJobs(this);
+    this.cron = this.cronjobs;
+    this.teams = new PxxlTeams(this);
+    this.databases = new PxxlDatabases(this);
+  }
+}
+
+export {
+  PxxlAnalytics,
+  PxxlAssets,
+  PxxlBilling,
+  PxxlCronJobs,
+  PxxlCustomers,
+  PxxlDatabases,
+  PxxlDeployments,
+  PxxlDomains,
+  PxxlInvoices,
+  PxxlProjects,
+  PxxlStorage,
+  PxxlTeams,
+};
 
 export const defaultPxxlIgnore = [
   ".git",
@@ -1114,6 +1672,14 @@ export function sha256Hex(bytes: Uint8Array): string {
 function requiredConfig(value: string | undefined, key: string): string {
   if (!value || !String(value).trim()) throw new Error(`Missing ${key}. Add it to pxxl.toml or pass a CLI flag.`);
   return String(value).trim();
+}
+
+function querySuffix(input: object): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  return params.size ? `?${params.toString()}` : "";
 }
 
 function teamQuery(teamId?: string): string {

@@ -27,6 +27,7 @@ import {
   type CreateCronJobInput,
   type DatabaseSummary,
   type DeployConfig,
+  type DomainCurrency,
   type DomainSummary,
   type EnvVarInput,
   type TeamSummary,
@@ -34,7 +35,7 @@ import {
 } from "./index.js";
 
 const run = promisify(execFile);
-const cliVersion = "0.1.11";
+const cliVersion = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")).version as string;
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
 const logo = `${magenta("██████╗ ██╗  ██╗██╗  ██╗██╗     ")}
@@ -87,6 +88,38 @@ ${bold("CDN")}
   ${cyan("pxxl cdn upload")} <file>           Upload an asset
   ${cyan("pxxl cdn download")} <id> <file>    Download an asset
   ${cyan("pxxl cdn delete")} <id>             Delete an asset
+
+${bold("Storage")}
+  ${cyan("pxxl storage buckets")}              List Storage buckets
+  ${cyan("pxxl storage create")} <name>        Create a bucket
+  ${cyan("pxxl storage bucket")} <id>          Show bucket details
+  ${cyan("pxxl storage objects")} <bucket-id>  List bucket objects
+  ${cyan("pxxl storage object-upload")} <bucket-id> <file>
+                                             Upload a bucket object
+  ${cyan("pxxl storage analytics")} <id>       Show bucket analytics
+  ${cyan("pxxl storage billing")}              Show Storage billing
+  ${cyan("pxxl storage keys")} <bucket-id>     List S3 access keys
+
+${bold("Domain Reseller")}
+  ${cyan("pxxl domains tlds")}                  List domain pricing
+  ${cyan("pxxl domains search")} <query>        Search domain availability
+  ${cyan("pxxl domains verify-registration")} <domain>
+                                             Verify a final registration check
+  ${cyan("pxxl domains purchase")} --data '<json>'
+                                             Create a domain invoice
+  ${cyan("pxxl customers create")} --data '<json>'
+                                             Save a registrant contact
+  ${cyan("pxxl invoices payment-url")} <id>    Get a hosted payment URL
+
+${bold("Billing")}
+  ${cyan("pxxl billing list")}                 List all invoices
+  ${cyan("pxxl billing get")} <invoice-id>     Show invoice details
+  ${cyan("pxxl billing payment-link")} <id>    Create a legacy payment link
+
+${bold("Analytics")}
+  ${cyan("pxxl analytics project")} <id>        Show project traffic
+  ${cyan("pxxl analytics domain")} <id>         Show domain traffic
+  ${cyan("pxxl analytics user-domain")} <host> Show user-domain traffic
 
 ${bold("Spaceships")}
   ${cyan("pxxl team list")}                   List teams
@@ -194,10 +227,66 @@ ${bold("CDN Commands")}
   ${cyan("pxxl cdn download")} <id> <file>    Download an asset
   ${cyan("pxxl cdn delete")} <id>             Delete an asset
 `,
+  storage: `${logo}
+
+${bold("Storage Commands")}
+  ${cyan("pxxl storage buckets")}              List Storage buckets
+  ${cyan("pxxl storage bucket")} [bucket-id]   Show bucket details
+  ${cyan("pxxl storage create")} <name>        Create a bucket
+  ${cyan("pxxl storage update")} <id>          Update a bucket
+  ${cyan("pxxl storage delete")} <id>          Delete a bucket
+  ${cyan("pxxl storage objects")} <bucket-id>  List bucket objects
+  ${cyan("pxxl storage object-upload")} <bucket-id> <file>
+  ${cyan("pxxl storage object-download")} <asset-id> <file>
+  ${cyan("pxxl storage object-delete")} <asset-id>
+  ${cyan("pxxl storage analytics")} <id>       Show bucket analytics
+  ${cyan("pxxl storage billing")}              Show Storage billing
+  ${cyan("pxxl storage keys")} <bucket-id>     List access keys
+  ${cyan("pxxl storage key-create")} <bucket-id>
+  ${cyan("pxxl storage key-delete")} <bucket-id> <key-id>
+`,
+  analytics: `${logo}
+
+${bold("Analytics Commands")}
+  ${cyan("pxxl analytics project")} <project-id> [--timeframe 24h]
+  ${cyan("pxxl analytics domain")} <domain-id> [--timeframe 24h]
+  ${cyan("pxxl analytics user-domain")} <hostname> [--timeframe 24h]
+`,
+  customers: `${logo}
+
+${bold("Customer Commands")}
+  ${cyan("pxxl customers list")}
+  ${cyan("pxxl customers get")} <customer-id>
+  ${cyan("pxxl customers create")} --data '<json>'
+  ${cyan("pxxl customers update")} <customer-id> --data '<json>'
+  ${cyan("pxxl customers delete")} <customer-id>
+`,
+  invoices: `${logo}
+
+${bold("Invoice Commands")}
+  ${cyan("pxxl invoices list")}
+  ${cyan("pxxl invoices get")} <invoice-id>
+  ${cyan("pxxl invoices payment-url")} <invoice-id>
+  ${cyan("pxxl invoices pay")} <invoice-id>
+  ${cyan("pxxl invoices cancel")} <invoice-id>
+  ${cyan("pxxl invoices purchased-domains")}
+`,
+  billing: `${logo}
+
+${bold("Billing Commands")}
+  ${cyan("pxxl billing list")}                 List all invoices
+  ${cyan("pxxl billing list")} --status pending
+  ${cyan("pxxl billing get")} <invoice-id>     Show invoice details
+  ${cyan("pxxl billing create")} --data '<json>'
+  ${cyan("pxxl billing payment-link")} <invoice-id>
+`,
   domains: `${logo}
 
 ${bold("Domain Commands")}
   ${cyan("pxxl domains list")}                List domains available for stats
+  ${cyan("pxxl domains tlds")}                List domain pricing
+  ${cyan("pxxl domains search")} <query>      Search domain availability
+  ${cyan("pxxl domains purchase")} --data '<json>'
   ${cyan("pxxl domains check")} <domain>      Check DNS, ownership, SSL, and proxy route
   ${cyan("pxxl domains connect")} <domain>    Add a custom domain to a project
   ${cyan("pxxl domains connect")} <domain> --service <id>
@@ -284,6 +373,13 @@ const helpAliases: Record<string, string> = {
   env: "env",
   envs: "env",
   cdn: "cdn",
+  storage: "storage",
+  analytics: "analytics",
+  customer: "customers",
+  customers: "customers",
+  invoice: "invoices",
+  invoices: "invoices",
+  billing: "billing",
   domain: "domains",
   domains: "domains",
   cron: "cron",
@@ -340,6 +436,11 @@ async function main() {
   if (command === "logs" || command === "log") return logs(client, args);
   if (command === "env" || command === "envs") return envs(client, args);
   if (command === "cdn") return cdn(client, args);
+  if (command === "storage") return storage(client, args);
+  if (command === "analytics") return analytics(client, args);
+  if (command === "customer" || command === "customers") return customers(client, args);
+  if (command === "invoice" || command === "invoices") return invoices(client, args);
+  if (command === "billing") return billing(client, args);
   if (command === "domain" || command === "domains") return domains(client, args);
   if (command === "cron") return cron(client, args);
   if (command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") return teams(client, args);
@@ -656,8 +757,308 @@ async function cdn(client: PxxlClient, args: string[]) {
   throw new Error(`Unknown CDN command: ${command}`);
 }
 
+async function storage(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "buckets";
+  if (command === "buckets" || command === "list" || command === "ls") {
+    const result = await spinner("Fetching Storage buckets", () => client.listStorageBuckets());
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage buckets", result);
+  }
+  if (command === "bucket" || command === "get" || command === "show") {
+    const id = required(firstValueArg(args), "bucket id");
+    const result = await spinner("Fetching Storage bucket", () => client.getStorageBucket(id));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage bucket", result);
+  }
+  if (command === "objects" || command === "object-list") {
+    const id = required(firstValueArg(args), "bucket id");
+    const result = await spinner("Fetching Storage objects", () => client.listStorageObjects(id, {
+      page: flagValue(args, "--page") ? Number(flagValue(args, "--page")) : undefined,
+      limit: flagValue(args, "--limit") ? Number(flagValue(args, "--limit")) : undefined,
+      search: flagValue(args, "--search"),
+    }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage objects", result);
+  }
+  if (command === "object-upload") {
+    const values = valueArgs(args);
+    const bucketId = required(values[0], "bucket id");
+    const file = required(values[1], "file path");
+    const info = await stat(file);
+    if (!info.isFile()) throw new Error(`${file} is not a file`);
+    const bytes = await readFile(file);
+    const result = await spinner("Uploading Storage object", () => client.uploadStorageObject(bucketId, {
+      file: new Blob([bytes]),
+      fileName: basename(file),
+      path: flagValue(args, "--path"),
+      visibility: args.includes("--public") ? "public" : "private",
+    }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage object uploaded", result);
+  }
+  if (command === "object-download") {
+    const values = valueArgs(args);
+    const id = required(values[0], "asset id");
+    const out = required(values[1], "output file");
+    const blob = await client.downloadStorageObject(id);
+    await writeFile(out, Buffer.from(await blob.arrayBuffer()));
+    return printSuccess(`Downloaded Storage object ${id} to ${out}`);
+  }
+  if (command === "object-delete") {
+    const id = required(firstValueArg(args), "asset id");
+    await spinner("Deleting Storage object", () => client.deleteStorageObject(id));
+    return printSuccess(`Deleted Storage object ${id}`);
+  }
+  if (command === "create") {
+    const name = flagValue(args, "--name") || firstValueArg(args);
+    const result = await spinner("Creating Storage bucket", () => client.createStorageBucket({
+      name: required(name, "bucket name"),
+      visibility: args.includes("--public") ? "public" : "private",
+      region: flagValue(args, "--region"),
+      cacheMode: flagValue(args, "--cache-mode"),
+      versioning: args.includes("--versioning"),
+    }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage bucket created", result);
+  }
+  if (command === "update") {
+    const id = required(firstValueArg(args), "bucket id");
+    const result = await spinner("Updating Storage bucket", () => client.updateStorageBucket(id, {
+      name: flagValue(args, "--name"),
+      visibility: args.includes("--public") ? "public" : args.includes("--private") ? "private" : undefined,
+    }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage bucket updated", result);
+  }
+  if (command === "delete" || command === "rm") {
+    const id = required(firstValueArg(args), "bucket id");
+    await spinner("Deleting Storage bucket", () => client.deleteStorageBucket(id));
+    return printSuccess(`Deleted Storage bucket ${id}`);
+  }
+  if (command === "analytics") {
+    const id = required(firstValueArg(args), "bucket id");
+    const result = await spinner("Fetching Storage analytics", () => client.storageAnalytics(id, flagValue(args, "--timeframe") || "30d"));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage analytics", result);
+  }
+  if (command === "billing") {
+    const result = await spinner("Fetching Storage billing", () => client.storageBilling({
+      bucketId: flagValue(args, "--bucket"),
+      limit: flagValue(args, "--limit") ? Number(flagValue(args, "--limit")) : undefined,
+    }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage billing", result);
+  }
+  if (command === "keys") {
+    const id = required(firstValueArg(args), "bucket id");
+    const result = await spinner("Fetching Storage access keys", () => client.listStorageAccessKeys(id));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage access keys", result);
+  }
+  if (command === "key-create") {
+    const id = required(firstValueArg(args), "bucket id");
+    const result = await spinner("Creating Storage access key", () => client.createStorageAccessKey(id, {
+      name: flagValue(args, "--name"),
+      permission: args.includes("--read-only") ? "read" : "read_write",
+    }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Storage access key created", result);
+  }
+  if (command === "key-delete") {
+    const values = valueArgs(args);
+    const bucketId = required(values[0], "bucket id");
+    const keyId = required(values[1], "key id");
+    await spinner("Deleting Storage access key", () => client.deleteStorageAccessKey(bucketId, keyId));
+    return printSuccess(`Deleted Storage access key ${keyId}`);
+  }
+  throw new Error(`Unknown storage command: ${command}`);
+}
+
+async function analytics(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "help";
+  const timeframe = flagValue(args, "--timeframe") || "24h";
+  let result: unknown;
+  if (command === "project") {
+    result = await spinner("Fetching project traffic", () => client.projectTraffic(required(firstValueArg(args), "project id"), { timeframe, domain: flagValue(args, "--domain") }));
+  } else if (command === "domain") {
+    result = await spinner("Fetching domain traffic", () => client.domainTraffic(required(firstValueArg(args), "domain id"), { timeframe, teamId: flagValue(args, "--team") }));
+  } else if (command === "user-domain") {
+    result = await spinner("Fetching user-domain traffic", () => client.userDomainTraffic(required(firstValueArg(args), "domain"), timeframe));
+  } else {
+    return print(commandHelp("analytics"));
+  }
+  if (wantsJSON(args)) return printJSON(result);
+  return printNestedObject("Analytics", result);
+}
+
+async function customers(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "list";
+  if (command === "list" || command === "ls") {
+    const result = await spinner("Fetching customers", () => client.listCustomers());
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Customers", result);
+  }
+  if (command === "get" || command === "show") {
+    const result = await spinner("Fetching customer", () => client.getCustomer(required(firstValueArg(args), "customer id")));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Customer", result);
+  }
+  if (command === "create") {
+    const input = jsonFlag(args, "--data") as unknown as Parameters<PxxlClient["createCustomer"]>[0];
+    const result = await spinner("Saving customer", () => client.createCustomer(input));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Customer created", result);
+  }
+  if (command === "update") {
+    const id = required(firstValueArg(args), "customer id");
+    const input = jsonFlag(args, "--data") as Parameters<PxxlClient["updateCustomer"]>[1];
+    const result = await spinner("Updating customer", () => client.updateCustomer(id, input));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Customer updated", result);
+  }
+  if (command === "delete" || command === "rm") {
+    const id = required(firstValueArg(args), "customer id");
+    await spinner("Deleting customer", () => client.deleteCustomer(id));
+    return printSuccess(`Deleted customer ${id}`);
+  }
+  throw new Error(`Unknown customers command: ${command}`);
+}
+
+async function invoices(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "list";
+  const teamId = flagValue(args, "--team");
+  if (command === "list" || command === "ls") {
+    const result = await spinner("Fetching invoices", () => client.listDomainInvoices(teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Invoices", result);
+  }
+  if (command === "get" || command === "show") {
+    const id = required(firstValueArg(args), "invoice id");
+    const result = await spinner("Fetching invoice", () => client.getDomainInvoice(id, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Invoice", result);
+  }
+  if (command === "payment-url" || command === "payment") {
+    const id = required(firstValueArg(args), "invoice id");
+    const result = await spinner("Creating payment URL", () => client.getPaymentUrl(id, flagValue(args, "--currency") as DomainCurrency | undefined, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Payment URL", result);
+  }
+  if (command === "pay") {
+    const id = required(firstValueArg(args), "invoice id");
+    const result = await spinner("Starting invoice payment", () => client.payDomainInvoice(id, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Invoice payment", result);
+  }
+  if (command === "cancel") {
+    const id = required(firstValueArg(args), "invoice id");
+    const result = await spinner("Cancelling invoice", () => client.cancelDomainInvoice(id, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Invoice cancelled", result);
+  }
+  if (command === "bachs-pay") {
+    const id = required(firstValueArg(args), "invoice id");
+    const result = await spinner("Opening Bachs checkout", () => client.bachsPayDomainInvoice(id, { currency: flagValue(args, "--currency"), teamId }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Bachs checkout", result);
+  }
+  if (command === "polar-pay") {
+    const id = required(firstValueArg(args), "invoice id");
+    const result = await spinner("Opening Polar checkout", () => client.polarPayDomainInvoice(id, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Polar checkout", result);
+  }
+  if (command === "purchased-domains") {
+    const result = await spinner("Fetching purchased domains", () => client.listPurchasedDomains());
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Purchased domains", result);
+  }
+  throw new Error(`Unknown invoices command: ${command}`);
+}
+
+async function billing(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "list";
+  const teamId = flagValue(args, "--team");
+  if (command === "list" || command === "ls") {
+    const result = await spinner("Fetching all invoices", () => client.listInvoices({ status: flagValue(args, "--status"), teamId }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Billing invoices", result);
+  }
+  if (command === "get" || command === "show") {
+    const id = required(firstValueArg(args), "invoice id");
+    const result = await spinner("Fetching billing invoice", () => client.getInvoice(id, teamId));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Billing invoice", result);
+  }
+  if (command === "create") {
+    const input = jsonFlag(args, "--data") as unknown as Parameters<PxxlClient["createInvoice"]>[0];
+    const result = await spinner("Creating billing invoice", () => client.createInvoice(input));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Billing invoice created", result);
+  }
+  if (command === "payment-link" || command === "payment") {
+    const id = required(firstValueArg(args), "invoice id");
+    const result = await spinner("Creating payment link", () => client.createInvoicePaymentLink(id));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Payment link", result);
+  }
+  throw new Error(`Unknown billing command: ${command}`);
+}
+
 async function domains(client: PxxlClient, args: string[]) {
   const command = args.shift() || "list";
+  if (command === "tlds" || command === "pricing") {
+    const result = await spinner("Fetching domain pricing", () => client.listTLDs());
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain pricing", result);
+  }
+  if (command === "tld-search" || command === "search-tld") {
+    const result = await spinner("Searching domain extensions", () => client.searchTLDs(required(firstValueArg(args), "TLD search")));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain extensions", result);
+  }
+  if (command === "search") {
+    const result = await spinner("Searching domain availability", () => client.searchDomains({ query: required(firstValueArg(args), "domain search") }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain search", result);
+  }
+  if (command === "verify-registration") {
+    const domain = required(firstValueArg(args), "domain");
+    const result = await spinner(`Verifying ${domain} for registration`, () => client.verifyDomainRegistration(domain));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Registration verification", result);
+  }
+  if (command === "addons" || command === "add-ons") {
+    const result = await spinner("Fetching domain add-ons", () => client.listDomainAddons({ type: flagValue(args, "--type") }));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain add-ons", result);
+  }
+  if (command === "purchase" || command === "register") {
+    const input = jsonFlag(args, "--data") as unknown as Parameters<PxxlClient["purchaseDomain"]>[0];
+    const result = await spinner("Creating domain invoice", () => client.purchaseDomain(input));
+    if (wantsJSON(args)) return printJSON(result);
+    return printNestedObject("Domain purchase", result);
+  }
+  if (command === "orders") {
+    const action = args.shift() || "list";
+    if (action === "list" || action === "ls") {
+      const result = await spinner("Fetching domain orders", () => client.listDomainOrders());
+      if (wantsJSON(args)) return printJSON(result);
+      return printNestedObject("Domain orders", result);
+    }
+    if (action === "get" || action === "show") {
+      const result = await spinner("Fetching domain order", () => client.getDomainOrder(required(firstValueArg(args), "order id")));
+      if (wantsJSON(args)) return printJSON(result);
+      return printNestedObject("Domain order", result);
+    }
+    if (action === "create") {
+      const input = jsonFlag(args, "--data") as Parameters<PxxlClient["createDomainOrder"]>[0];
+      const result = await spinner("Creating domain order", () => client.createDomainOrder(input));
+      if (wantsJSON(args)) return printJSON(result);
+      return printNestedObject("Domain order created", result);
+    }
+    throw new Error(`Unknown domain orders command: ${action}`);
+  }
   if (command === "list" || command === "ls") {
     const result = await spinner("Fetching domains", () => client.listDomains(flagValue(args, "--team")));
     if (wantsJSON(args)) return printJSON(result);
@@ -937,6 +1338,14 @@ function parseHeadersJSON(raw: string): Record<string, string> {
   const parsed = JSON.parse(raw);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("--headers must be a JSON object");
   return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key, String(value)]));
+}
+
+function jsonFlag(args: string[], name: string): Record<string, unknown> {
+  const raw = flagValue(args, name);
+  if (!raw) throw new Error(`${name} requires a JSON object`);
+  const parsed: unknown = JSON.parse(raw);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(`${name} must be a JSON object`);
+  return parsed as Record<string, unknown>;
 }
 
 function firstValueArg(args: string[]): string | undefined {

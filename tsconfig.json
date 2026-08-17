@@ -7,10 +7,10 @@
     "declaration": true,
     "declarationMap": true,
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "sdks/javascript/pxxl/src",
     "strict": true,
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["sdks/javascript/pxxl/src/**/*.ts"]
 }

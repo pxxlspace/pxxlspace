@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { execFile as execFileCallback } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import { unzipSync } from "fflate";
 import {
   PxxlAPIError,
+  Pxxl,
   PxxlClient,
   createProjectZip,
   readBoilerplateManifest,
@@ -14,7 +17,9 @@ import {
   saveTeamSelection,
   readAuthConfig,
   clearAuthConfig,
-} from "../dist/index.js";
+} from "../../../../dist/index.js";
+
+const execFile = promisify(execFileCallback);
 
 test("sends bearer auth and parses CDN summary", async () => {
   const client = new PxxlClient({
@@ -508,6 +513,129 @@ test("domain invoice SDK methods stay out of CLI routes", async () => {
   });
   const result = await client.listDomainInvoices();
   assert.equal(result.invoices[0].id, "inv_1");
+});
+
+test("unified client keeps customer, purchase, invoice, and cron flows together", async () => {
+  const requests = [];
+  const client = new Pxxl({
+    apiKey: "pxxl_unified",
+    fetchImpl: async (url, init) => {
+      requests.push({ url, init });
+      if (url.endsWith("/cli/contacts")) {
+        return Response.json({ contact: { id: 42, firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" } });
+      }
+      if (url.endsWith("/cli/domainprovider/domain/register")) {
+        const body = JSON.parse(init.body);
+        assert.equal(body.contactId, 42);
+        return Response.json({ error: false, data: { invoiceId: "inv_42", grandTotal: 15000 } });
+      }
+      if (url.includes("/cli/domainprovider/invoice/inv_42/payment-url")) {
+        return Response.json({ error: false, data: { invoiceId: "inv_42", paymentUrl: "https://pay.example/inv_42" } });
+      }
+      if (url.endsWith("/cli/cronjobs")) {
+        return Response.json({ id: "cron_1", name: "refresh", schedule: "*/15 * * * *", url: "https://example.com/cron", method: "POST", status: "active" });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  assert.notEqual(client.billing, client.invoices);
+  assert.equal(client.cron, client.cronjobs);
+  assert.equal(client.cdn, client.assets);
+  const customer = await client.customers.create({
+    firstName: "Ada",
+    lastName: "Lovelace",
+    email: "ada@example.com",
+    phone: "+2348000000000",
+    address1: "1 Example Street",
+    city: "Lagos",
+    state: "Lagos",
+    postalCode: "100001",
+    country: "NG",
+  });
+  const purchase = await client.domains.purchase({
+    customerId: customer.id,
+    currency: "NGN",
+    domains: [{ domainName: "example.com", years: 1 }],
+  });
+  const payment = await client.invoices.getPaymentUrl(purchase.invoice.id);
+  const cron = await client.cronjobs.create({
+    name: "refresh",
+    schedule: "*/15 * * * *",
+    url: "https://example.com/cron",
+    method: "POST",
+  });
+
+  assert.equal(purchase.invoiceId, "inv_42");
+  assert.equal(payment.paymentUrl, "https://pay.example/inv_42");
+  assert.equal(cron.id, "cron_1");
+  assert.equal(requests.every(({ init }) => init.headers.get("Authorization") === "Bearer pxxl_unified"), true);
+});
+
+test("unified client exposes Storage resource operations", async () => {
+  const seen = [];
+  const client = new Pxxl({
+    apiKey: "pxxl_storage",
+    fetchImpl: async (url, init) => {
+      seen.push(`${init.method || "GET"} ${url}`);
+      if (url.endsWith("/storage/buckets")) return Response.json({ bucket: { id: "bucket_1", name: "assets", visibility: "private", status: "active" }, buckets: [] });
+      if (url.includes("/storage/buckets/bucket_1/analytics")) return Response.json({ analytics: { requests: 2, bandwidthBytes: 10 } });
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  const created = await client.storage.createBucket({ name: "assets" });
+  const analytics = await client.storage.analytics("bucket_1", "7d");
+  assert.equal(created.bucket.id, "bucket_1");
+  assert.equal(analytics.requests, 2);
+  assert.deepEqual(seen, [
+    "POST https://server.pxxl.app/api/v3/storage/buckets",
+    "GET https://server.pxxl.app/api/v3/storage/buckets/bucket_1/analytics?timeframe=7d",
+  ]);
+});
+
+test("unified client exposes Storage objects and general billing", async () => {
+  const calls = [];
+  const client = new Pxxl({
+    apiKey: "pxxl_storage",
+    fetchImpl: async (url, init = {}) => {
+      calls.push({ url, init });
+      if (url.endsWith("/cdn/assets?bucketId=bucket_1")) return Response.json({ assets: [], pagination: { total: 0 } });
+      if (url.endsWith("/cdn/assets") && init.method === "POST") {
+        assert.equal(init.body.get("bucketId"), "bucket_1");
+        assert.equal(init.body.get("path"), "images");
+        return Response.json({ asset: { id: "asset_1", fileName: "logo.png" } }, { status: 201 });
+      }
+      if (url.endsWith("/cli/invoices?status=pending")) return Response.json({ invoices: [{ id: "invoice_1", status: "pending" }], count: 1 });
+      if (url.endsWith("/cli/invoices/invoice_1")) return Response.json({ invoice: { id: "invoice_1", status: "pending" } });
+      throw new Error(`Unexpected request: ${url}`);
+    },
+  });
+
+  const objects = await client.storage.listObjects("bucket_1");
+  const uploaded = await client.storage.uploadObject("bucket_1", {
+    file: new Blob(["hello"]),
+    fileName: "logo.png",
+    path: "images",
+  });
+  const invoices = await client.billing.list({ status: "pending" });
+  const invoice = await client.billing.get("invoice_1");
+
+  assert.equal(objects.pagination.total, 0);
+  assert.equal(uploaded.id, "asset_1");
+  assert.equal(invoices.invoices[0].id, "invoice_1");
+  assert.equal(invoice.invoice.id, "invoice_1");
+  assert.equal(calls.every(({ init }) => init.headers.get("Authorization") === "Bearer pxxl_storage"), true);
+});
+
+test("CLI help exposes the unified platform commands", async () => {
+  const result = await execFile(process.execPath, ["dist/cli.js", "--help"]);
+  assert.match(result.stdout, /pxxl storage buckets/);
+  assert.match(result.stdout, /pxxl customers create/);
+  assert.match(result.stdout, /pxxl invoices payment-url/);
+  assert.match(result.stdout, /pxxl billing list/);
+  assert.match(result.stdout, /pxxl domains purchase/);
+  assert.match(result.stdout, /pxxl cron create/);
 });
 
 async function withTempConfig(fn) {

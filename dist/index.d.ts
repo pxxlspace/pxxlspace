@@ -1,3 +1,4 @@
+import { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlInvoices, PxxlProjects, PxxlStorage, PxxlTeams } from "./resources.js";
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
 export declare const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
@@ -10,6 +11,193 @@ export interface PxxlClientOptions {
     teamId?: string;
     fetchImpl?: typeof fetch;
 }
+export type DomainCurrency = "NGN" | "USD";
+export interface CustomerInput {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    address1: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+    organization?: string;
+    address2?: string;
+    isDefault?: boolean;
+}
+export interface Customer extends CustomerInput {
+    id: number | string;
+    userId?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+export type UpdateCustomerInput = Partial<CustomerInput>;
+export interface DomainPurchaseItem {
+    domainName: string;
+    tld?: string;
+    name?: string;
+    price?: string;
+    years?: number;
+    isFreeDomain?: boolean;
+    addons?: Array<{
+        id: string;
+    }>;
+    nameservers?: string[];
+}
+export interface DomainInvoiceContact {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    phonecc?: string;
+    phonenum?: string;
+    [key: string]: unknown;
+}
+export interface DomainInvoiceAddress {
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+    [key: string]: unknown;
+}
+export interface PurchaseDomainInput {
+    domains: DomainPurchaseItem[];
+    customerId?: number | string;
+    contactId?: number | string;
+    contact?: DomainInvoiceContact;
+    address?: DomainInvoiceAddress;
+    total?: string;
+    currency?: DomainCurrency;
+    teamId?: string;
+}
+export interface DomainAddon {
+    id: string;
+    name: string;
+    description?: string;
+    price?: number;
+    priceDollar?: number;
+    type?: string | null;
+    [key: string]: unknown;
+}
+export interface PaymentUrl {
+    paymentUrl: string;
+    checkoutUrl?: string;
+    reference?: string;
+    invoiceId: string;
+    currency?: DomainCurrency | string;
+    paymentUrlExpiresAt?: string;
+    [key: string]: unknown;
+}
+export interface DomainPurchaseResult {
+    invoiceId: string;
+    invoice: DomainInvoice;
+    computedTotal?: number;
+    taxAmount?: number;
+    grandTotal?: number;
+    currency?: DomainCurrency | string;
+    domains?: DomainPurchaseItem[];
+    domainErrors?: string[];
+    [key: string]: unknown;
+}
+export interface DomainOrder {
+    id: number | string;
+    contactId?: number | null;
+    status?: string;
+    createdAt?: string;
+    [key: string]: unknown;
+}
+export interface DomainRegistrationVerification {
+    domain: DomainSearchResult;
+    [key: string]: unknown;
+}
+export interface DomainDNSRecord {
+    type: string;
+    value: string[];
+    ttl?: number;
+}
+export interface DomainDNSLookupResult {
+    domain: string;
+    nameservers?: string[];
+    records: Record<string, DomainDNSRecord>;
+    status: string;
+    [key: string]: unknown;
+}
+export type StorageVisibility = "private" | "public";
+export type StorageKeyPermission = "read" | "read_write";
+export interface StorageBucket {
+    id: string;
+    userId?: string;
+    name: string;
+    slug?: string;
+    visibility: StorageVisibility;
+    status: string;
+    storageLimitBytes?: number;
+    bandwidthLimitBytes?: number;
+    storageBytes?: number;
+    bandwidthBytes?: number;
+    objectCount?: number;
+    metadata?: Record<string, unknown>;
+    suspendedAt?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+}
+export interface StorageAccessKey {
+    id: string;
+    name: string;
+    accessKeyId: string;
+    secretAccessKey?: string;
+    secretPrefix?: string;
+    permission: StorageKeyPermission;
+    status: string;
+    endpoint: string;
+    region: string;
+    bucket: string;
+    pathStyle: boolean;
+    createdAt?: string;
+    lastUsedAt?: string | null;
+}
+export interface StorageBucketAnalytics {
+    requests: number;
+    bandwidthBytes: number;
+    uploadedBytes: number;
+    downloadedBytes: number;
+    uploadCount: number;
+    downloadCount: number;
+    objectCount: number;
+    publicObjects: number;
+    privateObjects: number;
+    largestObjectBytes: number;
+    averageObjectBytes: number;
+    contentTypes: Record<string, number>;
+    recentActivity: Array<Record<string, unknown>>;
+    timeline?: Array<Record<string, unknown>>;
+    storageExhaustion?: Record<string, unknown> | null;
+    bandwidthExhaustion?: Record<string, unknown> | null;
+}
+export interface StorageBillingResponse {
+    billing: Record<string, unknown>;
+    entries: Array<Record<string, unknown>>;
+    usageMonths?: Array<Record<string, unknown>>;
+    invoices?: Array<Record<string, unknown>>;
+}
+export interface CreateStorageBucketInput {
+    name: string;
+    visibility?: StorageVisibility;
+    region?: string;
+    cacheMode?: string;
+    versioning?: boolean;
+}
+export interface UpdateStorageBucketInput {
+    name?: string;
+    visibility?: StorageVisibility;
+}
+export interface CreateStorageAccessKeyInput {
+    name?: string;
+    permission?: StorageKeyPermission;
+}
+export type AnalyticsTimeframe = "24h" | "48h" | "72h" | "7d" | "30d" | string;
 export interface CDNAsset {
     id: string;
     userId: string;
@@ -39,6 +227,12 @@ export interface CDNSummary {
     configured: boolean;
     storageName: string;
 }
+export interface CDNSpace {
+    id: string;
+    name: string;
+    status: string;
+    suspendedAt?: string | null;
+}
 export interface UploadAssetInput {
     file: Blob;
     fileName: string;
@@ -46,12 +240,15 @@ export interface UploadAssetInput {
     kind?: CDNAssetKind;
     projectId?: string;
     deploymentId?: string;
+    bucketId?: string;
+    path?: string;
 }
 export interface ListAssetsInput {
     page?: number;
     limit?: number;
     search?: string;
     kind?: CDNAssetKind;
+    bucketId?: string;
 }
 export interface DomainTLD {
     id?: number;
@@ -322,6 +519,48 @@ export interface DomainInvoice {
     updatedAt?: string;
     grandTotal?: number;
 }
+export interface InvoiceListItem {
+    id: string;
+    invoiceId?: string;
+    invoiceNumber?: string;
+    source?: string;
+    type?: string;
+    status: string;
+    total?: number;
+    taxAmount?: number;
+    grandTotal?: number;
+    currency?: string;
+    paymentUrl?: string | null;
+    expiresAt?: string;
+    paidAt?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+    [key: string]: unknown;
+}
+export interface InvoiceListResult {
+    invoices: InvoiceListItem[];
+    count: number;
+    error?: boolean;
+}
+export interface InvoiceDetailResult {
+    invoice: Record<string, unknown>;
+    domains?: unknown[];
+    registrations?: unknown[];
+    grandTotal?: number;
+    source?: string;
+    error?: boolean;
+    [key: string]: unknown;
+}
+export interface CreateInvoiceInput {
+    domainOrderId: number | string;
+}
+export interface PaymentLinkResult {
+    paymentUrl?: string;
+    authorizationUrl?: string;
+    reference?: string;
+    invoiceId?: string;
+    [key: string]: unknown;
+}
 export interface DeployConfig {
     name?: string;
     domainChoice?: string;
@@ -369,6 +608,16 @@ export declare class PxxlClient {
     stats(teamId?: string | undefined): Promise<unknown>;
     platformUsage(teamId?: string | undefined): Promise<unknown>;
     summary(): Promise<CDNSummary>;
+    getCDNSpace(): Promise<{
+        space: CDNSpace;
+        storageName?: string;
+    }>;
+    createCDNSpace(input?: {
+        name?: string;
+    }): Promise<{
+        space: CDNSpace;
+        storageName?: string;
+    }>;
     listAssets(input?: ListAssetsInput): Promise<{
         assets: CDNAsset[];
         pagination: unknown;
@@ -376,7 +625,54 @@ export declare class PxxlClient {
     uploadAsset(input: UploadAssetInput): Promise<CDNAsset>;
     downloadAsset(id: string): Promise<Blob>;
     deleteAsset(id: string): Promise<void>;
+    listStorageObjects(bucketId: string, input?: Omit<ListAssetsInput, "bucketId">): Promise<{
+        assets: CDNAsset[];
+        pagination: unknown;
+    }>;
+    uploadStorageObject(bucketId: string, input: Omit<UploadAssetInput, "bucketId">): Promise<CDNAsset>;
+    downloadStorageObject(id: string): Promise<Blob>;
+    deleteStorageObject(id: string): Promise<void>;
     usage(limit?: number): Promise<unknown[]>;
+    listStorageBuckets(): Promise<{
+        buckets: StorageBucket[];
+        total?: number;
+        access?: unknown;
+    }>;
+    getStorageBucket(id: string): Promise<{
+        bucket: StorageBucket;
+        access?: unknown;
+    }>;
+    createStorageBucket(input: CreateStorageBucketInput): Promise<{
+        bucket: StorageBucket;
+        access?: unknown;
+    }>;
+    updateStorageBucket(id: string, input: UpdateStorageBucketInput): Promise<{
+        bucket: StorageBucket;
+        access?: unknown;
+    }>;
+    deleteStorageBucket(id: string): Promise<void>;
+    storageAnalytics(id: string, timeframe?: string): Promise<StorageBucketAnalytics>;
+    storageBilling(input?: {
+        bucketId?: string;
+        limit?: number;
+    }): Promise<StorageBillingResponse>;
+    listStorageAccessKeys(bucketId: string): Promise<{
+        keys: StorageAccessKey[];
+    }>;
+    createStorageAccessKey(bucketId: string, input?: CreateStorageAccessKeyInput): Promise<{
+        key: StorageAccessKey;
+        notice?: string;
+    }>;
+    deleteStorageAccessKey(bucketId: string, keyId: string): Promise<void>;
+    projectTraffic(projectId: string, input?: {
+        timeframe?: AnalyticsTimeframe;
+        domain?: string;
+    }): Promise<unknown>;
+    domainTraffic(domainId: string, input?: {
+        timeframe?: AnalyticsTimeframe;
+        teamId?: string;
+    }): Promise<unknown>;
+    userDomainTraffic(domain: string, timeframe?: AnalyticsTimeframe): Promise<unknown>;
     listTLDs(): Promise<{
         tlds: DomainTLD[];
         count: number;
@@ -397,6 +693,46 @@ export declare class PxxlClient {
         latency?: number;
         cached?: boolean;
     }>;
+    getTLD(tld: string): Promise<{
+        tld: DomainTLD;
+    }>;
+    domainDNSLookup(domain: string, type?: string): Promise<DomainDNSLookupResult>;
+    bulkDomainDNSLookup(domains: string[]): Promise<{
+        results: Record<string, DomainDNSLookupResult>;
+        count: number;
+    }>;
+    verifyDomainRegistration(domain: string): Promise<DomainRegistrationVerification>;
+    listDomainAddons(input?: {
+        type?: string;
+    }): Promise<{
+        addons: DomainAddon[];
+        count: number;
+    }>;
+    getDomainAddon(id: string): Promise<{
+        addon: DomainAddon;
+    }>;
+    purchaseDomain(input: PurchaseDomainInput): Promise<DomainPurchaseResult>;
+    createDomainAddonInvoice(domainId: string, addonIds: string[], currency?: DomainCurrency): Promise<unknown>;
+    createDomainOrder(input: {
+        domains: string[];
+        customerId?: number | string;
+        contactId?: number | string;
+    }): Promise<unknown>;
+    listDomainOrders(): Promise<{
+        orders: DomainOrder[];
+        count: number;
+    }>;
+    getDomainOrder(id: number | string): Promise<unknown>;
+    updateDomainOrderDuration(domainId: number | string, duration: number): Promise<unknown>;
+    addDomainOrderAddons(domainId: number | string, addonIds: string[]): Promise<unknown>;
+    createCustomer(input: CustomerInput): Promise<Customer>;
+    listCustomers(): Promise<{
+        customers: Customer[];
+        count: number;
+    }>;
+    getCustomer(id: number | string): Promise<Customer>;
+    updateCustomer(id: number | string, input: UpdateCustomerInput): Promise<Customer>;
+    deleteCustomer(id: number | string): Promise<void>;
     listDomains(teamId?: string | undefined): Promise<{
         domains: Array<DomainSummary | string>;
         total?: number;
@@ -550,6 +886,26 @@ export declare class PxxlClient {
         error?: boolean;
     }>;
     getDomainInvoicePaymentUrl(id: string, teamId?: string | undefined): Promise<unknown>;
+    getPaymentUrl(id: string, currency?: DomainCurrency, teamId?: string | undefined): Promise<PaymentUrl>;
+    payDomainInvoice(id: string, teamId?: string | undefined): Promise<PaymentUrl>;
+    bachsPayDomainInvoice(id: string, input?: {
+        currency?: string;
+        baseCurrency?: string;
+        paymentMethod?: string;
+        teamId?: string;
+    }): Promise<unknown>;
+    polarPayDomainInvoice(id: string, teamId?: string | undefined): Promise<unknown>;
+    listPurchasedDomains(): Promise<{
+        domains: Array<Record<string, unknown>>;
+        count: number;
+    }>;
+    listInvoices(input?: {
+        status?: string;
+        teamId?: string;
+    }): Promise<InvoiceListResult>;
+    getInvoice(id: string, teamId?: string | undefined): Promise<InvoiceDetailResult>;
+    createInvoice(input: CreateInvoiceInput): Promise<InvoiceDetailResult>;
+    createInvoicePaymentLink(id: string): Promise<PaymentLinkResult>;
     cancelDomainInvoice(id: string, teamId?: string | undefined): Promise<unknown>;
     deploy(input: DeployInput): Promise<unknown>;
     private request;
@@ -557,6 +913,28 @@ export declare class PxxlClient {
 }
 export declare const PxxlCDN: typeof PxxlClient;
 export declare const PxxlCDNError: typeof PxxlAPIError;
+/**
+ * Unified platform client. Flat PxxlClient methods remain available for
+ * compatibility, while grouped resources keep larger integrations readable.
+ */
+export declare class Pxxl extends PxxlClient {
+    readonly assets: PxxlAssets;
+    readonly cdn: PxxlAssets;
+    readonly storage: PxxlStorage;
+    readonly analytics: PxxlAnalytics;
+    readonly projects: PxxlProjects;
+    readonly deployments: PxxlDeployments;
+    readonly domains: PxxlDomains;
+    readonly customers: PxxlCustomers;
+    readonly invoices: PxxlInvoices;
+    readonly billing: PxxlBilling;
+    readonly cronjobs: PxxlCronJobs;
+    readonly cron: PxxlCronJobs;
+    readonly teams: PxxlTeams;
+    readonly databases: PxxlDatabases;
+    constructor(options?: PxxlClientOptions);
+}
+export { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlInvoices, PxxlProjects, PxxlStorage, PxxlTeams, };
 export declare const defaultPxxlIgnore: string[];
 export declare function createProjectZip(cwd: string): Promise<Uint8Array>;
 export declare function readPxxlToml(cwd: string): Promise<DeployConfig>;
