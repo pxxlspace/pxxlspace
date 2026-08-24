@@ -1,0 +1,32 @@
+---
+title: "Database Settings"
+sidebarTitle: "Settings"
+description: "Manage database resources, networking, ownership, and lifecycle actions."
+---
+
+The **Settings** section controls the instance rather than the application code that connects to it.
+
+## Settings areas
+
+| Area | What it controls |
+| --- | --- |
+| **General** | Name, engine details, status, and ownership. |
+| **Compute** | Assigned CPU, memory, and resource limits. |
+| **Transfer** | Moving the database to another supported workspace or owner. |
+| **Networking** | Connection and network-related settings for the managed instance. |
+| **Danger zone** | Stop, restart, or delete actions. |
+
+## Lifecycle actions
+
+- **Start** makes a stopped database available again.
+- **Stop** pauses the service and causes application connections to fail until it is started.
+- **Restart** cycles the service when the database needs a controlled restart.
+- **Delete** removes the instance after the confirmation flow completes.
+
+Before changing resources, check [Monitoring](/database/monitoring) so you know what is driving the change. Before deleting or making a destructive change, confirm that a current recovery point exists in [Backups](/database/backups).
+
+## After a change
+
+Resource and lifecycle changes can affect availability. Check the database status, reconnect from the project, and review project Live Logs after the change.
+
+Changing database settings does not automatically update application code. If a connection value changes, update the project environment variables and redeploy.

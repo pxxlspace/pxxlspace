@@ -1,0 +1,32 @@
+---
+title: "Cron Job Schedules"
+sidebarTitle: "Schedules"
+description: "Write a five-field cron expression and preview the next run."
+---
+
+Pxxl accepts five-field cron expressions in this order:
+
+<code>minute hour day-of-month month day-of-week</code>
+
+| Schedule | Expression |
+| --- | --- |
+| Every minute | <code>* * * * *</code> |
+| Every five minutes | <code>*/5 * * * *</code> |
+| Every hour | <code>0 * * * *</code> |
+| Every day at midnight | <code>0 0 * * *</code> |
+| Every Monday at 09:00 | <code>0 9 * * 1</code> |
+
+## Choose a schedule
+
+Use **Validate** in the form to check the expression and preview the next run before saving. The form also includes presets for every minute, every five, ten, or thirty minutes, every hour, daily at midnight, and weekly schedules.
+
+## Design for the schedule
+
+- Keep the work idempotent. A manual trigger or operational repeat should not duplicate the result.
+- Move long work into a queue and return a success response after the request is accepted.
+- Make the endpoint safe at the frequency you choose.
+- Use a project association when the job belongs to one project and should appear in its access scope.
+
+## Time and next run
+
+Pxxl calculates the next run when the job is saved or updated. Check the next run shown in the job detail before enabling a production schedule.

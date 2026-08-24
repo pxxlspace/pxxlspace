@@ -1,0 +1,212 @@
+---
+title: "CDN and Storage API"
+description: "Deliver files globally and manage S3-compatible object storage."
+---
+
+Use CDN endpoints for directly served assets. Use Storage endpoints for buckets, access keys, billing, and analytics. Bucket objects use the CDN asset endpoints with `bucketId`.
+
+## Create a bucket
+
+`POST /storage/buckets`
+
+<ParamField body="name" type="string" required>
+  Unique display name.
+</ParamField>
+
+<ParamField body="visibility" type="private | public" default="private">
+  Bucket visibility.
+</ParamField>
+
+<ParamField body="region" type="string">
+  Preferred region when available.
+</ParamField>
+
+<ParamField body="cacheMode" type="string">
+  Optional public cache behavior.
+</ParamField>
+
+<ParamField body="versioning" type="boolean" default="false">
+  Enables supported object versioning.
+</ParamField>
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/storage/buckets \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"uploads","visibility":"private","versioning":true}'
+```
+
+```json
+{
+  "bucket": {
+    "id": "bucket_123",
+    "name": "uploads",
+    "slug": "uploads",
+    "visibility": "private",
+    "status": "active",
+    "storageBytes": 0,
+    "bandwidthBytes": 0,
+    "objectCount": 0,
+    "createdAt": "2026-08-17T08:00:00Z"
+  },
+  "access": { "canRead": true, "canWrite": true }
+}
+```
+
+## Bucket endpoints
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/storage/buckets` | None | `{ buckets, total, access? }` |
+| `POST` | `/storage/buckets` | Bucket body above | `{ bucket, access? }` |
+| `GET` | `/storage/buckets/{bucketId}` | Bucket ID | `{ bucket, access? }` |
+| `PATCH` | `/storage/buckets/{bucketId}` | `name?`, `visibility?` | `{ bucket, access? }` |
+| `DELETE` | `/storage/buckets/{bucketId}` | Bucket ID | Empty response or action result |
+| `GET` | `/storage/buckets/{bucketId}/analytics` | `timeframe?` | `{ analytics }` |
+| `GET` | `/storage/billing` | `bucketId?`, `limit?` | Billing ledger and usage months |
+
+## Upload an object
+
+`POST /cdn/assets`
+
+This endpoint uses `multipart/form-data`.
+
+<ParamField body="file" type="file" required>
+  Object contents.
+</ParamField>
+
+<ParamField body="bucketId" type="string" required>
+  Destination bucket ID.
+</ParamField>
+
+<ParamField body="visibility" type="private | public" default="public">
+  Per-object visibility.
+</ParamField>
+
+<ParamField body="path" type="string">
+  Optional object path.
+</ParamField>
+
+```bash
+curl https://server.pxxl.app/api/v3/cdn/assets \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --form "file=@avatar.png" \
+  --form "bucketId=bucket_123" \
+  --form "path=avatars/robin.png" \
+  --form "visibility=private"
+```
+
+```json
+{
+  "asset": {
+    "id": "asset_123",
+    "fileName": "avatar.png",
+    "key": "storage/bucket_123/avatars/robin.png",
+    "contentType": "image/png",
+    "size": 48120,
+    "visibility": "private",
+    "kind": "file",
+    "createdAt": "2026-08-17T08:05:00Z"
+  }
+}
+```
+
+## Object endpoints
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cdn/assets` | `bucketId`, `page?`, `limit?`, `search?`, `kind?` | `{ assets, pagination }` |
+| `POST` | `/cdn/assets` | Multipart fields above | `{ asset }` |
+| `GET` | `/cdn/assets/{assetId}/download` | Asset ID | Binary file |
+| `DELETE` | `/cdn/assets/{assetId}` | Asset ID | Empty successful response |
+
+## Create an S3 access key
+
+`POST /storage/buckets/{bucketId}/access-keys`
+
+<ParamField body="name" type="string">
+  Label for the integration using the key.
+</ParamField>
+
+<ParamField body="permission" type="read | read_write" default="read">
+  Allowed S3 operations.
+</ParamField>
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/storage/buckets/bucket_123/access-keys \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"media-worker","permission":"read_write"}'
+```
+
+```json
+{
+  "key": {
+    "id": "key_123",
+    "name": "media-worker",
+    "accessKeyId": "pxxl_access_123",
+    "secretAccessKey": "shown-only-once",
+    "permission": "read_write",
+    "endpoint": "https://storage.pxxl.app",
+    "region": "auto",
+    "bucket": "uploads",
+    "pathStyle": true,
+    "status": "active"
+  },
+  "notice": "Save the secret access key now."
+}
+```
+
+<Warning>
+  `secretAccessKey` is returned once. Store it securely and never include it in logs.
+</Warning>
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/storage/buckets/{bucketId}/access-keys` | Bucket ID | Key collection without secrets |
+| `POST` | `/storage/buckets/{bucketId}/access-keys` | `name?`, `permission?` | Created key and one-time secret |
+| `DELETE` | `/storage/buckets/{bucketId}/access-keys/{keyId}` | Bucket ID and key ID | Empty successful response |
+
+## Storage analytics
+
+```bash
+curl "https://server.pxxl.app/api/v3/storage/buckets/bucket_123/analytics?timeframe=30d" \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "analytics": {
+    "requests": 2140,
+    "bandwidthBytes": 83047210,
+    "uploadedBytes": 12000000,
+    "downloadedBytes": 71047210,
+    "uploadCount": 32,
+    "downloadCount": 2108,
+    "objectCount": 84,
+    "publicObjects": 60,
+    "privateObjects": 24,
+    "contentTypes": { "image/png": 42 },
+    "recentActivity": [],
+    "timeline": []
+  }
+}
+```
+
+## CDN endpoints
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cdn/summary` | None | Summary totals and recent assets |
+| `GET` | `/cdn/space` | None | Current CDN space |
+| `POST` | `/cdn/space` | `name?` | Created CDN space |
+| `GET` | `/cdn/assets` | Asset filters and pagination | Asset collection |
+| `POST` | `/cdn/assets` | Multipart asset fields | Created asset |
+| `GET` | `/cdn/assets/{assetId}/download` | Asset ID | Binary file |
+| `DELETE` | `/cdn/assets/{assetId}` | Asset ID | Empty successful response |
+| `GET` | `/cdn/usage` | `limit?` | Usage events |
+| `GET` | `/cdn/proxy-logs` | `limit?`, `projectId?` | Proxy logs |
+| `GET` | `/cdn/edge-functions` | `projectId?`, `status?`, `limit?` | Edge function collection |
+| `POST` | `/cdn/edge-functions` | Edge function metadata | Created edge function |

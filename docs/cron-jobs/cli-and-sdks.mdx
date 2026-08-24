@@ -1,0 +1,32 @@
+---
+title: "Cron CLI and SDKs"
+sidebarTitle: "CLI and SDKs"
+description: "Create and manage Pxxl Cron Jobs through the CLI or supported SDKs."
+---
+
+The dashboard is the quickest way to create a job. Use automation when cron jobs are part of your infrastructure setup or need to be recreated across workspaces.
+
+## CLI
+
+The CLI supports cron job operations such as listing jobs, creating a job, reading a job, triggering a run, starting, stopping, and deleting a job. See the [Cron CLI reference](/api/cron-cli) for the current commands and flags.
+
+Keep the API key in your shell's secret manager or CI environment. Do not place it in a repository or a client-side application.
+
+## SDKs
+
+Use a server-side SDK when your application already manages Pxxl resources in code:
+
+- [Node.js SDK](/api/cron-node-sdk)
+- [Go SDK](/api/cron-go-sdk)
+- [Python SDK](/api/cron-python-sdk)
+- [Rust SDK](/api/cron-rust-sdk)
+
+The SDKs call the Pxxl HTTP API. They do not turn the cron endpoint into a private network service. The endpoint still needs to be public and authenticated as described in [Connection](/cron-jobs/connection).
+
+## Automation checklist
+
+- Give each job a stable name.
+- Keep the schedule in source control.
+- Store the Pxxl API key outside the repository.
+- Create or update jobs idempotently.
+- Confirm the first run in [Monitoring](/cron-jobs/monitoring).

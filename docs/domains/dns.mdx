@@ -1,0 +1,40 @@
+---
+title: "Domain DNS"
+sidebarTitle: "DNS"
+description: "Manage DNS records when Pxxl controls the domain zone."
+---
+
+Use the **DNS** section when the domain uses Pxxl DNS. Select **New Record**, enter the name, type, value, and TTL, then save the record.
+
+## Record types
+
+| Record | Common use |
+| --- | --- |
+| **A** | Route a hostname to an IPv4 address. |
+| **AAAA** | Route a hostname to an IPv6 address. |
+| **CNAME** | Point a hostname to another hostname. |
+| **TXT** | Verification, SPF, DKIM, DMARC, and other text values. |
+| **MX** | Route email to a mail provider. MX records use a priority value. |
+| **NS** | Delegate a hostname to another nameserver. |
+
+## Record values
+
+- Use the root name or the value shown by Pxxl for the apex domain.
+- Use only the subdomain label when the form asks for a name such as <code>api</code>.
+- Use **Auto** for TTL unless you need a specific cache period.
+- TTL can be between 60 and 86400 seconds.
+- MX priority can be between 0 and 65535.
+
+## DNS control
+
+Pxxl can edit records only when Pxxl DNS controls the zone. If another provider controls the nameservers, Pxxl can show live values but cannot edit the external zone. Make the change at that provider, then return to [Nameservers](/domains/nameservers) to verify it.
+
+The DNS changelog records changes and supports rollback when a previous record set needs to be restored.
+
+## Before changing a record
+
+1. Confirm the hostname and record type.
+2. Check whether another record already serves the same hostname.
+3. Review the proxy setting when the record routes web traffic.
+4. Allow time for resolver caches to expire.
+5. Use [Monitoring](/domains/monitoring) to confirm the route after propagation.

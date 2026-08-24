@@ -1,0 +1,60 @@
+---
+title: "API authentication"
+description: "Authenticate requests, select a team, and understand key permissions."
+---
+
+Send your API key as a Bearer token from a trusted server.
+
+```http
+Authorization: Bearer pxxl_your_key
+Accept: application/json
+```
+
+<ParamField header="Authorization" type="string" required>
+  `Bearer` followed by your Pxxl API key.
+</ParamField>
+
+<ParamField query="teamId" type="string">
+  Team used for a scoped request.
+</ParamField>
+
+## Check the active identity
+
+```bash
+curl https://server.pxxl.app/api/v3/cli/whoami \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "success": true,
+  "user": { "id": "user_123", "email": "developer@example.com" },
+  "authMethod": "api_key",
+  "apiKeyId": "key_123",
+  "apiKeyScope": "deploy,storage",
+  "apiKeyPermission": "read_write",
+  "teamId": "team_123"
+}
+```
+
+## Identity endpoints
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/whoami` | None | Identity and API key permissions |
+| `GET` | `/cli/stats` | `teamId?` | Account or team resource totals |
+| `GET` | `/cli/usage` | `teamId?` | Build, runtime, database, and storage usage |
+
+## Scopes and permissions
+
+The API checks both scope and permission.
+
+| Setting | Examples | Effect |
+| --- | --- | --- |
+| Scope | `deploy`, `domains`, `storage`, `databases`, `cronjobs`, `analytics`, `teams`, `all` | Limits accessible modules |
+| Permission | `read`, `read_write` | Controls whether mutations are allowed |
+| Team | `teamId` | Limits resources to a team you can access |
+
+<Warning>
+  Do not expose API keys in browser code, public repositories, screenshots, logs, or client-side environment variables.
+</Warning>

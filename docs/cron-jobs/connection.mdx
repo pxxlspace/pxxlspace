@@ -1,0 +1,54 @@
+---
+title: "Cron Job Connection"
+sidebarTitle: "Connection"
+description: "Configure the HTTP endpoint, method, timeout, headers, and project for a cron job."
+---
+
+Select **New Cron Job** and add the endpoint details.
+
+| Field | What it controls |
+| --- | --- |
+| **Job name** | The label shown in the job list and run history. |
+| **Method** | <code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>PATCH</code>, or <code>DELETE</code>. |
+| **Request URL** | The public <code>http</code> or <code>https</code> endpoint Pxxl calls. |
+| **Timeout** | How long Pxxl waits, from 1 to 30 seconds. |
+| **Headers** | Optional name and value pairs sent with every request. |
+| **Project** | An optional project association. |
+
+## Authenticate the endpoint
+
+Use a header instead of placing a secret in the URL:
+
+```bash
+curl -X POST https://api.example.com/jobs/refresh \
+  -H 'Authorization: Bearer YOUR_CRON_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"source":"pxxl-cron"}'
+```
+
+Pxxl stores configured headers as protected job credentials. Your endpoint should verify the header before starting work.
+
+## Create the job
+
+<Steps>
+  <Step title="Add request details">
+    Enter the name, method, public URL, and timeout.
+  </Step>
+  <Step title="Test the URL">
+    Use **Test URL** to check that Pxxl can reach the host before saving the job.
+  </Step>
+  <Step title="Add headers and a schedule">
+    Add only the headers the endpoint needs, then continue to [Schedules](/cron-jobs/schedules).
+  </Step>
+  <Step title="Save the job">
+    Pxxl validates the schedule and calculates the next run time.
+  </Step>
+</Steps>
+
+## Connection checklist
+
+- Use a public endpoint that Pxxl can reach.
+- Authenticate the request with a header or signature.
+- Keep the handler short enough for the configured timeout.
+- Make the handler safe to repeat.
+- Do not put tokens, passwords, or database URLs in the request URL.

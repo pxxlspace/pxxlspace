@@ -1,0 +1,38 @@
+---
+title: "CLI overview"
+description: "Deploy and manage Pxxl from your terminal."
+---
+
+The Pxxl CLI ships with `@pxxlapp/pxxl`. It uses the same API as the SDK and dashboard.
+
+## Install
+
+```bash
+npm install --global @pxxlapp/pxxl
+pxxl login
+pxxl whoami
+```
+
+`pxxl login` saves your API key locally. In CI, set `PXXL_API_KEY` instead.
+
+<ParamField body="PXXL_API_KEY" type="string">
+  API key used when `--api-key` is not provided.
+</ParamField>
+
+<ParamField body="PXXL_TEAM_ID" type="string">
+  Default team for team-scoped commands.
+</ParamField>
+
+<ParamField body="PXXL_API_URL" type="string" default="https://server.pxxl.app/api/v3">
+  API base URL. Change this only for a private or local Pxxl installation.
+</ParamField>
+
+## Learn a command
+
+```bash
+pxxl --help
+pxxl projects --help
+pxxl deploy --help
+```
+
+Use `--json` when another program needs to read the result.

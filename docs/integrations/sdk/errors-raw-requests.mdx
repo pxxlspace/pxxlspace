@@ -1,0 +1,47 @@
+---
+title: "Errors and raw requests"
+description: "Handle API errors and call new endpoints before a convenience method ships."
+---
+
+Every SDK includes a low-level request method. It uses the same authentication, base URL, and error handling as the convenience methods.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    try {
+      const result = await pxxl.api.request("/cli/whoami");
+    } catch (error) {
+      if (error instanceof PxxlAPIError) console.error(error.status, error.details);
+    }
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    var result map[string]any
+    err := client.Request(ctx, "GET", "/cli/whoami", nil, &result)
+    var apiErr *pxxl.APIError
+    if errors.As(err, &apiErr) { log.Println(apiErr.StatusCode) }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    try:
+        result = client.request("GET", "/cli/whoami")
+    except PxxlAPIError as error:
+        print(error.status_code, error.message)
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    match client.request_json("GET", "/cli/whoami", None).await {
+        Ok(result) => println!("{result}"),
+        Err(PxxlError::Api { status, message, .. }) => eprintln!("{status}: {message}"),
+        Err(error) => return Err(error),
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Raw request paths must begin with `/` and stay inside the official Pxxl API base URL.
+</Warning>

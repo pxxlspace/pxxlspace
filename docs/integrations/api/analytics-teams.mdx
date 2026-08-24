@@ -1,0 +1,89 @@
+---
+title: "Analytics and teams API"
+description: "Read traffic analytics and work within team scopes."
+---
+
+## Project traffic
+
+`GET /projects/{projectId}/analytics/traffic`
+
+<ParamField query="timeframe" type="24h | 48h | 72h | 7d | 30d" default="24h">
+  Analytics period.
+</ParamField>
+
+<ParamField query="domain" type="string">
+  Limits results to one project hostname.
+</ParamField>
+
+```bash
+curl "https://server.pxxl.app/api/v3/projects/proj_123/analytics/traffic?timeframe=7d&domain=api.example.com" \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "projectId": "proj_123",
+  "timeframe": "7d",
+  "analytics": {
+    "requests": 12540,
+    "visitors": 3210,
+    "pageViews": 9820,
+    "responseBytes": 428901220,
+    "requestBytes": 12047210,
+    "errors": 31,
+    "p50LatencyMs": 18,
+    "p95LatencyMs": 76,
+    "p99LatencyMs": 140,
+    "topDomains": [],
+    "countries": [],
+    "timeline": []
+  }
+}
+```
+
+## Analytics endpoints
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/projects/{projectId}/analytics/traffic` | `timeframe?`, `domain?` | Project traffic summary and timeline |
+| `GET` | `/domains/my/{domainId}/analytics` | `timeframe?`, `teamId?` | Owned domain traffic |
+| `GET` | `/user/analytics` | `domain`, `timeframe?` | Traffic for an owned hostname |
+
+Analytics responses can include requests, unique visitors, page views, request and response transfer, errors, latency percentiles, countries, devices, referrers, paths, and timeline buckets.
+
+## List teams
+
+`GET /teams`
+
+```bash
+curl https://server.pxxl.app/api/v3/teams \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "teams": [
+    {
+      "id": "team_123",
+      "name": "Production",
+      "myRole": "owner",
+      "status": "active",
+      "totalMembers": 4,
+      "totalProjects": 8,
+      "totalDatabases": 2,
+      "totalDomains": 5
+    }
+  ],
+  "total": 1
+}
+```
+
+## Team endpoints
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/teams` | None | `{ teams, total }` |
+| `GET` | `/teams/{teamId}` | Team ID | `{ team, success? }` |
+| `GET` | `/teams/{teamId}/databases` | Team ID | Team database collection |
+
+Pass `teamId` to supported project, domain, database, cron, invoice, and usage endpoints when working outside your personal scope.

@@ -1,0 +1,60 @@
+---
+title: "How Pxxl Builds"
+sidebarTitle: "How Pxxl Builds"
+description: "Follow a Pxxl deployment from the dashboard queue to a live route."
+---
+
+Pxxl keeps the deployment record and the route state in its Gateway control plane. Build and runtime work are handed to the service that owns each stage.
+
+<Steps>
+  <Step title="Pxxl creates a deployment task">
+    The Deploy flow records the project and deployment, adds the job to the deployment queue, and creates a task for the build log. The queue keeps work ordered and limits concurrent builds for an account.
+  </Step>
+
+  <Step title="Pxxl reads the source">
+    Git projects are cloned at the selected branch and base directory. The analysis checks the repository files, framework hints, package manager, services, and any <code>pxxl.toml</code> settings. Dockerfile, Docker image, WordPress, template, and Pxxl Drop sources use their own setup path.
+  </Step>
+
+  <Step title="Pxxl creates a build plan">
+    The plan contains the language, framework, runtime version, install command, build command, start command, port, output directory, and deployment target. The target is either <code>runtime</code> for a Web Service or <code>static</code> for a Static App.
+  </Step>
+
+  <Step title="The build service runs the plan">
+    The build service runs the source and commands in an isolated build environment, then sends status, artifact information, and logs back to the Gateway. The dashboard polls the task and keeps the build output visible in the deployment flow.
+  </Step>
+
+  <Step title="Pxxl publishes the result">
+    Static and runtime deployments take different paths after the build:
+
+    - **Static Apps:** Pxxl uploads the release to R2 under a project and deployment prefix. The Gateway writes a static route with the bucket and prefix.
+    - **Web Service:** Pxxl creates or updates a runtime container, waits for it to pass its health check, and then writes a runtime route for the service.
+  </Step>
+</Steps>
+
+## How Nomad and Consul fit together
+
+For a Web Service, the Gateway creates a Nomad service job with the image, port, environment, replicas, and health check. Nomad schedules the job on a runtime host. The job registers its HTTP service with Consul and uses Consul health checks to report whether the service is ready.
+
+Runtime environment values are stored through the Pxxl secret path and delivered to the Nomad task through its Vault template. The runtime task uses a restricted container configuration and the configured gVisor runtime where the platform is enabled.
+
+When the Consul service is healthy, Pxxl writes a route under the host name. The route identifies the project, deployment, service, and service alias. The Pxxl Caddy controller watches the route data, resolves healthy Consul upstreams, and applies the public edge route.
+
+## The Static Apps path
+
+Static Apps do not receive a Nomad runtime job.
+
+For a plain Git static source, Pxxl clones the selected commit, checks the base directory for an entry file, and uploads the files to an immutable R2 prefix. For a built static stack, the build service marks the artifact as a static release and the Gateway publishes that artifact to the same release storage.
+
+The Gateway writes a Consul route with type <code>static</code>, the release bucket, and the release prefix. Caddy uses that data to serve the files through the Pxxl static gateway. The previous release can be removed after the new route is active.
+
+## What you see in the dashboard
+
+The deployment log follows the same stages used by the control plane:
+
+1. source
+2. install and build
+3. artifact or runtime handoff
+4. health and route
+5. cleanup and completion
+
+If a Web Service is not healthy, the route is not promoted. If a Static Apps project cannot find an entry file or publish its release, the deployment stops with the failure in the build log.

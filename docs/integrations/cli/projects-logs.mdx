@@ -1,0 +1,23 @@
+---
+title: "Projects and logs"
+description: "Inspect projects, deployments, runtime output, and build logs."
+---
+
+```bash
+pxxl projects list
+pxxl projects get proj_123
+pxxl deployments list --project proj_123
+pxxl logs --project proj_123
+```
+
+Use `--follow` to keep reading new log entries.
+
+```bash
+pxxl logs --project proj_123 --follow
+```
+
+For automation, request structured output:
+
+```bash
+pxxl projects list --json
+```

@@ -1,0 +1,124 @@
+---
+title: "Cron jobs API"
+description: "Schedule HTTP requests, control jobs, trigger runs, and inspect history."
+---
+
+## Create a cron job
+
+`POST /cli/cronjobs`
+
+<ParamField body="name" type="string" required>
+  Job name shown in Pxxl.
+</ParamField>
+
+<ParamField body="schedule" type="string" required>
+  Five-field cron expression.
+</ParamField>
+
+<ParamField body="url" type="string" required>
+  HTTPS endpoint called by the job.
+</ParamField>
+
+<ParamField body="method" type="GET | POST | PUT | PATCH | DELETE" default="GET">
+  HTTP method sent to the endpoint.
+</ParamField>
+
+<ParamField body="headers" type="object">
+  Request headers sent by Pxxl.
+</ParamField>
+
+<ParamField body="timeoutSeconds" type="number">
+  Maximum execution time.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Associated project.
+</ParamField>
+
+<ParamField query="teamId" type="string">
+  Owning team.
+</ParamField>
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/cronjobs \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"nightly cleanup","schedule":"0 2 * * *","url":"https://api.example.com/jobs/cleanup","method":"POST","timeoutSeconds":30}'
+```
+
+```json
+{
+  "id": "cron_123",
+  "name": "nightly cleanup",
+  "schedule": "0 2 * * *",
+  "url": "https://api.example.com/jobs/cleanup",
+  "method": "POST",
+  "timeoutSeconds": 30,
+  "status": "active",
+  "consecutiveFailures": 0,
+  "lastRunAt": null,
+  "nextRunAt": "2026-08-18T02:00:00Z"
+}
+```
+
+## Cron endpoints
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/cronjobs` | `teamId?` | `{ cronJobs }` |
+| `POST` | `/cli/cronjobs` | Creation body above, `teamId?` | Cron job |
+| `GET` | `/cli/cronjobs/{cronJobId}` | `teamId?` | Cron job |
+| `PUT` | `/cli/cronjobs/{cronJobId}` | Editable fields, `status?`, `teamId?` | Updated cron job |
+| `DELETE` | `/cli/cronjobs/{cronJobId}` | `teamId?` | Action result |
+| `POST` | `/cli/cronjobs/{cronJobId}/start` | `teamId?` | Action result |
+| `POST` | `/cli/cronjobs/{cronJobId}/stop` | `teamId?` | Action result |
+| `POST` | `/cli/cronjobs/{cronJobId}/trigger` | `teamId?` | Accepted run result |
+| `GET` | `/cli/cronjobs/{cronJobId}/runs` | `page?`, `limit?`, `teamId?` | Paginated runs |
+| `POST` | `/cli/cronjobs/validate-schedule` | `{ schedule }` | Validation result |
+| `POST` | `/cli/cronjobs/validate-url` | `{ url }` | Validation result |
+
+## Trigger a run
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/cronjobs/cron_123/trigger \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "success": true,
+  "message": "Cron job triggered",
+  "runId": "run_123",
+  "status": "running"
+}
+```
+
+## Run history
+
+```json
+{
+  "runs": [
+    {
+      "id": "run_123",
+      "cronJobId": "cron_123",
+      "status": "success",
+      "statusCode": 200,
+      "output": "ok",
+      "error": null,
+      "timedOut": false,
+      "startedAt": "2026-08-17T08:05:00Z",
+      "finishedAt": "2026-08-17T08:05:01Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
+}
+```
+
+<Note>
+  Job headers can contain secrets. Keep cron management in trusted server code.
+</Note>

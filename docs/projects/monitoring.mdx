@@ -1,0 +1,29 @@
+---
+title: "Monitoring"
+sidebarTitle: "Monitoring"
+description: "Review CPU, memory, and runtime footprint for an active Pxxl service."
+---
+
+The **Monitoring** tab shows resource use across the active runtime. Use it after a deployment, during a traffic increase, or when deciding whether to change compute settings.
+
+<Frame caption="Monitoring shows the latest runtime measurements and resource activity over time.">
+  <img src="/images/project-monitoring.jpeg" alt="Pxxl monitoring screen showing CPU and memory utilization cards with a resource activity chart." />
+</Frame>
+
+## Runtime measurements
+
+| Measurement | Meaning |
+| --- | --- |
+| **CPU** | Latest CPU utilization for the active runtime. |
+| **Application memory** | Memory used by the application process. |
+| **Sandbox overhead** | Host memory used by the application's sandbox. |
+| **Total footprint** | Application memory plus sandbox overhead. |
+| **Peak footprint** | Highest recorded total footprint in the selected timeframe. |
+
+The **Resource Activity** chart shows CPU and memory movement across the selected period.
+
+## Timeframes and replicas
+
+Choose **24h**, **48h**, **72h**, **7d**, or **30d**. If the project has more than one runtime instance, use the instance selector to view one replica or the combined view.
+
+Monitoring helps you decide when to open [Compute & Scaling](/projects/compute). It does not replace application logs or Web Analytics.

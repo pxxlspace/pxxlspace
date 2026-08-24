@@ -1,0 +1,26 @@
+---
+title: "CDN and Storage"
+description: "Upload assets, inspect delivery, and manage S3-compatible Storage."
+---
+
+## CDN
+
+```bash
+pxxl cdn summary
+pxxl cdn upload ./public/logo.png
+pxxl cdn usage --limit 100
+pxxl cdn proxy-logs
+pxxl cdn edge-functions
+```
+
+## Storage
+
+```bash
+pxxl storage buckets
+pxxl storage create app-assets
+pxxl storage key-create bucket_123 --name production
+pxxl storage analytics bucket_123 --timeframe 30d
+pxxl storage billing
+```
+
+Storage access keys work with S3-compatible tools. Save the secret when it is created because it may not be shown again.

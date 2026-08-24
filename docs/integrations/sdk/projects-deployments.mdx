@@ -1,0 +1,165 @@
+---
+title: "Projects and deployments"
+description: "Deploy source code, inspect projects, redeploy, and read logs."
+---
+
+## Deploy a directory
+
+<ParamField body="cwd" type="path" default="current directory">
+  Directory packaged and uploaded by the SDK.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Project name for a new deployment.
+</ParamField>
+
+<ParamField body="domainChoice" type="string" required>
+  Pxxl domain suffix for a new project, such as `pxxl.pro`.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Deploys to an existing project instead of creating one.
+</ParamField>
+
+<ParamField body="environment" type="string" default="production">
+  Deployment environment.
+</ParamField>
+
+<ParamField body="port" type="number">
+  Port exposed by a web service.
+</ParamField>
+
+<ParamField body="baseDirectory" type="string">
+  Project root inside a monorepo.
+</ParamField>
+
+<ParamField body="installCommand" type="string">
+  Overrides dependency installation.
+</ParamField>
+
+<ParamField body="buildCommand" type="string">
+  Overrides the detected build command.
+</ParamField>
+
+<ParamField body="startCommand" type="string">
+  Overrides the detected start command.
+</ParamField>
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const deployment = await pxxl.deployments.deploy({
+      cwd: ".",
+      name: "api",
+      domainChoice: "pxxl.pro",
+      port: 3000,
+      startCommand: "npm start",
+    });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    deployment, err := client.Deploy(ctx, pxxl.DeployInput{
+      Directory: ".", Name: "api", DomainChoice: "pxxl.pro",
+      Port: 3000, StartCommand: "npm start",
+    })
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    deployment = client.deploy(
+        directory=".", name="api", domain_choice="pxxl.pro",
+        port=3000, start_command="npm start",
+    )
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let deployment = client.deploy(DeployInput {
+        directory: Some(".".into()), name: Some("api".into()),
+        domain_choice: Some("pxxl.pro".into()),
+        start_command: Some("npm start".into()), ..Default::default()
+    }).await?;
+    ```
+  </Tab>
+</Tabs>
+
+**Returns**
+
+```json
+{
+  "success": true,
+  "projectId": "proj_123",
+  "deploymentId": "dep_123",
+  "projectUrl": "https://api.pxxl.pro",
+  "status": "queued",
+  "taskId": "task_123"
+}
+```
+
+## Project operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `projects.list(input?)` | `teamId?`, `page?`, `limit?` | Project list and pagination |
+| Get | `projects.get(id)` | Project ID | `{ project }` or project data wrapper |
+| Deployments | `projects.deployments(input?)` | `projectId?`, `page?`, `limit?`, `teamId?` | Deployment list and pagination |
+| Logs | `projects.logs(id, input?)` | `lines?`, `since?` | Runtime log collection |
+| Live logs | `projects.liveLogs(id, input?)` | `lines?`, `since?` | Recent live runtime logs |
+
+```json
+{
+  "projects": [
+    {
+      "id": "proj_123",
+      "name": "api",
+      "status": "active",
+      "projectType": "web_service",
+      "framework": "express",
+      "language": "node"
+    }
+  ],
+  "page": 1,
+  "limit": 20,
+  "total": 1
+}
+```
+
+## Deployment operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| Deploy | `deployments.deploy(input)` | Deployment fields above | Deployment accepted result |
+| List | `deployments.list(input?)` | `projectId?`, `page?`, `limit?`, `teamId?` | Deployment list and pagination |
+| Get | `deployments.get(id)` | Deployment ID | Deployment detail |
+| Runtime logs | `deployments.logs(id, input?)` | `build: false`, `since?` | Runtime logs |
+| Build logs | `deployments.buildLogs(id, since?)` | Deployment ID, `since?` | Build phase logs |
+| Redeploy | `deployments.redeploy(projectId, input?)` | `commitSha?`, `commitMessage?` | New deployment result |
+
+```json
+{
+  "deployments": [
+    {
+      "id": "dep_123",
+      "projectId": "proj_123",
+      "status": "successful",
+      "commitSha": "9868bbc",
+      "commitMessage": "first commit",
+      "createdAt": "2026-08-17T08:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+Build logs return phase-aware entries when available.
+
+```json
+{
+  "deploymentId": "dep_123",
+  "status": "building",
+  "logs": [
+    { "phase": "install", "message": "Installing dependencies", "timestamp": "2026-08-17T08:01:00Z" }
+  ]
+}
+```

@@ -1,0 +1,119 @@
+---
+title: "Multiple Services and Monorepos"
+sidebarTitle: "Multiple Services"
+description: "Deploy multiple applications from one repository with separate service settings and routes."
+---
+
+Use **Multiple Services** when one repository contains more than one application that should build or run independently. This is common for a monorepo with a web app and API, or for an API with a background worker.
+
+Pxxl keeps the services under one project while giving each service its own directory, commands, port, and routing behavior.
+
+## When to use it
+
+- A web app and API live in the same repository.
+- A backend and worker share packages or a lockfile.
+- Several applications share one monorepo but need separate public routes.
+- A worker should deploy with the project but should not receive public traffic.
+
+## Service settings
+
+Each service has its own deployment settings:
+
+| Setting | Meaning |
+| --- | --- |
+| **Alias** | The short name used to identify the service, such as `web`, `api`, or `worker`. |
+| **Base directory** | The repository directory that contains the service. |
+| **Service type** | The role of the service, such as `web`, `api`, or `worker`. |
+| **Route** | Whether Pxxl should expose the service through a public project route. |
+| **Port** | The internal port used by the service. Each running service needs its own port. |
+| **Install command** | Installs dependencies for the service or the shared workspace. |
+| **Build command** | Creates the production artifact when the service needs a build. |
+| **Start command** | Starts the service inside its runtime. |
+
+## Example monorepo
+
+This layout keeps the web app and API in one Turborepo workspace:
+
+```text
+apps/
+  web/
+  api/
+packages/
+  ui/
+pnpm-workspace.yaml
+package.json
+pxxl.toml
+```
+
+Configure the services like this:
+
+| Alias | Base directory | Type | Route | Port |
+| --- | --- | --- | --- | --- |
+| `web` | `apps/web` | `web` | Yes | `3000` |
+| `api` | `apps/api` | `api` | Yes | `3001` |
+
+The shared lockfile can be installed from the repository root. Service build commands can then use workspace filters, such as `pnpm --filter @pxxl/turbo-web run build`.
+
+## Example API and worker project
+
+For an API and worker, use a public route for the API and keep the worker private:
+
+| Alias | Base directory | Type | Route | Port |
+| --- | --- | --- | --- | --- |
+| `api` | `services/api` | `api` | Yes | `3000` |
+| `worker` | `services/worker` | `worker` | No | `3001` |
+
+The worker still builds and runs with the project, but Pxxl does not publish a public hostname for it.
+
+## Configure it in Deploy
+
+<Steps>
+  <Step title="Enable Multiple Services">
+    In **Deploy > Build Configuration**, turn on **Multiple Services** after selecting the repository.
+  </Step>
+  <Step title="Add each service">
+    Give every service an alias, select its base directory, choose its type, and decide whether it needs a public route.
+  </Step>
+  <Step title="Set ports and commands">
+    Add the install, build, and start commands for each service. Confirm that every running service uses the port assigned to it.
+  </Step>
+  <Step title="Review and deploy">
+    Check the service list, secrets, domains, and resource settings before selecting **Deploy Project**.
+  </Step>
+</Steps>
+
+## Configure services with pxxl.toml
+
+Use `[services.<alias>]` when a saved service needs build settings that differ from repository detection:
+
+```toml
+[services.api]
+baseDirectory = "apps/api"
+packageManager = "pnpm"
+installCommand = "cd ../.. && pnpm install --frozen-lockfile"
+startCommand = "pnpm run start"
+port = 3001
+
+[services.web]
+baseDirectory = "apps/web"
+packageManager = "pnpm"
+buildCommand = "cd ../.. && pnpm --filter @pxxl/turbo-web run build"
+startCommand = "pnpm run start"
+port = 3000
+```
+
+The alias in `pxxl.toml` must match the saved service alias. See [pxxl.toml](/api/pxxl-toml) for every service override.
+
+## Domains and service routes
+
+Attach a domain to the service that should receive its traffic. For CLI workflows, pass the service target when connecting the domain:
+
+```bash
+pxxl domains connect api.example.com --project <project-id> --service <service-id>
+```
+
+Use the API or web service for public traffic. Keep workers, queues, and scheduled processes un-routed unless they must receive HTTP requests.
+
+<Tip>
+  If a service fails to start, check its base directory, working directory, port, and start command first. A command that works from the repository root may fail when it runs from a service directory.
+</Tip>

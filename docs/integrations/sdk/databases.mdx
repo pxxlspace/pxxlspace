@@ -1,0 +1,147 @@
+---
+title: "Databases"
+description: "Create databases, control runtimes, inspect usage, and reveal credentials."
+---
+
+## Create a database
+
+<ParamField body="name" type="string" required>
+  Database name shown in Pxxl.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  `postgres`, `mysql`, `mariadb`, `mongodb`, `redis`, `dragonfly`, `keydb`, or `clickhouse`.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Short note about the database purpose.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Project connected to the database.
+</ParamField>
+
+<ParamField body="dailyBackupsEnabled" type="boolean" default="false">
+  Enables supported daily backups.
+</ParamField>
+
+<ParamField body="teamId" type="string">
+  Team that owns the database.
+</ParamField>
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const result = await pxxl.databases.create({
+      name: "app-db",
+      type: "postgres",
+      projectId: "proj_123",
+      dailyBackupsEnabled: true,
+    });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    result, err := client.CreateDatabase(ctx, map[string]any{
+      "name": "app-db", "type": "postgres", "projectId": "proj_123",
+      "dailyBackupsEnabled": true,
+    })
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = client.create_database({
+        "name": "app-db", "type": "postgres",
+        "projectId": "proj_123", "dailyBackupsEnabled": True,
+    })
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let result = client.create_database(json!({
+        "name": "app-db", "type": "postgres",
+        "projectId": "proj_123", "dailyBackupsEnabled": true
+    })).await?;
+    ```
+  </Tab>
+</Tabs>
+
+**Returns**
+
+```json
+{
+  "success": true,
+  "database": {
+    "id": "db_123",
+    "name": "app-db",
+    "type": "postgres",
+    "status": "provisioning",
+    "projectId": "proj_123",
+    "proxyHost": null,
+    "proxyPort": null,
+    "createdAt": "2026-08-17T08:00:00Z"
+  }
+}
+```
+
+## Database operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `databases.list(teamId?)` | `teamId?` | `{ databases, total, success? }` |
+| Get | `databases.get(id, teamId?)` | Database ID, `teamId?` | `{ database, success? }` |
+| Create | `databases.create(input)` | Fields above | `{ database, success? }` |
+| Update | `databases.update(id, input)` | `name?`, `description?`, `teamId?` | `{ database, success? }` |
+| Delete | `databases.delete(id, teamId?)` | Database ID, `teamId?` | Action result |
+| Start | `databases.start(id, teamId?)` | Database ID, `teamId?` | Action result |
+| Stop | `databases.stop(id, teamId?)` | Database ID, `teamId?` | Action result |
+| Restart | `databases.restart(id, teamId?)` | Database ID, `teamId?` | Action result |
+| Stats | `databases.stats(id, teamId?)` | Database ID, `teamId?` | Runtime status and resource summary |
+| Metrics | `databases.metrics(id, teamId?)` | Database ID, `teamId?` | Time-series CPU and memory metrics |
+| Usage | `databases.usage(id, teamId?)` | Database ID, `teamId?` | Storage, network, and plan usage |
+| Tables | `databases.tables(id, teamId?)` | Database ID, `teamId?` | Table or collection metadata |
+| Credential | `databases.credential(id, field, teamId?)` | `field` such as `password` or `url` | Revealed credential result |
+
+## Runtime responses
+
+Start, stop, and restart calls return the accepted action and current state.
+
+```json
+{
+  "success": true,
+  "message": "Database start requested",
+  "databaseId": "db_123",
+  "status": "starting"
+}
+```
+
+Metrics and usage calls return structured values that can gain new metrics over time.
+
+```json
+{
+  "databaseId": "db_123",
+  "status": "running",
+  "cpu": { "current": 0.12, "unit": "vCPU" },
+  "memory": { "currentBytes": 268435456 },
+  "storage": { "usedBytes": 104857600, "limitBytes": 10737418240 },
+  "series": []
+}
+```
+
+## Reveal a credential
+
+```ts
+const result = await pxxl.databases.credential("db_123", "password");
+const password = result.value;
+```
+
+```json
+{
+  "field": "password",
+  "value": "sensitive-value"
+}
+```
+
+<Warning>
+  Credential responses contain sensitive data. Do not log, cache, or send them to a browser.
+</Warning>

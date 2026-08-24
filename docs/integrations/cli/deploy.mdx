@@ -1,0 +1,46 @@
+---
+title: "Deploy with the CLI"
+description: "Inspect, configure, and deploy a project from your terminal."
+---
+
+## Deploy the current directory
+
+```bash
+cd my-project
+pxxl inspect
+pxxl deploy --name my-project --domain pxxl.pro
+```
+
+Pxxl packages the directory, uploads it, detects its stack, builds it, and starts the new release.
+
+```mermaid
+flowchart LR
+  Files["Project files"] --> Inspect["Inspect"]
+  Inspect --> Upload["Upload"]
+  Upload --> Build["Build"]
+  Build --> Release["Live release"]
+```
+
+## Common options
+
+<ParamField body="--name" type="string">
+  Name for a new project.
+</ParamField>
+
+<ParamField body="--domain" type="string" default="pxxl.pro">
+  Pxxl domain suffix for a new project.
+</ParamField>
+
+<ParamField body="--port" type="number">
+  Override the detected application port.
+</ParamField>
+
+<ParamField body="--dir" type="path" default=".">
+  Deploy a different local directory.
+</ParamField>
+
+## Redeploy an existing project
+
+```bash
+pxxl redeploy proj_123
+```

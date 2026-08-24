@@ -1,0 +1,51 @@
+---
+title: "Project Types"
+sidebarTitle: "Project Types"
+description: "Choose the right Pxxl deployment path for a running service or a static application."
+---
+
+Pxxl has two main deployment targets: **Web Service** and **Static Apps**. The target controls whether Pxxl starts a runtime container or publishes files to the edge.
+
+## Web Service
+
+A Web Service is a running application that handles HTTP requests.
+
+Use it for APIs, server-rendered applications, dashboards, and anything that needs code running after the build finishes.
+
+- Pxxl builds an image or runtime artifact.
+- The application runs as a container.
+- The service must listen on <code>$PORT</code> and bind to <code>0.0.0.0</code>.
+- Pxxl checks the service before publishing the public route.
+- Environment variables are available to the build and the running service.
+
+Common examples include Express, NestJS, Fastify, Hono, Next.js, Django, FastAPI, Rails, Go, Java, PHP, and Rust services.
+
+## Static Apps
+
+A Static App is a collection of files. Nothing needs to keep running after the files are published.
+
+Use it for plain HTML, frontend builds, documentation sites, and other projects that can be served from generated files.
+
+- Pxxl publishes the files to its R2-backed static release storage.
+- The public route points to that immutable release.
+- No runtime container, start command, port, or health check is needed.
+- Older releases can be cleaned up after the new release is live.
+
+Plain static Git sources must contain <code>index.html</code> or <code>index.htm</code> in the selected base directory. PHP projects use the PHP runtime instead of the Static App target. Build-backed static stacks such as Vite, React, Vue, Astro, Angular, Gatsby, and Flutter publish the output directory created by the build plan.
+
+## How Pxxl chooses the target
+
+The current Deploy flow does not require a separate type picker for every source. Pxxl uses the repository analysis and build plan to choose the target, then shows the detected settings during review.
+
+| Signal | Target |
+|---|---|
+| A server framework or a non-static start command | Web Service |
+| HTML or a supported static framework | Static Apps |
+| Docker image, Dockerfile, or WordPress source | Web Service |
+| A static Pxxl Drop upload | Static Apps |
+
+If the detected target is not right, change the build commands or source setup before submitting. The final target is recorded with the deployment.
+
+## Quick check
+
+Choose **Web Service** when a process must stay alive and answer requests. Choose **Static Apps** when the result is only files.

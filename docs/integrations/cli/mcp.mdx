@@ -1,0 +1,18 @@
+---
+title: "MCP from the CLI"
+description: "Inspect and call the Pxxl MCP server."
+---
+
+MCP uses `https://mcp.pxxl.app/mcp`. Set `PXXL_MCP_API_KEY` when its key differs from your Pxxl API key.
+
+```bash
+pxxl mcp ping
+pxxl mcp tools
+pxxl mcp resources
+pxxl mcp call deploy_project --data '{"projectId":"proj_123"}'
+pxxl mcp read "pxxl://projects/proj_123"
+```
+
+<Warning>
+  Review tool arguments before calling actions that deploy, purchase, delete, or rotate credentials.
+</Warning>

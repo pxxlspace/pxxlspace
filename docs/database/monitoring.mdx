@@ -1,0 +1,52 @@
+---
+title: "Database Monitoring"
+sidebarTitle: "Monitoring"
+description: "Read database health, connections, transfer, latency, storage, and resource activity."
+---
+
+The **Monitoring** section shows how the selected database is behaving over time. Use it after a deployment, a schema change, or a change in application traffic.
+
+## What to check
+
+| Signal | What it tells you |
+| --- | --- |
+| **Health** | Whether the instance is ready to accept connections. |
+| **Connections** | How many clients are connected and whether connection pressure is rising. |
+| **Transfer** | Data moving into and out of the database. |
+| **Storage** | Space used by data, indexes, and engine files. |
+| **Latency** | Whether database operations are taking longer than usual. |
+| **Usage** | How the workload compares with the plan and assigned resources. |
+
+## A useful review order
+
+<Steps>
+  <Step title="Check health">
+    Make sure the instance is healthy or running before investigating application errors.
+  </Step>
+  <Step title="Compare connections and latency">
+    A rise in both can point to slow queries, connection leaks, or a traffic spike.
+  </Step>
+  <Step title="Review storage and transfer">
+    Look for a growing dataset, a large migration, or unexpected data movement.
+  </Step>
+  <Step title="Review resource usage">
+    If the workload is close to its limit, open [Settings](/database/settings) before changing application connection settings.
+  </Step>
+</Steps>
+
+## Monitoring versus application logs
+
+Database monitoring shows the service and resource view. Your project **Live Logs** show the application's connection errors, query errors, and retry behavior. Check both when an application can reach its route but database requests are failing.
+
+## API access
+
+Server-side automation can read database usage and metrics through the [Database API](/api/database-api). Keep API keys out of browser code and grant only the access required by the monitoring job.
+
+## Monitoring checklist
+
+- Confirm the database is running.
+- Check whether connections are increasing without falling back.
+- Compare latency with recent deployments and migrations.
+- Check storage before it reaches the assigned limit.
+- Review project Live Logs for the matching error window.
+- Use [Connection](/database/connection) to confirm the application is using the current endpoint.

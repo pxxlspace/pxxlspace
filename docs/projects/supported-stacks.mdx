@@ -1,0 +1,173 @@
+---
+title: "Supported Stacks"
+sidebarTitle: "Supported Stacks"
+description: "See which languages, package managers, and frameworks Pxxl can detect during deployment."
+---
+
+Pxxl reads the files in a repository before it builds. It uses them to choose the language, package manager, framework, build commands, and deployment target.
+
+Detection gives you a starting point. You can review and change the build settings before deployment.
+
+## <img src="https://cdn.simpleicons.org/nodedotjs" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> Node.js and TypeScript
+
+Pxxl detects Node.js projects from <code>package.json</code>. It supports npm, pnpm, Yarn, and Bun.
+
+The lockfile chooses the package manager:
+
+- <code>pnpm-lock.yaml</code> uses pnpm.
+- <code>yarn.lock</code> uses Yarn.
+- <code>bun.lock</code> or <code>bun.lockb</code> uses Bun.
+- Without one of these files, Pxxl uses npm.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/nextdotjs/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Next.js</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/nuxt" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Nuxt</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/remix/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Remix</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/svelte" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Svelte</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/svelte" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> SvelteKit</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/tanstack" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> TanStack Start</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/tanstack" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> TanStack Router</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/express/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Express</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/nestjs" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> NestJS</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/hono" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Hono</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/fastify/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Fastify</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/koa" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Koa</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/vite" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Vite</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/react" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> React</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/vuedotjs" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Vue</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/astro" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Astro</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/angular/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Angular</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/solid" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> SolidStart</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/qwik" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Qwik</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/gatsby" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Gatsby</div>
+</div>
+
+Server frameworks use a Web Service target. Projects that produce static files use the Static App target.
+
+## <img src="https://cdn.simpleicons.org/python" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> Python
+
+Pxxl detects Python projects from <code>requirements.txt</code>, <code>pyproject.toml</code>, <code>Pipfile</code>, or <code>setup.py</code>. It supports pip, uv, Poetry, and Pipenv.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/django" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Django</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/fastapi" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> FastAPI</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/flask" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Flask</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/python" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Starlette</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/python" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Tornado</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/python" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Pyramid</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/php" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> PHP
+
+Pxxl detects PHP projects from <code>composer.json</code> and installs dependencies with Composer.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/laravel" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Laravel</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/symfony/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Symfony</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/codeigniter" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> CodeIgniter</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/cakephp" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> CakePHP</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/go" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> Go
+
+Pxxl detects Go projects from <code>go.mod</code>. It downloads modules, builds the application, and runs the resulting binary as a Web Service.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/gin" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Gin</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/go" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Echo</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/go" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Fiber</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/go" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Gorilla</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/go" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Chi</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/go" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Beego</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/rust/ffffff" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> Rust
+
+Pxxl detects Rust projects from <code>Cargo.toml</code>. It fetches dependencies, creates a release build, and runs the compiled application.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/actix/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Actix</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/rocket" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Rocket</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/warp" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Warp</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/rust/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Axum</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/openjdk/ffffff" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> Java and Kotlin
+
+Pxxl detects JVM projects from <code>pom.xml</code>, <code>build.gradle</code>, or <code>gradlew</code>. It supports Maven and Gradle.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/springboot" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Spring Boot</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/spring" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Spring</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/quarkus" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Quarkus</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/openjdk/ffffff" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Micronaut</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/dotnet" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> C# and .NET
+
+Pxxl detects .NET projects from <code>.csproj</code> or <code>.sln</code>. It restores dependencies, publishes a release build, and runs the application as a Web Service.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/dotnet" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> ASP.NET Core</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/blazor" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Blazor</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/ruby" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> Ruby
+
+Pxxl detects Ruby projects from <code>Gemfile</code> and installs dependencies with Bundler.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/ruby" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Rails</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/ruby" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Sinatra</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/ruby" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Hanami</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/dart" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> Dart
+
+Pxxl detects Dart projects from <code>pubspec.yaml</code>. It supports Dart applications, Flutter web builds, and Dart Frog projects.
+
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/flutter" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Flutter</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/dart" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Shelf</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/dart" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Dart Frog</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/html5" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> HTML and static projects
+
+Pxxl can publish projects with <code>index.html</code>, <code>index.htm</code>, or generated static output as Static Apps. PHP files are handled by the PHP runtime, not as static files.
+ and CSS tools
+
+<div className="pxxl-stack-frameworks grid grid-cols-2 gap-3 md:grid-cols-3">
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/html5" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Plain HTML</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/bootstrap" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Bootstrap</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/tailwindcss" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Tailwind CSS</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/bulma" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Bulma</div>
+  <div className="flex items-center gap-2"><img src="https://cdn.simpleicons.org/vite" alt="" width="18" height="18" className="h-4 w-4 shrink-0" /> Vite</div>
+</div>
+
+## <img src="https://cdn.simpleicons.org/docker" alt="" width="20" height="20" style={{display:"inline-block",verticalAlign:"middle",marginRight:"6px"}} /> Docker
+
+Docker deployments use a <code>Dockerfile</code> or a Docker image directly. Pxxl skips framework detection and runs the result as a Web Service.
+
+## When detection needs help
+
+Open **Build Configuration** in the Deploy flow and check:
+
+- the base directory
+- the language and framework
+- the package manager
+- the install command
+- the build command
+- the start command
+- the port
+
+For repeatable settings, add a <code>pxxl.toml</code> file to the project. Pxxl reads it when it creates the build plan and still lets you review the result before deployment.

@@ -1,0 +1,122 @@
+---
+title: "Databases API"
+description: "Create, inspect, operate, and monitor managed databases."
+---
+
+## Create a database
+
+`POST /databases`
+
+<ParamField body="name" type="string" required>
+  Database name shown in Pxxl.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  `postgres`, `mysql`, `mariadb`, `mongodb`, `redis`, `dragonfly`, `keydb`, or `clickhouse`.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Short description.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Connected project.
+</ParamField>
+
+<ParamField body="dailyBackupsEnabled" type="boolean" default="false">
+  Enables supported daily backups.
+</ParamField>
+
+<ParamField query="teamId" type="string">
+  Team that owns the database.
+</ParamField>
+
+```bash
+curl --request POST \
+  "https://server.pxxl.app/api/v3/databases?teamId=team_123" \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"app-db","type":"postgres","projectId":"proj_123","dailyBackupsEnabled":true}'
+```
+
+```json
+{
+  "success": true,
+  "database": {
+    "id": "db_123",
+    "name": "app-db",
+    "type": "postgres",
+    "status": "provisioning",
+    "projectId": "proj_123",
+    "proxyHost": null,
+    "proxyPort": null,
+    "createdAt": "2026-08-17T08:00:00Z"
+  }
+}
+```
+
+## Database endpoints
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/databases` | `teamId?` | `{ databases, total, success? }` |
+| `POST` | `/databases` | Creation body above, `teamId?` | `{ database, success? }` |
+| `GET` | `/databases/{databaseId}` | `teamId?` | `{ database, success? }` |
+| `PATCH` | `/databases/{databaseId}` | `name?`, `description?`, `teamId?` | Updated database |
+| `DELETE` | `/databases/{databaseId}` | `teamId?` | Action result |
+| `POST` | `/databases/{databaseId}/start` | `teamId?` | Start result |
+| `POST` | `/databases/{databaseId}/stop` | `teamId?` | Stop result |
+| `POST` | `/databases/{databaseId}/restart` | `teamId?` | Restart result |
+| `GET` | `/databases/{databaseId}/stats` | `teamId?` | Runtime status and resource summary |
+| `GET` | `/databases/{databaseId}/metrics` | `teamId?` | CPU and memory metrics |
+| `GET` | `/databases/{databaseId}/usage` | `teamId?` | Storage, transfer, and plan usage |
+| `GET` | `/databases/{databaseId}/tables` | `teamId?` | Table or collection metadata |
+| `GET` | `/databases/{databaseId}/credentials/{field}` | `teamId?` | One revealed credential |
+
+## Runtime actions
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/databases/db_123/restart \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "success": true,
+  "message": "Database restart requested",
+  "databaseId": "db_123",
+  "status": "restarting"
+}
+```
+
+## Metrics and usage
+
+```json
+{
+  "databaseId": "db_123",
+  "status": "running",
+  "cpu": { "current": 0.12, "unit": "vCPU" },
+  "memory": { "currentBytes": 268435456 },
+  "storage": { "usedBytes": 104857600, "limitBytes": 10737418240 },
+  "series": []
+}
+```
+
+## Reveal a credential
+
+```bash
+curl https://server.pxxl.app/api/v3/databases/db_123/credentials/password \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "field": "password",
+  "value": "sensitive-value"
+}
+```
+
+<Warning>
+  Credential responses contain sensitive values. Do not log, cache, or return them to a browser.
+</Warning>

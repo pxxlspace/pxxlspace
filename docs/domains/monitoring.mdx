@@ -1,0 +1,37 @@
+---
+title: "Domain Monitoring"
+sidebarTitle: "Monitoring"
+description: "Review domain traffic, edge requests, certificates, and route health."
+---
+
+The **Monitoring** section shows traffic and edge request information for eligible domains. Use it after DNS changes, a proxy change, or a new deployment.
+
+## Traffic signals
+
+| Signal | What it shows |
+| --- | --- |
+| **Requests** | Requests that reached the Pxxl edge for the domain. |
+| **Visitors** | Distinct visitor activity when the data is available. |
+| **Bandwidth** | Bytes transferred by the route. |
+| **Latency** | Time spent serving requests. |
+| **Routes and status** | Which hostname and project handled the request and how it completed. |
+| **Recent edge activity** | The latest request and proxy activity for the selected period. |
+
+## SSL and certificates
+
+The **SSL** section shows installed certificate services and provides a download action when a certificate is available.
+
+Before troubleshooting HTTPS:
+
+1. Confirm the domain resolves to the expected Pxxl route.
+2. Confirm the [Nameservers](/domains/nameservers) or DNS record setup is complete.
+3. Select **Resync Proxy** from [Routing](/domains/routing) or [Settings](/domains/settings).
+4. Reopen the domain and check SSL status again.
+
+## A useful review order
+
+- Check nameservers and DNS first.
+- Check the connected project and application port.
+- Resync the proxy after changing either value.
+- Check SSL and edge request activity.
+- Open the project Live Logs when the edge reaches the application but the application returns an error.

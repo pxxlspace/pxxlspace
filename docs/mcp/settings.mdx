@@ -1,0 +1,39 @@
+---
+title: "MCP Settings"
+sidebarTitle: "Settings"
+description: "Disable, rotate, or remove an MCP connection safely."
+---
+
+Use **Settings** on an MCP connection to control its access lifecycle.
+
+| Action | Result |
+| --- | --- |
+| **Disable** | Stops the key from authenticating immediately while keeping the connection record. |
+| **Generate new key** | Invalidates the previous key immediately and gives you a replacement once. |
+| **Delete** | Revokes the key and removes the connection's request history and monitoring data. |
+
+## Rotate a key
+
+<Steps>
+  <Step title="Prepare the client">
+    Open the client configuration or secret manager so you can replace the key without leaving the connection offline longer than necessary.
+  </Step>
+  <Step title="Generate a new key">
+    Select **Generate new key**. The old key stops working immediately.
+  </Step>
+  <Step title="Save and reconnect">
+    Store the replacement, update the client, and run a test request.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| **401 Unauthorized** | Confirm the key is current and sent in `Authorization` or `X-Pxxl-MCP-Key`. |
+| **403 Access denied** | Confirm the scope and resource allowlist in [Permissions](/mcp/permissions). |
+| **The old key stopped working** | A rotation or disable action invalidated it. |
+| **No tools appear** | Reconnect the client and run `initialize` and `tools/list`. |
+| **Browser preflight fails** | Confirm the client sends the required HTTP headers and uses an allowed origin. |
+
+Keep MCP keys in secret storage, give each integration its own connection, and rotate a key as soon as it may have been exposed.

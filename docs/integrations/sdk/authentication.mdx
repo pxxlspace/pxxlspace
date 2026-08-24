@@ -1,0 +1,100 @@
+---
+title: "Authentication and teams"
+description: "Authenticate SDK calls, inspect the active identity, and set team context."
+---
+
+Create an API key in Pxxl, then store it as `PXXL_API_KEY`.
+
+<ParamField body="apiKey" type="string" required>
+  Secret API key used for bearer authentication.
+</ParamField>
+
+<ParamField body="teamId" type="string">
+  Default team for resources that support team ownership.
+</ParamField>
+
+## Create a client
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    import { Pxxl } from "@pxxlapp/pxxl";
+
+    const pxxl = new Pxxl({
+      apiKey: process.env.PXXL_API_KEY,
+      teamId: "team_123",
+    });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    client := pxxl.NewClient(os.Getenv("PXXL_API_KEY"))
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client = PxxlClient(api_key=os.environ["PXXL_API_KEY"], team_id="team_123")
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)
+        .with_team_id("team_123");
+    ```
+  </Tab>
+</Tabs>
+
+## Identity operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| Active identity | `identity.whoami()` | None | User, auth method, API key permissions, and team context |
+| Account stats | `identity.stats(teamId?)` | `teamId?` | Resource totals and account summary |
+| Platform usage | `identity.usage(teamId?)` | `teamId?` | Build, runtime, storage, and plan usage |
+
+```ts
+const identity = await pxxl.identity.whoami();
+```
+
+```json
+{
+  "success": true,
+  "user": {
+    "id": "user_123",
+    "email": "developer@example.com",
+    "name": "Developer"
+  },
+  "authMethod": "api_key",
+  "apiKey": {
+    "name": "production automation",
+    "permission": "read_write",
+    "scopes": ["deploy", "domain", "storage"]
+  },
+  "teamId": "team_123"
+}
+```
+
+```ts
+const stats = await pxxl.identity.stats();
+const usage = await pxxl.identity.usage();
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "totalProjects": 4,
+      "totalDeployments": 18,
+      "totalDomains": 3,
+      "totalDatabases": 2
+    }
+  }
+}
+```
+
+API keys can be read-only or read-write. Scopes can limit access to deployments, domains, environment variables, CDN, storage, databases, cron jobs, analytics, or teams.
+
+<Warning>
+  Use SDK keys only in trusted servers, workers, and CI. Do not expose them in browser bundles.
+</Warning>

@@ -1,0 +1,31 @@
+---
+title: "Domain Settings"
+sidebarTitle: "Settings"
+description: "Manage a domain connection, edge configuration, transfers, and removal actions."
+---
+
+Use **Settings** to manage the domain record and the actions that affect its relationship with Pxxl.
+
+## Settings areas
+
+| Area | What it controls |
+| --- | --- |
+| **Connected project** | Which Pxxl project receives the domain traffic. |
+| **Details** | Domain identity, registration state, and connection information. |
+| **Proxy** | HTTPS, host redirects, headers, access rules, WAF, limits, retries, and maintenance mode. |
+| **Transfer** | Registrar transfer details and EPP actions for domains managed by Pxxl. |
+| **Danger zone** | Removal, transfer, or other destructive domain actions. |
+
+## Resync the route
+
+Select **Resync Proxy** after changing the connected project, application port, DNS-related route state, or proxy settings. Resync tells the edge to re-read the saved configuration and publish the active route.
+
+Resync does not rebuild the application. If the project code or runtime configuration changed, create a deployment separately.
+
+## Transfer and removal
+
+- Transfer actions apply to domains registered with Pxxl and require the current registrar state and EPP authorization code when requested.
+- Removing an externally connected domain from Pxxl does not delete its registration at the current registrar.
+- Review the connected project and DNS state before a destructive action.
+
+For visitor-level protection in front of the route, see [Password Protection](/projects/password-protection).

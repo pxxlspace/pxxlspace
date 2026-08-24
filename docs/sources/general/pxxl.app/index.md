@@ -16,7 +16,7 @@ uptime guaranteed
 
 frameworks supported
 
-<59.4s
+Less than 59.4s
 
 average build time
 

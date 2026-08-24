@@ -1,0 +1,43 @@
+---
+title: "Compute & Scaling"
+sidebarTitle: "Compute & Scaling"
+description: "Adjust CPU, memory, replicas, persistent storage, and autoscaling for a Pxxl project."
+---
+
+**Compute & Scaling** controls the resources assigned to a running project.
+
+<Frame caption="Compute & Scaling shows the current allocation, volumes, and autoscaling controls.">
+  <img src="/images/project-compute.jpeg" alt="Pxxl compute and scaling screen showing CPU, memory, replicas, volumes, and autoscaling." />
+</Frame>
+
+## Resource allocation
+
+Use **Scale Up Server** to review and change:
+
+- CPU allocation
+- memory allocation
+- additional runtime replicas
+
+The screen shows the current value and the plan limit so you can see the effect before confirming a change.
+
+## Persistent volumes
+
+Use **Add Volume** when the application needs data to survive a new deployment or runtime restart.
+
+Each volume has:
+
+- a nickname
+- a mount path inside the application
+
+You can inspect, clear, or remove a volume. Clearing a volume deletes the data inside it, so use that action carefully.
+
+## Autoscaling
+
+Enterprise workspaces can enable autoscaling. Pxxl adds temporary capacity after sustained resource pressure and shows current traffic, live replicas, CPU, and memory in the autoscaling section.
+
+Autoscaling is different from a manual scale change:
+
+- **Manual scaling** changes the project's normal allocation.
+- **Autoscaling** adds temporary capacity when its thresholds are reached.
+
+Review [Monitoring](/projects/monitoring) before changing resources so the decision is based on observed usage.

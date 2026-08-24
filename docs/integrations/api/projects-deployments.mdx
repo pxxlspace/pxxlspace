@@ -1,0 +1,148 @@
+---
+title: "Projects and deployments API"
+description: "Upload source, create deployments, inspect project state, and read logs."
+---
+
+## Deploy source
+
+`POST /projects/spacedrop`
+
+This endpoint uses `multipart/form-data`.
+
+<ParamField body="file" type="zip file" required>
+  Project source archive.
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  New project name. Optional when `projectId` is supplied.
+</ParamField>
+
+<ParamField body="domainChoice" type="string" required>
+  Pxxl domain suffix for a new project, such as `pxxl.pro`.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Existing project that receives the deployment.
+</ParamField>
+
+<ParamField body="environment" type="string" default="production">
+  Deployment environment.
+</ParamField>
+
+<ParamField body="port" type="number">
+  Port exposed by a web service.
+</ParamField>
+
+<ParamField body="baseDirectory" type="string">
+  Project root inside a monorepo.
+</ParamField>
+
+<ParamField body="installCommand" type="string">
+  Custom dependency installation command.
+</ParamField>
+
+<ParamField body="buildCommand" type="string">
+  Custom build command.
+</ParamField>
+
+<ParamField body="startCommand" type="string">
+  Custom runtime command.
+</ParamField>
+
+```bash
+curl https://server.pxxl.app/api/v3/projects/spacedrop \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --form "file=@project.zip" \
+  --form "name=api" \
+  --form "domainChoice=pxxl.pro" \
+  --form "port=3000" \
+  --form "startCommand=npm start"
+```
+
+**Response**
+
+```json
+{
+  "success": true,
+  "projectId": "proj_123",
+  "deploymentId": "dep_123",
+  "projectUrl": "https://api.pxxl.pro",
+  "status": "queued",
+  "taskId": "task_123"
+}
+```
+
+## Projects
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/projects` | `teamId?`, `page?`, `limit?` | Project collection and pagination |
+| `GET` | `/cli/projects/{projectId}` | Project ID | Project detail |
+| `GET` | `/cli/projects/{projectId}/deployments` | `page?`, `limit?`, `teamId?` | Project deployments |
+| `GET` | `/cli/projects/{projectId}/logs` | `lines?`, `since?` | Runtime logs |
+| `GET` | `/cli/projects/{projectId}/live-logs` | `tail?`, `since?` | Recent live logs |
+| `POST` | `/cli/projects/{projectId}/redeploy` | `commitSha?`, `commitMessage?` | New deployment result |
+
+```json
+{
+  "projects": [
+    {
+      "id": "proj_123",
+      "name": "api",
+      "status": "active",
+      "projectType": "web_service",
+      "framework": "express",
+      "language": "node"
+    }
+  ],
+  "page": 1,
+  "limit": 20,
+  "total": 1
+}
+```
+
+## Redeploy
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/projects/proj_123/redeploy \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"commitSha":"9868bbc","commitMessage":"Deploy release"}'
+```
+
+```json
+{
+  "success": true,
+  "projectId": "proj_123",
+  "deploymentId": "dep_124",
+  "status": "queued"
+}
+```
+
+## Deployments and logs
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/deployments` | `teamId?`, `page?`, `limit?` | Deployment collection |
+| `GET` | `/cli/deployments/{deploymentId}` | Deployment ID | Deployment detail |
+| `GET` | `/cli/deployments/{deploymentId}/logs` | `since?` | Runtime log collection |
+| `GET` | `/cli/deployments/{deploymentId}/build-logs` | `since?` | Build phase logs |
+
+```json
+{
+  "deploymentId": "dep_123",
+  "status": "building",
+  "logs": [
+    {
+      "phase": "install",
+      "message": "Installing dependencies",
+      "timestamp": "2026-08-17T08:01:00Z"
+    }
+  ]
+}
+```
+
+<Note>
+  User-facing build logs come from `/cli/deployments/{deploymentId}/build-logs`.
+</Note>

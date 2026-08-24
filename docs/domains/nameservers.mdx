@@ -1,0 +1,38 @@
+---
+title: "Domain Nameservers"
+sidebarTitle: "Nameservers"
+description: "Check DNS authority, switch providers, and complete domain verification."
+---
+
+The **Nameservers** section tells you who currently controls the domain zone and what must change before Pxxl can verify it.
+
+## DNS providers
+
+| State | What you can do |
+| --- | --- |
+| **Pxxl DNS** | Create and edit records in the [DNS](/domains/dns) section. |
+| **External DNS** | Keep records at the current provider. Pxxl can show live values but cannot edit them. |
+| **Pending verification** | Follow the record or nameserver instructions shown by Pxxl. |
+
+## Switch to Pxxl DNS
+
+<Steps>
+  <Step title="Open Nameservers">
+    Select the domain and open **Nameservers** to see the Pxxl nameserver values.
+  </Step>
+  <Step title="Update the registrar">
+    Replace the current nameservers at the domain registrar with the values shown by Pxxl.
+  </Step>
+  <Step title="Verify the setup">
+    Wait for the registrar change to propagate, then select **Verify Setup**.
+  </Step>
+  <Step title="Manage records in Pxxl">
+    After verification, use [DNS](/domains/dns) for record changes.
+  </Step>
+</Steps>
+
+If you keep external DNS, add the verification record or route record at that provider instead. A connected domain can be visible in Pxxl before its DNS setup is complete, but it cannot serve application traffic until verification succeeds.
+
+## Propagation checks
+
+Nameserver changes can take time because resolvers cache previous answers. Check the live nameserver list in Pxxl and at the registrar before troubleshooting the application route. After a successful change, use [Monitoring](/domains/monitoring) to check certificates and traffic.

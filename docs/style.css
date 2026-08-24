@@ -1,0 +1,52 @@
+@font-face {
+  font-family: "Cabinet Grotesk";
+  src: url("/fonts/CabinetGrotesk-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+:root {
+  --pxxl-docs-font: "Cabinet Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+html,
+body,
+button,
+input,
+textarea,
+select,
+body * {
+  font-family: var(--pxxl-docs-font) !important;
+}
+
+#content-area:has(.pxxl-introduction) {
+  margin-top: 0 !important;
+}
+
+#content-area:has(.pxxl-introduction) > #header {
+  display: none !important;
+}
+
+#content-area:has(.pxxl-introduction) > .mdx-content {
+  margin-top: 0 !important;
+}
+
+#content-area:has(.pxxl-introduction) .pxxl-introduction,
+#content-area:has(.pxxl-introduction) .pxxl-introduction-cards {
+  font-family: var(--pxxl-docs-font);
+}
+
+.pxxl-stack-frameworks img {
+  display: block;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  vertical-align: middle;
+}
+
+#content-area:has(.pxxl-stack-frameworks) h2 img {
+  display: inline-block;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  vertical-align: middle;
+}

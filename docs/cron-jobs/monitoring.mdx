@@ -1,0 +1,39 @@
+---
+title: "Cron Job Monitoring"
+sidebarTitle: "Monitoring"
+description: "Review cron run history, failures, status, and manual triggers."
+---
+
+Open a job to see its run history and current state.
+
+## Job status
+
+| Status | Meaning |
+| --- | --- |
+| **Active** | Pxxl schedules and sends the job. |
+| **Paused** | The job remains configured but scheduled requests are stopped. |
+| **Disabled** | Pxxl stopped the job and shows the reason. |
+
+## Run history
+
+Run history includes the status code, response output, error message, timeout state, and timestamps. Select **Trigger** to queue an immediate run through the same worker.
+
+## Failure handling
+
+Pxxl disables a job after three consecutive failures. Fix the endpoint or credentials, then start the job again. Starting a disabled job resets its consecutive failure count.
+
+When investigating a failure:
+
+1. Check the request URL and method.
+2. Confirm the authentication header is still valid.
+3. Check the endpoint's application logs.
+4. Confirm the response is a <code>2xx</code> status.
+5. Check whether the work completes within the timeout.
+
+## Operational checklist
+
+- Make the endpoint idempotent.
+- Return a useful status code.
+- Log a request ID or job identifier on the application side.
+- Keep sensitive response data out of the response body.
+- Pause the job before changing a production endpoint.

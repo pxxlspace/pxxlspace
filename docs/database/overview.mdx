@@ -1,0 +1,80 @@
+---
+title: "Managed Databases"
+sidebarTitle: "Overview"
+description: "Create a managed database, connect it to a project, and manage its lifecycle from Pxxl."
+---
+
+Pxxl databases run outside your application container and are ready for your deployed services to use. Choose an engine, connect it through environment variables, then use the database workspace to monitor, visualise, back up, and manage the instance.
+
+Open **Database** in the Pxxl workspace to see your instances.
+
+## Supported engines
+
+| Engine | Good for |
+| --- | --- |
+| **PostgreSQL** | Relational data, APIs, and transactional applications. |
+| **MySQL** | Relational web applications and existing MySQL workloads. |
+| **MongoDB** | Document data and flexible application schemas. |
+| **Redis** | Caching, queues, sessions, and fast in-memory data. |
+| **MariaDB** | MySQL-compatible applications. |
+| **ClickHouse** | High-volume analytics and column-oriented queries. |
+| **KeyDB** | Redis-compatible workloads that benefit from multiple threads. |
+| **DragonflyDB** | Redis-compatible caching and queue workloads. |
+
+The engines and advanced tools available to you depend on your plan. PostgreSQL and MySQL are available on the Free plan.
+
+## Create a database
+
+<Steps>
+  <Step title="Choose an engine">
+    Select the database type that matches your application. The engine sets the connection format and default port.
+  </Step>
+  <Step title="Name the instance">
+    Use a name that describes the workload, such as `orders-production` or `analytics`.
+  </Step>
+  <Step title="Choose backup protection">
+    Turn on daily encrypted backups when the database needs recovery points. You can keep them in Pxxl-managed storage or use a custom S3-compatible destination.
+  </Step>
+  <Step title="Wait for a healthy status">
+    A new instance is not ready while it is provisioning. Connect the application after the database shows a healthy or running status.
+  </Step>
+</Steps>
+
+## Database workspace
+
+<CardGroup cols={2}>
+  <Card title="Connection" icon="link" href="/database/connection">
+    Get the host, port, user, password, and database URL your application needs.
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/database/monitoring">
+    Check health, connections, storage, transfer, latency, and resource usage.
+  </Card>
+  <Card title="Visualise" icon="diagram-project" href="/database/visualise">
+    Inspect tables, columns, keys, relationships, and database structure.
+  </Card>
+  <Card title="Backups" icon="database" href="/database/backups">
+    Create recovery points, choose a destination, download, restore, or delete them.
+  </Card>
+  <Card title="Settings" icon="settings" href="/database/settings">
+    Manage resources, networking, ownership, and database lifecycle actions.
+  </Card>
+</CardGroup>
+
+## Connect a project
+
+There are two parts to connecting a database:
+
+1. Link the database to the project so the resources are visible together.
+2. Add the connection values to the project's environment variables so the runtime can connect.
+
+When you create a database from a project, enable **Add DATABASE_URL** to save the generated URL to the project's global environment variables. Redeploy after changing environment values because a running container does not reload them.
+
+## API
+
+The [Database API](/api/database-api) can create instances, read metadata, inspect metrics, and control the database from a server-side workflow. Keep the API key on the server and grant only the database access it needs.
+
+## Where to go next
+
+- Start with [Connection](/database/connection) when an application needs database credentials.
+- Open [Monitoring](/database/monitoring) when a workload is slow or unhealthy.
+- Read [Backups](/database/backups) before enabling recovery protection.

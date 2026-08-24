@@ -1,0 +1,128 @@
+---
+title: "Response patterns"
+description: "Understand returned data, lists, files, empty results, and errors across every Pxxl SDK."
+---
+
+Pxxl SDK methods return the useful resource directly when possible. You do not need to inspect HTTP status codes for successful calls.
+
+## Single resources
+
+Create and get methods return a resource or a small named wrapper.
+
+```json
+{
+  "bucket": {
+    "id": "bucket_123",
+    "name": "uploads",
+    "visibility": "private",
+    "status": "active"
+  }
+}
+```
+
+When a Node.js method unwraps the resource, you receive the inner object directly. For example, `customers.create()` returns the customer and `cdn.upload()` returns the asset.
+
+| SDK | How successful JSON is returned |
+| --- | --- |
+| Node.js | Typed resources where available, with small API wrappers kept when they contain useful metadata |
+| Go | Typed structs for core workflows and `map[string]any` for extensible platform responses |
+| Python | Dictionaries that preserve the Gateway JSON shape |
+| Rust | Typed core resources and `serde_json::Value` for extensible platform responses |
+
+## Lists
+
+List methods return an array with count or pagination details.
+
+```json
+{
+  "buckets": [],
+  "total": 0
+}
+```
+
+```json
+{
+  "assets": [],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 0,
+    "totalPages": 0
+  }
+}
+```
+
+## Actions
+
+Start, stop, trigger, resync, and delete calls return an action result. Delete helpers that return no useful data resolve without a value.
+
+```json
+{
+  "success": true,
+  "message": "Action accepted"
+}
+```
+
+## Files
+
+Download methods return binary data instead of JSON.
+
+| SDK | Return value |
+| --- | --- |
+| Node.js | `Blob` |
+| Go | response bytes or a readable body |
+| Python | `bytes` |
+| Rust | `Vec<u8>` or response bytes |
+
+## Errors
+
+Non-successful API responses throw an SDK error. The original API response remains available for validation errors and plan limits.
+
+```json
+{
+  "code": "DOMAIN_LIMIT_EXCEEDED",
+  "message": "Your current plan domain limit has been reached.",
+  "limit": 5,
+  "used": 5
+}
+```
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    try {
+      await pxxl.storage.createBucket({ name: "uploads" });
+    } catch (error) {
+      if (error instanceof PxxlAPIError) {
+        console.log(error.status);
+        console.log(error.details);
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    result, err := client.CreateStorageBucket(ctx, input)
+    if err != nil {
+      log.Fatal(err)
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    try:
+        result = client.create_storage_bucket(input)
+    except PxxlAPIError as error:
+        print(error.status, error.details)
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let result = client.create_storage_bucket(input).await?;
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Response examples show the fields used most often. The API can add fields without breaking existing integrations.
+</Note>

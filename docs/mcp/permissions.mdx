@@ -1,0 +1,43 @@
+---
+title: "MCP Permissions"
+sidebarTitle: "Permissions"
+description: "Control the scopes and individual resources an MCP connection can access."
+---
+
+Every connection has a level for each scope:
+
+| Level | Meaning |
+| --- | --- |
+| **No access** | The connection cannot use that scope. |
+| **Read** | The connection can inspect approved resources. |
+| **Update** | The connection can use the write operations available for that scope. |
+
+## Available scopes
+
+| Scope | Covers |
+| --- | --- |
+| **Projects** | Project details and approved project operations. |
+| **Deployments** | Status, logs, rebuild, redeploy, restart, and cancellation. |
+| **Domains** | Domain details, settings, and traffic data. |
+| **DNS records** | DNS reads and updates for approved domains. |
+| **Databases** | Database inventory, usage, and metrics. |
+| **Storage** | Storage inventory and bucket metrics. |
+| **Cron jobs** | Personal jobs and jobs for selected projects. |
+| **Repositories** | Connected repositories, branches, commits, and deployment analysis. |
+| **Logs** | Project and deployment logs for approved resources. |
+| **Analytics and metrics** | Traffic and resource activity. |
+| **Teams and environments** | Approved team and environment context. |
+
+## Resource allowlists
+
+For Projects, Domains, DNS records, Databases, Storage, Teams, and Environments, you can select all resources or allow only specific items. Start with the smallest list that lets the client complete its job.
+
+For example, a deployment assistant may need **Read** access to repositories and logs, plus **Update** access to one project and its deployments. It does not need access to every database or domain in the workspace.
+
+## Protected information
+
+MCP does not return secrets, environment values, API keys, payment details, passwords, or authentication administration. Granting **Update** access to a scope does not bypass those protections.
+
+## Review permissions
+
+Open a connection and select **Permissions** to see its current levels and resource allowlists. After changing scopes, reconnect the client so its available tool list reflects the new access.

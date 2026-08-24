@@ -1,0 +1,32 @@
+---
+title: "MCP Monitoring"
+sidebarTitle: "Monitoring"
+description: "Review MCP request activity without storing request or response bodies."
+---
+
+Open an MCP connection and select **Monitoring** to review how it is being used.
+
+## Monitoring signals
+
+| Signal | What it shows |
+| --- | --- |
+| **Request volume** | How many requests the connection sends over time. |
+| **Success rate** | The share of requests that complete successfully. |
+| **Latency** | How long Pxxl takes to authorize and serve requests. |
+| **Popular methods** | The tools and methods the client uses most. |
+| **Transfer usage** | The amount of data sent and returned. |
+
+## Request history
+
+**Request history** records method, tool, status, duration, and byte counts. It does not store request or response bodies. Use it to find blocked calls and slow operations without creating a second copy of resource data.
+
+## Investigate a failed request
+
+1. Check whether the response was `401` or `403`.
+2. For `401`, confirm the key is current and the client sends it as an HTTP header.
+3. For `403`, open [Permissions](/mcp/permissions) and check the scope and resource allowlist.
+4. If the request succeeded but was slow, compare its method and resource with the latency view.
+
+## Safe operations
+
+Monitoring data is metadata about the connection. It is not a transcript of prompts, tool arguments, or returned records.

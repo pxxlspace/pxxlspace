@@ -1,0 +1,104 @@
+---
+title: "Analytics and teams"
+description: "Read traffic analytics and scope platform resources to a team."
+---
+
+## Analytics operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| Project traffic | `analytics.projectTraffic(projectId, input?)` | `timeframe?`, `domain?` | Requests, visitors, transfer, errors, latency, countries, and timeline |
+| Owned domain traffic | `analytics.domainTraffic(domainId, input?)` | `timeframe?`, `teamId?` | Domain traffic summary and timeline |
+| Domain lookup | `analytics.userDomainTraffic(domain, timeframe?)` | Domain name, `timeframe?` | Traffic for an owned hostname |
+
+Supported timeframes include `24h`, `48h`, `72h`, `7d`, and `30d`.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const traffic = await pxxl.analytics.projectTraffic("proj_123", {
+      timeframe: "7d",
+      domain: "api.example.com",
+    });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    traffic, err := client.ProjectTraffic(ctx, "proj_123", url.Values{
+      "timeframe": {"7d"}, "domain": {"api.example.com"},
+    })
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    traffic = client.project_traffic(
+        "proj_123", timeframe="7d", domain="api.example.com"
+    )
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let traffic = client.project_traffic(
+        "proj_123",
+        Some(&[("timeframe", "7d"), ("domain", "api.example.com")]),
+    ).await?;
+    ```
+  </Tab>
+</Tabs>
+
+**Returns**
+
+```json
+{
+  "projectId": "proj_123",
+  "timeframe": "7d",
+  "analytics": {
+    "requests": 12540,
+    "visitors": 3210,
+    "pageViews": 9820,
+    "responseBytes": 428901220,
+    "requestBytes": 12047210,
+    "errors": 31,
+    "p50LatencyMs": 18,
+    "p95LatencyMs": 76,
+    "p99LatencyMs": 140,
+    "topDomains": [],
+    "countries": [],
+    "timeline": []
+  }
+}
+```
+
+## Team operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List teams | `teams.list()` | None | `{ teams, total }` |
+| Get team | `teams.get(id)` | Team ID | `{ team, success? }` |
+| Team databases | `teams.databases(id)` | Team ID | Team database collection |
+
+```ts
+const teams = await pxxl.teams.list();
+const team = await pxxl.teams.get("team_123");
+const databases = await pxxl.teams.databases("team_123");
+```
+
+```json
+{
+  "teams": [
+    {
+      "id": "team_123",
+      "name": "Production",
+      "myRole": "owner",
+      "status": "active",
+      "totalMembers": 4,
+      "totalProjects": 8,
+      "totalDatabases": 2,
+      "totalDomains": 5
+    }
+  ],
+  "total": 1
+}
+```
+
+Set a default `teamId` on the client to avoid passing it to every supported operation.

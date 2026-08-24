@@ -1,0 +1,60 @@
+---
+title: "Domains and Edge Routing"
+sidebarTitle: "Overview"
+description: "Buy, connect, verify, and route domains to Pxxl projects."
+---
+
+Domains bring registration, DNS, project routing, certificates, and edge controls into one place. Open **Domains** in the Pxxl workspace to search your domains or add one you already own.
+
+## Add a domain
+
+| Option | Use it when |
+| --- | --- |
+| **Buy Domain** | You want to search for and register a domain through Pxxl. |
+| **Add Domain** | You already control the domain and want to connect it. |
+| **Transfer Domain** | You want to move the registration to Pxxl with an EPP authorization code. |
+
+You can connect a domain to a project during setup or choose **Connect later** and finish routing from the domain detail page.
+
+## Domain workspace
+
+<CardGroup cols={2}>
+  <Card title="DNS" icon="globe" href="/domains/dns">
+    Create and manage A, AAAA, CNAME, TXT, MX, and NS records when Pxxl controls the zone.
+  </Card>
+  <Card title="Nameservers" icon="server" href="/domains/nameservers">
+    Check who controls the zone, switch to Pxxl DNS, and verify setup.
+  </Card>
+  <Card title="Routing" icon="route" href="/domains/routing">
+    Connect projects, manage subdomains, and control the edge proxy.
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/domains/monitoring">
+    Review traffic, edge requests, and certificate status.
+  </Card>
+  <Card title="Settings" icon="settings" href="/domains/settings">
+    Change ownership, project connections, proxy settings, transfers, and removal actions.
+  </Card>
+</CardGroup>
+
+## Domain lifecycle
+
+<Steps>
+  <Step title="Add, buy, or transfer">
+    Choose the option that matches whether Pxxl should register the domain or connect to an existing registrar.
+  </Step>
+  <Step title="Verify control">
+    Add the record or nameservers shown by Pxxl, then select **Verify Setup**.
+  </Step>
+  <Step title="Connect a project">
+    Choose the application that should receive traffic, or connect it later.
+  </Step>
+  <Step title="Publish the route">
+    Select **Resync Proxy** after the domain and project settings are correct.
+  </Step>
+</Steps>
+
+## Start here
+
+- Use [DNS](/domains/dns) when you need to create or change records.
+- Use [Nameservers](/domains/nameservers) when verification is not complete.
+- Use [Routing](/domains/routing) when the domain should serve a project.

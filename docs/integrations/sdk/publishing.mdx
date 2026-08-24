@@ -1,0 +1,78 @@
+---
+title: "Publish the SDKs"
+description: "Release Node.js, Go, Python, and Rust packages from this repository."
+---
+
+Publish only from a clean commit after every SDK test passes. Use one version number across all four SDKs when they describe the same API release.
+
+## Node.js and CLI
+
+The Node.js SDK and CLI are one npm package: `@pxxlapp/pxxl`.
+
+```bash
+cd pxxlspace
+npm ci
+npm test
+npm run pack:dry-run
+npm version minor
+npm publish --access public
+git push origin main --follow-tags
+```
+
+Your npm account must be allowed to publish under `@pxxlapp`. npm requires 2FA or an eligible publishing token for direct publishing. For automated releases, use npm trusted publishing so provenance is generated without a long-lived token.
+
+## Go
+
+Go modules are released with a Git tag. This module lives below the repository root, so its tag must include the directory.
+
+```bash
+cd pxxlspace/sdks/go/pxxl
+go mod tidy
+go test ./...
+cd ../../..
+git tag -a sdks/go/pxxl/v0.2.0 -m "feat: release Go SDK v0.2.0"
+git push origin sdks/go/pxxl/v0.2.0
+GOPROXY=proxy.golang.org go list -m \
+  github.com/pxxlspace/pxxlspace/sdks/go/pxxl@v0.2.0
+```
+
+Do not move or replace a published tag. Release a new version if a fix is needed.
+
+## Python
+
+Update `version` in `sdks/python/pxxl/pyproject.toml`, then build and inspect both distributions.
+
+```bash
+cd pxxlspace/sdks/python/pxxl
+python3 -m pip install --upgrade build twine
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+python3 -m build
+python3 -m twine check dist/*
+python3 -m twine upload dist/*
+```
+
+Use `python3 -m twine upload --repository testpypi dist/*` for a test release. Your PyPI account or trusted publisher must own the `pxxl` project name.
+
+## Rust
+
+Update `version` in `sdks/rust/pxxl/Cargo.toml`, then package and publish the crate.
+
+```bash
+cd pxxlspace/sdks/rust/pxxl
+cargo test
+cargo package --list
+cargo publish --dry-run
+cargo publish
+```
+
+Run `cargo login` once for local publishing, or configure a crates.io trusted publishing workflow. Your crates.io account must own the `pxxl` crate name.
+
+## Release checklist
+
+- Update changelog and package versions.
+- Run all four test suites.
+- Inspect the npm, Python, and Rust package contents.
+- Commit with a message such as `feat: expand SDK platform coverage`.
+- Publish and install each released version in a clean sample project.
+
+Read the official guides for [npm scoped packages](https://docs.npmjs.com/creating-and-publishing-scoped-public-packages/), [Go modules](https://go.dev/doc/modules/publishing), [Python packages](https://packaging.python.org/en/latest/tutorials/packaging-projects/), and [Cargo publishing](https://doc.rust-lang.org/cargo/commands/cargo-publish.html).

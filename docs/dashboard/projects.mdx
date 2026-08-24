@@ -28,12 +28,16 @@ Once you open a project, a set of tabs gives you focused access to every aspect 
 | --- | --- |
 | **Overview** | An architecture canvas showing connected services, sticky notes, attached domains, and overall project context at a glance. |
 | **Deployments** | The complete build and deploy history for this project, including status, commit metadata, timestamps, and previous deploy attempts. |
-| **Live Logs** | Real-time runtime logs from the running service container — your first stop for startup errors, failed requests, and framework output. |
-| **Environment Variables** | Global workspace variables and project-scoped secrets such as API keys, database URLs, and feature flags. |
+| **Live Logs** | Real-time runtime logs from the running service container, your first stop for startup errors, failed requests, and framework output. |
+| **Environment Variables** | Global workspace variables and project-scoped secrets such as API keys, database URLs, and feature flags. See [Secrets](/projects/secrets). |
 | **Issues** | Linked issues and handoff notes that connect infrastructure problems to product work. |
-| **Domains** | Hostnames currently routed to this project and their connection state. For deeper DNS and SSL controls, use Dashboard > Domains. |
-| **Monitoring** | Runtime health, traffic metrics, and error rates. Review this tab after deploys, domain changes, and scaling updates. |
-| **Infra & Scaling** | Compute resource controls — memory, CPU, build server, and horizontal or vertical scaling settings. |
+| **Domains** | Hostnames currently routed to this project and their connection state. For deeper DNS and SSL controls, use [Domains](/domains/overview). |
+| **Web Analytics** | Visitor, request, bandwidth, latency, route, and edge activity. See [Web Analytics](/projects/web-analytics). |
+| **Monitoring** | Runtime health, CPU, memory, and resource footprint. See [Monitoring](/projects/monitoring). |
+| **Terminal** | A shell session inside the active runtime. See [Terminal](/projects/terminal). |
+| **Compute & Scaling** | CPU, memory, replicas, persistent volumes, and autoscaling. See [Compute](/projects/compute). |
+| **Password Protection** | Put a shared visitor password in front of preview routes or the full project. See [Password Protection](/projects/password-protection). |
+| **Log Drains** | Send project logs to an external destination for retention or analysis. See [Log Drains](/storage/log-drains). |
 | **Settings** | Repository connection details, build behavior, GitHub automation triggers, deployment protection rules, and destructive project actions. |
 
 ## Deployments
@@ -45,12 +49,12 @@ Use the **Deployments** tab to review build history, inspect individual deploy a
 Use **Live Logs** to inspect real-time runtime output from the running service. This is where you find application startup errors, unhandled exceptions, failed HTTP requests, and framework-level diagnostics.
 
 <Tip>
-  Open **Live Logs** immediately after a new deploy completes. If the container fails to start, the log will show the exact error — such as a missing environment variable, a wrong port binding, or a failed database connection — within seconds.
+  Open **Live Logs** immediately after a new deploy completes. If the container fails to start, the log will show the exact error, such as a missing environment variable, a wrong port binding, or a failed database connection, within seconds.
 </Tip>
 
-## Environment Variables
+## Secrets
 
-Use **Environment Variables** for all secrets, credentials, database URLs, and runtime configuration values the application needs. The tab separates global workspace variables (shared across projects) from project-scoped variables (applied only to this deployment). Update a variable and redeploy to make the change take effect — running containers do not automatically reload new values.
+Use **Secrets** for all credentials, database URLs, and runtime configuration values the application needs. The tab separates global workspace variables from project-scoped variables. Read the full [Secrets guide](/projects/secrets) before rotating a production value.
 
 ## Issues
 
@@ -58,16 +62,29 @@ Use **Issues** to track project-level problems and leave handoff notes for teamm
 
 ## Domains
 
-The **Domains** tab shows which hostnames are currently routed to this project and their proxy connection state. Use this tab for application-level routing decisions. For DNS record management, nameserver configuration, SSL certificate status, and proxy security controls, open **Dashboard > Domains** and select the domain directly.
+The **Domains** tab shows which hostnames are currently routed to this project and their proxy connection state. Use this tab for application-level routing decisions. For DNS record management, nameserver configuration, SSL certificate status, and proxy security controls, open [Domains](/domains/overview) and select the domain directly.
+
+## Web Analytics
+
+Use **Web Analytics** to review visitors, requests, bandwidth, latency, routes, and recent edge activity. See the [Web Analytics guide](/projects/web-analytics) for the meaning of each metric.
 
 ## Monitoring
 
-Use **Monitoring** to review traffic patterns, error rates, and runtime health metrics. Check this tab after every deployment, domain change, or scaling adjustment to confirm the application is responding as expected.
+Use **Monitoring** to review CPU, memory, sandbox overhead, and runtime footprint. Open the [Monitoring guide](/projects/monitoring) when you need to interpret a resource spike.
 
-## Infra & Scaling
+## Terminal
 
-Use **Infra & Scaling** when the application needs more resources — additional memory, increased CPU allocation, a larger build server, or a different scaling strategy. Changes made here take effect on the next deployment unless live scaling is supported for the current plan.
+Use **Terminal** for short-lived checks inside the active runtime. Read the [Terminal guide](/projects/terminal) before changing files or processes from a running container.
+
+## Compute & Scaling
+
+Use **Compute & Scaling** to change CPU, memory, replicas, persistent volumes, or autoscaling. See the [Compute guide](/projects/compute) before changing resources for a production service.
 
 ## Settings
 
-Use **Settings** for repository connection details, build behavior overrides, GitHub automation configuration, deployment protection rules, and destructive project actions such as deleting the project or transferring ownership. Read the current value of any setting before changing it, and review the danger zone before taking irreversible actions.
+Use **Settings** for repository connection details, build behavior overrides, GitHub automation configuration, deployment protection rules, and destructive project actions such as deleting the project or transferring ownership. Project-level access and log export controls also live here:
+
+- [Password Protection](/projects/password-protection) puts a shared visitor password in front of preview routes or the full project.
+- [Log Drains](/storage/log-drains) sends project output to an external destination such as S3-compatible storage.
+
+Read the current value of any setting before changing it, and review the danger zone before taking irreversible actions.

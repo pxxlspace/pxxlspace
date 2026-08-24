@@ -29,30 +29,83 @@
             "group": "Get Started",
             "pages": [
               "introduction",
-              "quickstart",
-              "deployment-reference",
-              "framework-recipes"
+              "quickstart"
             ]
           },
           {
-            "group": "Dashboard",
+            "group": "Projects",
             "pages": [
-              "dashboard/overview",
-              "dashboard/projects",
-              "dashboard/deploy-project",
-              "dashboard/import-projects",
-              "dashboard/domains",
-              "dashboard/database",
-              "dashboard/api-keys",
-              "dashboard/settings-usage-webhooks"
+              "projects/project-workspace",
+              "projects/project-types",
+              "projects/supported-stacks",
+              "projects/how-pxxl-builds",
+              "projects/secrets",
+              "projects/web-analytics",
+              "projects/monitoring",
+              "projects/terminal",
+              "projects/compute",
+              "projects/password-protection"
             ]
           },
           {
-            "group": "Integrations",
+            "group": "Deploy",
             "pages": [
-              "integrations/github-previews",
-              "integrations/oauth",
-              "integrations/cdn-proxy"
+              "deploy/overview",
+              "deploy/sources",
+              "deploy/configuration",
+              "deploy/multiple-services",
+              "deploy/lifecycle"
+            ]
+          },
+          {
+            "group": "Storage",
+            "pages": [
+              "storage/overview",
+              "storage/log-drains",
+              "storage/database-backups"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "database/overview",
+              "database/connection",
+              "database/monitoring",
+              "database/visualise",
+              "database/backups",
+              "database/settings"
+            ]
+          },
+          {
+            "group": "MCP",
+            "pages": [
+              "mcp/overview",
+              "mcp/connection",
+              "mcp/permissions",
+              "mcp/monitoring",
+              "mcp/settings"
+            ]
+          },
+          {
+            "group": "Domains",
+            "pages": [
+              "domains/overview",
+              "domains/dns",
+              "domains/nameservers",
+              "domains/routing",
+              "domains/monitoring",
+              "domains/settings"
+            ]
+          },
+          {
+            "group": "Cron Jobs",
+            "pages": [
+              "cron-jobs/overview",
+              "cron-jobs/connection",
+              "cron-jobs/schedules",
+              "cron-jobs/execution",
+              "cron-jobs/monitoring",
+              "cron-jobs/cli-and-sdks"
             ]
           },
           {
@@ -71,66 +124,51 @@
         "tab": "Integrations",
         "groups": [
           {
-            "group": "API Reference",
+            "group": "SDK",
             "pages": [
-              "api/overview",
-              "api/authentication",
-              "api/deployments"
-            ]
-          },
-          {
-            "group": "Database",
-            "pages": [
-              "api/database-api"
-            ]
-          },
-          {
-            "group": "CDN",
-            "pages": [
-              "api/cdn",
-              "api/cdn-authentication",
-              "api/cdn-uploads",
-              "api/cdn-node-sdk",
-              "api/cdn-go-sdk",
-              "api/cdn-python-sdk",
-              "api/cdn-rust-sdk",
-              "api/cdn-examples",
-              "api/cdn-boilerplates"
-            ]
-          },
-          {
-            "group": "Cron Jobs",
-            "pages": [
-              "api/cron-cli",
-              "api/cron-node-sdk",
-              "api/cron-go-sdk",
-              "api/cron-python-sdk",
-              "api/cron-rust-sdk"
-            ]
-          },
-          {
-            "group": "Domains",
-            "pages": [
-              "api/domain-reseller-sdk",
-              "api/domain-node-sdk",
-              "api/domain-go-sdk",
-              "api/domain-python-sdk",
-              "api/domain-rust-sdk"
+              "integrations/sdk/overview",
+              "integrations/sdk/authentication",
+              "integrations/sdk/response-patterns",
+              "integrations/sdk/projects-deployments",
+              "integrations/sdk/environments",
+              "integrations/sdk/domains-billing",
+              "integrations/sdk/cdn-storage",
+              "integrations/sdk/databases",
+              "integrations/sdk/cron-jobs",
+              "integrations/sdk/analytics-teams",
+              "integrations/sdk/mcp",
+              "integrations/sdk/errors-raw-requests",
+              "integrations/sdk/publishing"
             ]
           },
           {
             "group": "CLI",
             "pages": [
-              "api/pxxl-cli",
-              "api/pxxl-diagnostics",
-              "api/pxxl-boilerplates",
-              "api/pxxl-deploy",
-              "api/pxxl-toml",
-              "api/pxxl-env",
-              "api/pxxl-domains",
-              "api/pxxl-logs-open",
-              "api/pxxlignore",
-              "api/npm-publishing"
+              "integrations/cli/overview",
+              "integrations/cli/deploy",
+              "integrations/cli/projects-logs",
+              "integrations/cli/environments",
+              "integrations/cli/domains-billing",
+              "integrations/cli/cdn-storage",
+              "integrations/cli/databases-cron",
+              "integrations/cli/analytics-teams",
+              "integrations/cli/mcp"
+            ]
+          },
+          {
+            "group": "API",
+            "pages": [
+              "integrations/api/overview",
+              "integrations/api/authentication",
+              "integrations/api/response-patterns",
+              "integrations/api/projects-deployments",
+              "integrations/api/environments",
+              "integrations/api/domains-billing",
+              "integrations/api/cdn-storage",
+              "integrations/api/databases",
+              "integrations/api/cron-jobs",
+              "integrations/api/analytics-teams",
+              "integrations/api/mcp"
             ]
           }
         ]

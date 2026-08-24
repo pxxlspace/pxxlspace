@@ -1,0 +1,36 @@
+---
+title: "Cron Jobs"
+sidebarTitle: "Overview"
+description: "Call a public HTTP endpoint on a recurring schedule for background work and automation."
+---
+
+Pxxl Cron Jobs send an HTTP request to your application on a schedule. They are useful for cleanup, cache refreshes, report generation, webhook delivery, health checks, and other work that should happen without a visitor opening the application.
+
+Cron Jobs are available on Plus, Pro, and Enterprise plans.
+
+## Cron workspace
+
+<CardGroup cols={2}>
+  <Card title="Connection" icon="link" href="/cron-jobs/connection">
+    Set the endpoint, method, timeout, headers, and project association.
+  </Card>
+  <Card title="Schedules" icon="calendar" href="/cron-jobs/schedules">
+    Write a five-field cron expression or choose a common schedule preset.
+  </Card>
+  <Card title="Execution" icon="play" href="/cron-jobs/execution">
+    Learn how Pxxl validates, sends, and records each HTTP attempt.
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/cron-jobs/monitoring">
+    Review run history, failures, status, and manual triggers.
+  </Card>
+  <Card title="CLI and SDKs" icon="terminal" href="/cron-jobs/cli-and-sdks">
+    Automate cron jobs through the CLI or a supported SDK.
+  </Card>
+</CardGroup>
+
+## Start here
+
+1. Create the endpoint in [Connection](/cron-jobs/connection).
+2. Choose a recurring time in [Schedules](/cron-jobs/schedules).
+3. Read [Execution](/cron-jobs/execution) before making the endpoint live.
+4. Use [Monitoring](/cron-jobs/monitoring) to verify the first run.

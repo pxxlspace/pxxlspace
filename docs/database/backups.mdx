@@ -1,0 +1,55 @@
+---
+title: "Database Backups"
+sidebarTitle: "Backups"
+description: "Configure daily backups, create recovery points, and restore a managed database safely."
+---
+
+Open a database and select **Backup** to protect its data. Paid database plans can create daily encrypted recovery points and manual backups. Retention is controlled by the plan.
+
+## Choose a destination
+
+| Destination | Use it when |
+| --- | --- |
+| **Pxxl-managed storage** | You want Pxxl to keep encrypted recovery points in private platform storage. |
+| **Custom S3-compatible storage** | You want recovery points in a bucket controlled by your team. |
+
+Pxxl-managed database backups are separate from normal user Storage buckets. Custom destinations require a public HTTPS endpoint, bucket, region, prefix, access key, and secret key. Pxxl verifies the bucket before saving the settings and stores the credentials securely.
+
+## Recovery point lifecycle
+
+| Status | Meaning |
+| --- | --- |
+| **Queued** | Pxxl accepted the backup request. |
+| **Running** | The worker is exporting and writing the recovery point. |
+| **Completed** | The recovery point is ready for download or restore. |
+| **Failed** | The worker could not create or store it. |
+| **Expired** | The retention period ended and the object was removed. |
+
+## Create or restore a recovery point
+
+<Steps>
+  <Step title="Open Backup">
+    Select the database, open **Backup**, and choose the destination.
+  </Step>
+  <Step title="Enable daily backups or create one now">
+    Save daily protection, or select **Create recovery point** for an immediate backup.
+  </Step>
+  <Step title="Wait for Completed">
+    Only completed recovery points can be downloaded or restored.
+  </Step>
+  <Step title="Confirm before restoring">
+    A restore is queued separately and can replace the current database data. Confirm the database and recovery point before starting it.
+  </Step>
+</Steps>
+
+For S3 fields, AWS CLI checks, IAM policies, object prefixes, and the full storage flow, read [Database Backups in Storage](/storage/database-backups).
+
+## Destination changes
+
+Changing the destination creates a new destination record. A completed recovery point stays connected to the destination and credentials used when it was written, so changing the setting does not move older backups.
+
+## Troubleshooting
+
+If a backup fails, check the endpoint, bucket region, prefix, and access key permissions. A key that can list a bucket but cannot write to the selected prefix will pass some checks and still fail during backup.
+
+If a restore cannot start, check whether another backup or restore is already running. Pxxl allows one active backup and one active restore per database.

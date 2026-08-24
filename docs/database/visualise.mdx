@@ -1,0 +1,43 @@
+---
+title: "Visualise a Database"
+sidebarTitle: "Visualise"
+description: "Inspect database structure, tables, relationships, queries, and data from the Pxxl workspace."
+---
+
+The **Visualise** section gives you a live view of a database without installing a database client in your application container.
+
+## Available views
+
+| View | Use it for |
+| --- | --- |
+| **Structure** | Inspect schemas, tables, columns, indexes, and keys. |
+| **Data** | Browse records in a selected table. |
+| **Query** | Run an approved query against the selected database. |
+| **ERD** | See tables and relationships as a diagram. |
+| **History** | Review recent console or query activity. |
+| **Import and export** | Move supported data in or out of the database workspace. |
+
+The exact views depend on the database engine and your plan.
+
+## Safe workflow
+
+<Steps>
+  <Step title="Start with Structure">
+    Confirm the schema, table names, indexes, and relationships before inspecting records.
+  </Step>
+  <Step title="Use Data for a small sample">
+    Browse only the rows needed for the investigation. Avoid exporting production data unnecessarily.
+  </Step>
+  <Step title="Use Query carefully">
+    Review a query before running it, especially when it can update or delete records.
+  </Step>
+  <Step title="Use migrations for repeatable changes">
+    Store schema changes in your repository so every environment can be recreated consistently.
+  </Step>
+</Steps>
+
+Visualise is an inspection and operations tool. It does not replace migrations, backups, access reviews, or a dedicated database client for advanced workflows.
+
+## Access and credentials
+
+The database connection is opened using the instance's managed connection path. Open [Connection](/database/connection) when you need to review the endpoint or credentials, and [Settings](/database/settings) when you need to control the instance lifecycle.

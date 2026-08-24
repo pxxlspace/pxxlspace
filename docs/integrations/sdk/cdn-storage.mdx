@@ -1,0 +1,305 @@
+---
+title: "CDN and Storage"
+description: "Upload CDN assets and manage S3-compatible buckets, objects, keys, usage, and analytics."
+---
+
+Use CDN for directly served files. Use Storage for buckets, private objects, access keys, and S3-compatible tools.
+
+## Storage buckets
+
+### Create a bucket
+
+<ParamField body="name" type="string" required>
+  Unique display name for the bucket.
+</ParamField>
+
+<ParamField body="visibility" type="private | public" default="private">
+  Controls whether objects can be opened without authentication.
+</ParamField>
+
+<ParamField body="region" type="string">
+  Preferred storage region when your account has a choice.
+</ParamField>
+
+<ParamField body="cacheMode" type="string">
+  Optional cache behavior for public objects.
+</ParamField>
+
+<ParamField body="versioning" type="boolean" default="false">
+  Retains supported object versions.
+</ParamField>
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const result = await pxxl.storage.createBucket({
+      name: "uploads",
+      visibility: "private",
+      versioning: true,
+    });
+
+    const bucketId = result.bucket.id;
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    result, err := client.CreateStorageBucket(ctx, map[string]any{
+      "name": "uploads", "visibility": "private", "versioning": true,
+    })
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = client.create_storage_bucket({
+        "name": "uploads", "visibility": "private", "versioning": True,
+    })
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let result = client.create_storage_bucket(json!({
+        "name": "uploads", "visibility": "private", "versioning": true
+    })).await?;
+    ```
+  </Tab>
+</Tabs>
+
+**Returns**
+
+```json
+{
+  "bucket": {
+    "id": "bucket_123",
+    "name": "uploads",
+    "slug": "uploads",
+    "visibility": "private",
+    "status": "active",
+    "storageBytes": 0,
+    "bandwidthBytes": 0,
+    "objectCount": 0,
+    "createdAt": "2026-08-17T08:00:00Z"
+  },
+  "access": { "canRead": true, "canWrite": true }
+}
+```
+
+### Bucket operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `storage.listBuckets()` | None | `{ buckets, total, access? }` |
+| Get | `storage.getBucket(id)` | `id` | `{ bucket, access? }` |
+| Update | `storage.updateBucket(id, input)` | `name?`, `visibility?` | `{ bucket, access? }` |
+| Delete | `storage.deleteBucket(id)` | `id` | No value |
+| Analytics | `storage.analytics(id, timeframe)` | `id`, `timeframe?` | Storage metrics object |
+| Billing | `storage.billing(input)` | `bucketId?`, `limit?` | `{ billing, entries, usageMonths?, invoices? }` |
+
+## Objects
+
+### Upload an object
+
+<ParamField body="bucketId" type="string" required>
+  Destination bucket ID.
+</ParamField>
+
+<ParamField body="file" type="file | bytes" required>
+  Object contents.
+</ParamField>
+
+<ParamField body="fileName" type="string" required>
+  Name stored for the object.
+</ParamField>
+
+<ParamField body="path" type="string">
+  Optional path inside the bucket.
+</ParamField>
+
+<ParamField body="visibility" type="private | public" default="public">
+  Per-object visibility.
+</ParamField>
+
+```ts
+const object = await pxxl.storage.uploadObject("bucket_123", {
+  file,
+  fileName: "avatars/robin.png",
+  visibility: "private",
+});
+```
+
+**Returns**
+
+```json
+{
+  "id": "asset_123",
+  "fileName": "avatars/robin.png",
+  "key": "storage/bucket_123/avatars/robin.png",
+  "contentType": "image/png",
+  "size": 48120,
+  "visibility": "private",
+  "kind": "file",
+  "createdAt": "2026-08-17T08:05:00Z"
+}
+```
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `storage.listObjects(bucketId, input)` | `page?`, `limit?`, `search?`, `kind?` | `{ assets, pagination }` |
+| Upload | `storage.uploadObject(bucketId, input)` | File fields above | Asset object |
+| Download | `storage.downloadObject(id)` | Object ID | Binary file |
+| Delete | `storage.deleteObject(id)` | Object ID | No value |
+
+## Access keys
+
+<ParamField body="name" type="string">
+  Label that identifies the integration using the key.
+</ParamField>
+
+<ParamField body="permission" type="read | read_write" default="read">
+  Allowed S3 operations.
+</ParamField>
+
+```ts
+const result = await pxxl.storage.createAccessKey("bucket_123", {
+  name: "media-worker",
+  permission: "read_write",
+});
+```
+
+**Returns once**
+
+```json
+{
+  "key": {
+    "id": "key_123",
+    "name": "media-worker",
+    "accessKeyId": "pxxl_access_123",
+    "secretAccessKey": "shown-only-once",
+    "permission": "read_write",
+    "endpoint": "https://storage.pxxl.app",
+    "region": "auto",
+    "bucket": "uploads",
+    "pathStyle": true,
+    "status": "active"
+  },
+  "notice": "Save the secret access key now."
+}
+```
+
+<Warning>
+  Pxxl returns `secretAccessKey` only when the key is created. Store it securely and never log it.
+</Warning>
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `storage.listAccessKeys(bucketId)` | Bucket ID | `{ keys }` without secrets |
+| Create | `storage.createAccessKey(bucketId, input)` | `name?`, `permission?` | `{ key, notice? }` |
+| Delete | `storage.deleteAccessKey(bucketId, keyId)` | Bucket ID and key ID | No value |
+
+## Storage analytics
+
+```ts
+const analytics = await pxxl.storage.analytics("bucket_123", "30d");
+```
+
+```json
+{
+  "requests": 2140,
+  "bandwidthBytes": 83047210,
+  "uploadedBytes": 12000000,
+  "downloadedBytes": 71047210,
+  "uploadCount": 32,
+  "downloadCount": 2108,
+  "objectCount": 84,
+  "publicObjects": 60,
+  "privateObjects": 24,
+  "largestObjectBytes": 8100000,
+  "averageObjectBytes": 420000,
+  "contentTypes": { "image/png": 42, "application/pdf": 12 },
+  "recentActivity": [],
+  "timeline": []
+}
+```
+
+## CDN assets
+
+### Upload an asset
+
+<ParamField body="file" type="file | bytes" required>
+  Asset contents.
+</ParamField>
+
+<ParamField body="fileName" type="string" required>
+  File name sent to Pxxl.
+</ParamField>
+
+<ParamField body="visibility" type="private | public" default="public">
+  Public assets receive a `publicUrl`.
+</ParamField>
+
+<ParamField body="kind" type="file | artifact" default="file">
+  Classifies the uploaded asset.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Associates the asset with a project.
+</ParamField>
+
+<ParamField body="deploymentId" type="string">
+  Associates the asset with a deployment.
+</ParamField>
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const asset = await pxxl.cdn.upload({
+      file,
+      fileName: "logo.png",
+      visibility: "public",
+      projectId: "proj_123",
+    });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    asset, err := client.UploadAsset(ctx, pxxl.UploadAssetInput{
+      Reader: file, FileName: "logo.png", Visibility: "public",
+      ProjectID: "proj_123",
+    })
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    asset = client.upload_asset(
+        file_path="logo.png", visibility="public", project_id="proj_123"
+    )
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let asset = client.upload_asset(UploadAsset {
+        file_name: "logo.png".into(), bytes,
+        visibility: Some("public".into()),
+        project_id: Some("proj_123".into()),
+        ..Default::default()
+    }).await?;
+    ```
+  </Tab>
+</Tabs>
+
+The returned asset uses the same object shape shown above and includes `publicUrl` for public files.
+
+### CDN operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| Summary | `cdn.summary()` | None | `{ totalFiles, storageBytes, uploadsLast24h, recentAssets, configured }` |
+| List | `cdn.list(input)` | `page?`, `limit?`, `search?`, `kind?`, `bucketId?` | `{ assets, pagination }` |
+| Upload | `cdn.upload(input)` | Asset fields above | Asset object |
+| Download | `cdn.download(id)` | Asset ID | Binary file |
+| Delete | `cdn.delete(id)` | Asset ID | No value |
+| Usage | `cdn.usage(limit)` | `limit?` | Usage event array |
+| Space | `cdn.space()` | None | `{ space, storageName? }` |
+| Create space | `cdn.createSpace(input)` | `name?` | `{ space, storageName? }` |
+| Proxy logs | `cdn.proxyLogs(input)` | `limit?`, `projectId?` | Proxy log collection |
+| Edge functions | `cdn.edgeFunctions(input)` | `projectId?`, `status?`, `limit?` | Edge function collection |
+| Create edge function | `cdn.createEdgeFunction(input)` | `name`, route/runtime/source fields | Created edge function |

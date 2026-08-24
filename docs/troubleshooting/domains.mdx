@@ -18,7 +18,7 @@ Domains on Pxxl go through three layers before traffic reaches your app: DNS res
         Open **Dashboard > Projects**, select your project, go to the **Domains** tab, and confirm the domain appears there. If it does not, click **Add Domain** and attach it.
       </Step>
       <Step title="Resync the proxy">
-        Open **Dashboard > Domains**, select the domain, and click **Resync Proxy**. This tells the edge to re-read the route and create a certificate request for the hostname.
+        Open [Domains](/domains/overview), select the domain, and click **Resync Proxy**. This tells the edge to re-read the route and create a certificate request for the hostname.
       </Step>
       <Step title="Confirm the deployment is active">
         Check that the latest deployment finished successfully. A healthy upstream must exist before the proxy can return a response.
@@ -53,7 +53,7 @@ Domains on Pxxl go through three layers before traffic reaches your app: DNS res
         Update the port to match your app's listener. The proxy can only route to the port Pxxl registered for the container; if the values differ, the route exists but traffic never reaches the app.
       </Step>
       <Step title="Resync the proxy">
-        Open **Dashboard > Domains**, select the domain, and click **Resync Proxy** so the edge picks up the updated upstream target. Redeploy only if the app image itself needs a changed port or config value.
+        Open [Domains](/domains/overview), select the domain, and click **Resync Proxy** so the edge picks up the updated upstream target. Redeploy only if the app image itself needs a changed port or config value.
       </Step>
     </Steps>
   </Accordion>
@@ -98,7 +98,7 @@ Domains on Pxxl go through three layers before traffic reaches your app: DNS res
 
     <Steps>
       <Step title="Open the domain">
-        Go to **Dashboard > Domains** and select the affected domain.
+        Go to [Domains](/domains/overview) and select the affected domain.
       </Step>
       <Step title="Click Resync Proxy">
         Click **Resync Proxy** in the domain actions area. Pxxl refreshes the proxy route and requests a dedicated certificate via SNI. You do not need to redeploy your project to refresh SSL.
@@ -145,7 +145,7 @@ Domains on Pxxl go through three layers before traffic reaches your app: DNS res
 
     <Steps>
       <Step title="Open the domain">
-        Go to **Dashboard > Domains** and select the domain.
+        Go to [Domains](/domains/overview) and select the domain.
       </Step>
       <Step title="Open Settings or Subdomains">
         Click the **Settings** or **Subdomains** tab.
@@ -168,7 +168,7 @@ Domains on Pxxl go through three layers before traffic reaches your app: DNS res
 
     <Steps>
       <Step title="Open the domain detail page">
-        Go to **Dashboard > Domains** and click the new domain.
+        Go to [Domains](/domains/overview) and click the new domain.
       </Step>
       <Step title="Confirm DNS is managed by Pxxl">
         Check that the DNS management indicator shows Pxxl is in control of the nameservers. If registration is still pending, wait for the domain task to finish before expecting DNS or SSL to work.

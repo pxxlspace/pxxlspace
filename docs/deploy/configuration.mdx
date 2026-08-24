@@ -1,0 +1,69 @@
+---
+title: "Build Configuration"
+sidebarTitle: "Build Configuration"
+description: "Review the source, commands, runtime, domains, and scaling settings before deployment."
+---
+
+After the source is selected, Pxxl opens the configuration step. The exact fields depend on the source, but the purpose is the same: review what Pxxl will build and how it will run.
+
+<Frame caption="Build Configuration brings project setup, multiple services, runtime settings, and environment variables into one review step.">
+  <img src="/images/deploy-build-configuration.jpeg" alt="Pxxl build configuration screen showing project setup, multiple services, Node version, and environment variables." />
+</Frame>
+
+## Project settings
+
+| Setting | What it controls |
+| --- | --- |
+| **Project domain** | The public Pxxl subdomain for the project. |
+| **Domain suffix** | The Pxxl suffix used by the public subdomain. |
+| **Port** | The port the application listens on inside the runtime. |
+| **Branch** | The source branch used for the deployment. |
+| **Commit** | The exact source revision to deploy. |
+| **Base directory** | The directory where Pxxl should find the application. |
+| **Multiple services** | Separate services in a repository that contains more than one deployable application. See [Multiple Services and Monorepos](/deploy/multiple-services). |
+
+## Multiple services and monorepos
+
+If the repository contains more than one deployable application, enable **Multiple Services** and configure each service separately. A monorepo can contain a web app, API, worker, or other service under different directories while keeping one repository and project history.
+
+Pxxl saves each service with its own alias, base directory, service type, route setting, port, and commands. Read [Multiple Services and Monorepos](/deploy/multiple-services) for the full setup and a working layout.
+
+## Build settings
+
+Pxxl fills these from repository analysis when it can. Review them when the project has a custom setup:
+
+- package manager
+- runtime version
+- install command
+- build command
+- start command
+- output directory
+
+For a Web Service, the start command must keep the application running and the process must listen on the configured port. A Static App needs an output directory instead of a long-running process.
+
+## Environment and server settings
+
+Add required values in **Secrets** before the first build. Review server and scaling settings when the project needs more CPU, memory, replicas, or a larger build server.
+
+Advanced options can include:
+
+- blue-green deployment
+- autoscaling
+- project webhooks
+- build cache
+- preview environments
+
+Only enable an option when you know the project needs it. The available controls can vary by plan and source.
+
+## Submit the deployment
+
+Before selecting **Deploy Project**, confirm:
+
+- the source, branch, and commit
+- the domain and port
+- the language and framework
+- the install, build, and start commands
+- required environment variables
+- the deployment target
+
+Pxxl then queues the deployment and opens the logs for the new build.

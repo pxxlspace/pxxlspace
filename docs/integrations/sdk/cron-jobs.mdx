@@ -1,0 +1,147 @@
+---
+title: "Cron jobs"
+description: "Schedule HTTP requests, control jobs, trigger runs, and inspect run history."
+---
+
+## Create a cron job
+
+<ParamField body="name" type="string" required>
+  Name shown in Pxxl.
+</ParamField>
+
+<ParamField body="schedule" type="string" required>
+  Five-field cron expression such as `*/5 * * * *`.
+</ParamField>
+
+<ParamField body="url" type="string" required>
+  HTTPS endpoint called by the job.
+</ParamField>
+
+<ParamField body="method" type="GET | POST | PUT | PATCH | DELETE" default="GET">
+  HTTP method used for the request.
+</ParamField>
+
+<ParamField body="headers" type="object">
+  Request headers sent to the endpoint.
+</ParamField>
+
+<ParamField body="timeoutSeconds" type="number">
+  Maximum execution time.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Project associated with the job.
+</ParamField>
+
+<ParamField body="teamId" type="string">
+  Team that owns the job.
+</ParamField>
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const job = await pxxl.cron.create({
+      name: "cache warmer",
+      schedule: "*/5 * * * *",
+      url: "https://example.com/jobs/warm",
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.JOB_TOKEN}` },
+      timeoutSeconds: 30,
+    });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    job, err := client.CreateCronJob(ctx, pxxl.CreateCronJobInput{
+      Name: "cache warmer", Schedule: "*/5 * * * *",
+      URL: "https://example.com/jobs/warm", Method: "POST",
+      TimeoutSeconds: 30,
+    })
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    job = client.create_cron_job(
+        name="cache warmer", schedule="*/5 * * * *",
+        url="https://example.com/jobs/warm", method="POST",
+        timeout_seconds=30,
+    )
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let job = client.create_cron_job(CreateCronJob {
+        name: "cache warmer".into(), schedule: "*/5 * * * *".into(),
+        url: "https://example.com/jobs/warm".into(),
+        method: Some("POST".into()), timeout_seconds: Some(30),
+        ..Default::default()
+    }).await?;
+    ```
+  </Tab>
+</Tabs>
+
+**Returns**
+
+```json
+{
+  "id": "cron_123",
+  "name": "cache warmer",
+  "schedule": "*/5 * * * *",
+  "url": "https://example.com/jobs/warm",
+  "method": "POST",
+  "timeoutSeconds": 30,
+  "status": "active",
+  "consecutiveFailures": 0,
+  "lastRunAt": null,
+  "nextRunAt": "2026-08-17T08:10:00Z"
+}
+```
+
+## Cron operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `cron.list(input?)` | `teamId?` | `{ cronJobs }` |
+| Get | `cron.get(id, teamId?)` | Job ID, `teamId?` | Cron job |
+| Create | `cron.create(input)` | Fields above | Cron job |
+| Update | `cron.update(id, input)` | Any editable create field, `status?` | Updated cron job |
+| Delete | `cron.delete(id, teamId?)` | Job ID, `teamId?` | Action result |
+| Start | `cron.start(id, teamId?)` | Job ID, `teamId?` | Action result |
+| Stop | `cron.stop(id, teamId?)` | Job ID, `teamId?` | Action result |
+| Trigger | `cron.trigger(id, teamId?)` | Job ID, `teamId?` | Accepted run result |
+| Runs | `cron.runs(id, input?)` | `page?`, `limit?`, `teamId?` | `{ runs, total?, page?, limit?, totalPages? }` |
+| Validate schedule | `cron.validateSchedule(schedule)` | Cron expression | Validation result |
+| Validate URL | `cron.validateURL(url)` | HTTPS URL | Validation result |
+
+## Trigger and read a run
+
+```ts
+const trigger = await pxxl.cron.trigger("cron_123");
+const history = await pxxl.cron.runs("cron_123", { page: 1, limit: 20 });
+```
+
+```json
+{
+  "runs": [
+    {
+      "id": "run_123",
+      "cronJobId": "cron_123",
+      "status": "success",
+      "statusCode": 200,
+      "output": "ok",
+      "error": null,
+      "timedOut": false,
+      "startedAt": "2026-08-17T08:05:00Z",
+      "finishedAt": "2026-08-17T08:05:01Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
+}
+```
+
+<Note>
+  Job headers can contain secrets. Keep cron management in trusted server code.
+</Note>

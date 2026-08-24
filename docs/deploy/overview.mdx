@@ -1,0 +1,30 @@
+---
+title: "Deploy"
+sidebarTitle: "Overview"
+description: "Choose a source, review the build plan, and ship a project live on Pxxl."
+---
+
+Pxxl takes a project from a source to a live service or Static App through one reviewable flow.
+
+## The four stages
+
+<Steps>
+  <Step title="Choose a source">
+    Select the option that matches where the project lives. Git repositories, uploads, containers, WordPress, imports, and templates each use their own setup path.
+  </Step>
+  <Step title="Configure the source">
+    Connect the repository, upload the archive, choose the image, or provide the information required by the selected source.
+  </Step>
+  <Step title="Review the build plan">
+    Pxxl detects the language, framework, package manager, commands, port, output directory, and deployment target. Review the result before the build starts.
+  </Step>
+  <Step title="Follow the deployment">
+    Pxxl queues the build, streams logs, publishes the result, and shows the deployment status and public route.
+  </Step>
+</Steps>
+
+Start with [Deployment Sources](/deploy/sources) to choose the right option. Then read [Build Configuration](/deploy/configuration) for the settings Pxxl asks you to review.
+
+<Note>
+  Pxxl does not create the final deployment until you submit the reviewed configuration.
+</Note>

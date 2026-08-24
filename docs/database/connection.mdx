@@ -1,0 +1,85 @@
+---
+title: "Database Connection"
+sidebarTitle: "Connection"
+description: "Connect a deployed Pxxl project to a managed database without putting credentials in source code."
+---
+
+Open a database and select **Connection** to reveal the values your application needs.
+
+| Value | Use |
+| --- | --- |
+| **Database URL** | A complete connection string for libraries that accept one value. |
+| **Host** | The Pxxl database endpoint. |
+| **Port** | The port for the selected engine. |
+| **Username** | The database user for the instance. |
+| **Password** | The password for the database user. |
+
+Passwords and connection strings are revealed only when requested. Treat them as secrets.
+
+## Connect a project
+
+<Steps>
+  <Step title="Link the database">
+    Open the project overview, choose the database connection action, select the instance, and confirm the link.
+  </Step>
+  <Step title="Add environment variables">
+    Add `DATABASE_URL`, or add the individual host, port, database, user, and password values required by your framework.
+  </Step>
+  <Step title="Redeploy the project">
+    Save the variables and start a new deployment. New values are loaded when the container starts.
+  </Step>
+</Steps>
+
+Pxxl routes user connections through its managed database router. Use the host and port shown by Pxxl. `localhost` inside a project container points to that container, not to the database.
+
+## Common environment variables
+
+```bash PostgreSQL
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+PGHOST=HOST
+PGPORT=PORT
+PGDATABASE=DATABASE
+PGUSER=USER
+PGPASSWORD=PASSWORD
+```
+
+```bash MySQL
+DATABASE_URL=mysql://USER:PASSWORD@HOST:PORT/DATABASE
+MYSQL_HOST=HOST
+MYSQL_PORT=PORT
+MYSQL_DATABASE=DATABASE
+MYSQL_USER=USER
+MYSQL_PASSWORD=PASSWORD
+```
+
+Replace the placeholders with values from Pxxl. Do not commit the finished connection string.
+
+## Connection flow
+
+```mermaid
+sequenceDiagram
+  participant U as Pxxl workspace
+  participant G as Pxxl Gateway
+  participant R as Database router
+  participant A as Application container
+  participant D as Managed database
+  U->>G: Create and link database
+  G->>D: Provision the instance
+  G->>R: Register proxy host and port
+  G-->>U: Return connection details
+  U->>G: Save environment variables
+  G-->>A: Inject variables on the next deployment
+  A->>R: Connect with the Pxxl host and port
+  R->>D: Forward the database connection
+```
+
+## Connection checklist
+
+| Check | Why it matters |
+| --- | --- |
+| **The database is healthy** | Provisioning and stopped instances are not ready for traffic. |
+| **The application reads environment variables** | Credentials stay out of source code. |
+| **The host is the Pxxl endpoint** | `localhost` is the application container. |
+| **The project was redeployed** | New variables are loaded at startup. |
+
+If the connection still fails, check [Monitoring](/database/monitoring) and the [database troubleshooting guide](/troubleshooting/databases).

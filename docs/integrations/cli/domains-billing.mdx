@@ -1,0 +1,27 @@
+---
+title: "Domains and billing"
+description: "Check, buy, configure, and pay for domains from the CLI."
+---
+
+## Find and buy a domain
+
+```bash
+pxxl domains search example.com
+pxxl customers create --data '{"firstName":"Ada","lastName":"Lovelace","email":"ada@example.com"}'
+pxxl domains purchase --data '{"domains":[{"domainName":"example.com","years":1}],"customerId":"cus_123"}'
+```
+
+The purchase returns an order or invoice. Open its payment page when payment is required.
+
+```bash
+pxxl invoices get inv_123
+pxxl invoices payment-url inv_123
+```
+
+## Manage DNS
+
+```bash
+pxxl domains records list dom_123
+pxxl domains records create dom_123 --type A --name @ --value 203.0.113.10
+pxxl domains nameservers verify dom_123
+```

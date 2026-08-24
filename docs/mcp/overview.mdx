@@ -1,0 +1,39 @@
+---
+title: "Pxxl MCP"
+sidebarTitle: "Overview"
+description: "Connect an AI client to Pxxl over authenticated HTTP with scoped access."
+---
+
+Pxxl MCP lets an AI client work with approved projects, deployments, domains, databases, storage, cron jobs, and other resources. The connection uses HTTP. A JavaScript SDK is optional, not required.
+
+MCP connections are available on Plus, Pro, and Enterprise plans.
+
+## MCP workspace
+
+<CardGroup cols={2}>
+  <Card title="Connection" icon="link" href="/mcp/connection">
+    Create a connection, copy its endpoint, and attach it to Claude, Cursor, Codex, or another client.
+  </Card>
+  <Card title="Permissions" icon="lock" href="/mcp/permissions">
+    Choose which scopes and resources the connection can read or update.
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/mcp/monitoring">
+    Review request volume, success rate, latency, and safe request metadata.
+  </Card>
+  <Card title="Settings" icon="settings" href="/mcp/settings">
+    Disable access, rotate a key, or remove the connection.
+  </Card>
+</CardGroup>
+
+## What MCP can do
+
+An approved connection can inspect or update the resources covered by its scopes. Resource-specific allowlists let you select only the projects, domains, databases, buckets, teams, or environments the client should see.
+
+Secrets, environment values, API keys, payment details, passwords, and authentication administration are not returned through MCP.
+
+## Start here
+
+1. Create a [Connection](/mcp/connection).
+2. Set [Permissions](/mcp/permissions).
+3. Confirm the first request in [Monitoring](/mcp/monitoring).
+4. Review [Settings](/mcp/settings) before sharing or rotating the key.

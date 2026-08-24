@@ -1,0 +1,94 @@
+---
+title: "Environment variables API"
+description: "List, compare, and push encrypted project configuration."
+---
+
+Pxxl list responses contain variable names and metadata. Stored secret values are not returned.
+
+## Variable body
+
+<ParamField body="vars" type="array" required>
+  Variables to compare or push.
+</ParamField>
+
+<ParamField body="vars[].key" type="string" required>
+  Environment variable name.
+</ParamField>
+
+<ParamField body="vars[].value" type="string" required>
+  Value encrypted by Pxxl.
+</ParamField>
+
+<ParamField body="vars[].isSecret" type="boolean" default="true">
+  Marks the value as sensitive.
+</ParamField>
+
+<ParamField body="replace" type="boolean" default="false">
+  Removes remote variables missing from `vars`.
+</ParamField>
+
+## Endpoints
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/projects/{projectId}/envs` | None | Project variable metadata |
+| `POST` | `/cli/projects/{projectId}/envs/diff` | `{ vars }` | Diff result |
+| `POST` | `/cli/projects/{projectId}/envs/bulk` | `{ vars, replace }` | Applied change counts |
+| `GET` | `/cli/projects/{projectId}/global-envs` | None | Global variable metadata |
+| `POST` | `/cli/projects/{projectId}/global-envs/diff` | `{ vars }` | Global diff result |
+| `POST` | `/cli/projects/{projectId}/global-envs/bulk` | `{ vars, replace }` | Applied global changes |
+
+## Compare before pushing
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/projects/proj_123/envs/diff \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"vars":[{"key":"NODE_ENV","value":"production","isSecret":false}]}'
+```
+
+```json
+{
+  "success": true,
+  "projectId": "proj_123",
+  "scope": "project",
+  "counts": { "same": 0, "changed": 1, "missingRemote": 0, "missingLocal": 0 },
+  "diff": [
+    {
+      "key": "NODE_ENV",
+      "status": "changed",
+      "local": true,
+      "remote": true,
+      "same": false,
+      "localHash": "sha256:...",
+      "remoteHash": "sha256:..."
+    }
+  ]
+}
+```
+
+## Push variables
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/projects/proj_123/envs/bulk \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"vars":[{"key":"NODE_ENV","value":"production","isSecret":false}],"replace":false}'
+```
+
+```json
+{
+  "success": true,
+  "projectId": "proj_123",
+  "scope": "project",
+  "created": 1,
+  "updated": 0,
+  "deleted": 0
+}
+```
+
+<Warning>
+  `replace: true` deletes remote keys missing from the submitted array. Run the diff endpoint first.
+</Warning>

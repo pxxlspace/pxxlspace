@@ -1,14 +1,14 @@
 ---
 title: "Pxxl Dashboard: Your Cloud Deployment Control Plane"
 sidebarTitle: "Overview"
-description: "Learn how the Pxxl dashboard is organized: Projects, Domains, CDN, Database, Cron Jobs, and API Keys — navigate Africa's cloud deployment platform."
+description: "Learn how the Pxxl dashboard is organized across projects, deployments, domains, databases, MCP connections, cron jobs, and API keys."
 ---
 
-The Pxxl dashboard is your single control plane for every application, database, domain, and automation running on Africa's cloud deployment platform. From the moment you sign in, a top-level workspace switcher lets you move between teams and personal workspaces, while a persistent left-hand navigation gives you direct access to each major capability. Whether you are shipping your first project, debugging a failed deployment, or wiring up signed webhooks for a production pipeline, every action begins here.
+The Pxxl dashboard is your control plane for every application, database, domain, and automation running on the Pxxl cloud deployment platform. From the moment you sign in, a workspace switcher lets you move between teams and personal workspaces, while the left-hand navigation gives you direct access to each major capability. Whether you are shipping your first project, debugging a failed deployment, or wiring up signed webhooks for a production pipeline, every action begins here.
 
 ## Dashboard Tabs
 
-The dashboard navigation exposes nine top-level areas. Use this table as a quick reference when you are looking for a specific feature.
+The dashboard navigation exposes the main areas of your workspace. Use this table as a quick reference when you are looking for a specific feature.
 
 | Tab | Purpose |
 | --- | --- |
@@ -16,11 +16,10 @@ The dashboard navigation exposes nine top-level areas. Use this table as a quick
 | **Projects** | Browse every project in the workspace, open project detail tabs, inspect deployments, live logs, environment variables, domains, monitoring, and scaling controls. |
 | **Deploy** | Create a new project directly from a connected GitHub repository by selecting a repo, configuring build settings, and launching your first deployment. |
 | **Deployments** | A workspace-wide list of all build and deploy events across every project, with status, commit context, and timestamps. |
-| **Domains** | Register, search, and manage all domains in the workspace — including DNS records, subdomains, nameservers, SSL certificates, and proxy security controls. |
 | **CDN** | Upload and manage static assets and CDN spaces, review bandwidth usage, and configure edge delivery settings. |
 | **API Keys** | Generate scoped API keys that authenticate backend services, automate deployments, upload CDN assets, and feed monitoring tools. |
-| **Database** | Provision managed PostgreSQL, MySQL, or MongoDB databases, link them to projects, and copy connection credentials into environment variables. |
-| **Cron Jobs** | Schedule recurring HTTP tasks against your app endpoints for nightly cleanup, report generation, or periodic sync jobs. |
+
+Domains, databases, MCP connections, cron jobs, and storage have their own documentation areas so each feature can explain its connection, monitoring, security, and operational controls in one place.
 
 ## Core Workflow
 
@@ -28,19 +27,19 @@ The following six steps describe how most teams move from a fresh workspace to a
 
 <Steps>
   <Step title="Connect GitHub">
-    Open **Dashboard > Settings > GitHub** and authorize Pxxl to access your repositories. This connection powers all repository imports and automatic deployments triggered by new commits.
+    Open **Dashboard > Settings > GitHub** and authorize Pxxl to access your repositories. This connection powers repository imports and automatic deployments triggered by new commits.
   </Step>
   <Step title="Create a Project">
-    Open **Dashboard > Deploy** (or **Projects > Add New > Deploy from GitHub**), choose a repository, configure the project domain, runtime port, branch, environment variables, and build settings, then click **Deploy Project**.
+    Open **Dashboard > Deploy** (or **Projects > Add New > Deploy from GitHub**), choose a repository, configure the project domain, runtime port, branch, environment variables, and build settings, then select **Deploy Project**.
   </Step>
   <Step title="Attach a Domain">
-    Open **Dashboard > Domains** to register or import a domain. Point its DNS to Pxxl nameservers or add the required records, then connect the domain to the project from the domain **Settings** tab or from **Project > Domains**.
+    Open [Domains](/domains/overview) to register or connect a domain. Point its DNS to Pxxl nameservers or add the required records, then connect the domain to the project from the domain **Settings** tab or from **Project > Domains**.
   </Step>
   <Step title="Provision a Database">
-    Open **Dashboard > Database**, create a PostgreSQL, MySQL, or MongoDB instance, then link it to your project from the project architecture view. Add the connection URL and credential variables under **Project > Environment Variables** and redeploy.
+    Open [Database](/database/overview), create an instance, then link it to your project from the project overview. Add the connection URL and credential variables under **Project > Environment Variables** and redeploy.
   </Step>
   <Step title="Monitor and Scale">
-    Open the project and switch between **Live Logs**, **Monitoring**, and **Infra & Scaling** tabs to verify the deployment is healthy, review traffic metrics, and adjust CPU, memory, or scaling settings as your workload grows.
+    Open the project and switch between **Live Logs**, **Monitoring**, and **Compute & Scaling** tabs to verify the deployment is healthy, review traffic metrics, and adjust resources as your workload grows.
   </Step>
   <Step title="Automate with API Keys and Webhooks">
     Open **Dashboard > API Keys** to generate scoped tokens for CI/CD pipelines, CDN uploaders, and monitoring scripts. Open **Dashboard > Settings > Webhooks** to push signed deployment and lifecycle events to your backend systems.
@@ -51,15 +50,15 @@ The following six steps describe how most teams move from a fresh workspace to a
 
 <CardGroup cols={2}>
   <Card title="Creating Projects" icon="rocket" href="dashboard/deploy-project">
-    Deploy a project from a GitHub repository — configure build commands, environment variables, scaling, and advanced options before your first launch.
+    Deploy a project from a GitHub repository, then configure build commands, environment variables, scaling, and advanced options before your first launch.
   </Card>
   <Card title="Managing Projects" icon="folder-open" href="dashboard/projects">
     Use the Projects page to inspect deployments, live logs, environment variables, domains, monitoring, and scaling controls for every project in the workspace.
   </Card>
-  <Card title="Manage Domains" icon="globe" href="dashboard/domains">
-    Configure DNS records, subdomains, nameservers, SSL certificates, and proxy security controls for all domains connected to your workspace.
+  <Card title="Manage Domains" icon="globe" href="domains/overview">
+    Configure DNS records, subdomains, nameservers, SSL services, and proxy security controls for all domains connected to your workspace.
   </Card>
-  <Card title="Database" icon="database" href="dashboard/database">
-    Provision managed PostgreSQL, MySQL, or MongoDB databases, link them to projects, and pass connection credentials through environment variables.
+  <Card title="Database" icon="database" href="database/overview">
+    Provision a managed database, link it to a project, and pass connection credentials through environment variables.
   </Card>
 </CardGroup>

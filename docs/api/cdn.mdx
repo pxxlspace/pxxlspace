@@ -128,6 +128,42 @@ The raw HTTP API returns small envelopes such as `{ "success": true, "data": ...
 | `space` | object | Current CDN space status. |
 | `credits` | object | Cloud-credit balance, rates, and projected storage cost. |
 
+## Pxxl-managed S3 access keys
+
+Pxxl storage buckets can issue scoped S3-compatible access keys. These keys connect to a bucket managed by Pxxl. They do not import an AWS S3, Cloudflare R2, MinIO, or other external bucket into a project.
+
+Create a key for a specific bucket:
+
+```http
+POST /storage/buckets/:bucketId/access-keys
+Authorization: Bearer $PXXL_API_KEY
+Content-Type: application/json
+
+{
+  "name": "build-upload",
+  "permission": "read_write"
+}
+```
+
+The supported permissions are:
+
+| Permission | Use it for |
+| --- | --- |
+| `read` | Listing, downloading, and reporting on objects. |
+| `read_write` | Uploading and deleting objects in addition to the `read` actions. |
+
+The response includes the S3-compatible endpoint, region, bucket, path-style setting, access key ID, and secret access key. Store the secret when it is returned and keep it on a server or CI system.
+
+Manage keys with these endpoints:
+
+```text
+GET    /storage/buckets/:bucketId/access-keys
+POST   /storage/buckets/:bucketId/access-keys
+DELETE /storage/buckets/:bucketId/access-keys/:keyId
+```
+
+Pxxl does not expose provider bucket names or internal object paths through the regular asset responses. Use the returned connection details and the bucket-scoped permission for a direct S3-compatible client.
+
 ## Asset Object
 
 List, upload, summary `recentAssets`, and SDK upload calls return the same safe asset shape. Provider names, bucket names, raw R2 keys, and internal tenant paths are not exposed.

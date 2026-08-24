@@ -1,0 +1,32 @@
+---
+title: "Databases and cron jobs"
+description: "Operate databases and scheduled HTTP jobs from the CLI."
+---
+
+## Databases
+
+```bash
+pxxl databases list
+pxxl databases get db_123
+pxxl databases metrics db_123
+pxxl databases usage db_123
+pxxl databases credential db_123 password
+pxxl databases restart db_123
+```
+
+## Cron jobs
+
+```bash
+pxxl cron list
+pxxl cron create --name cleanup --schedule "0 2 * * *" \
+  --url https://api.example.com/jobs/cleanup --method POST
+pxxl cron trigger cron_123
+pxxl cron runs cron_123
+```
+
+Validate a schedule or target before saving it:
+
+```bash
+pxxl cron validate-schedule "0 2 * * *"
+pxxl cron validate-url https://api.example.com/jobs/cleanup
+```

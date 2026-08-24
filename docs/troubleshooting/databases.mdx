@@ -13,7 +13,7 @@ Creating a database and deploying a project are separate actions on Pxxl. Simply
 
     <Steps>
       <Step title="Confirm the database is active">
-        Open **Dashboard > Database** and check that the database status shows active. A database that is still provisioning or in an error state cannot accept connections.
+        Open [Database](/database/overview) and check that the database status shows active. A database that is still provisioning or in an error state cannot accept connections.
       </Step>
       <Step title="Open the project overview or architecture view">
         Navigate to the project you want to connect the database to.
@@ -37,7 +37,7 @@ Creating a database and deploying a project are separate actions on Pxxl. Simply
     |---|---|
     | Runtime envs saved | `DATABASE_URL` (or your chosen variable name) appears in the project environment settings and has the correct value |
     | App reads `DATABASE_URL` | Your application code reads the connection string from the environment variable at startup, not from a hardcoded string |
-    | Database is active | The database status in **Dashboard > Database** shows active, not provisioning or errored |
+    | Database is active | The database status in [Database](/database/overview) shows active, not provisioning or errored |
     | Project was redeployed | A deployment ran *after* the environment variable was added — changes only apply to new deployments |
     | Migrations are safe | Schema migrations run as part of a controlled startup step or a separate job, not automatically on every container restart |
 
@@ -49,5 +49,5 @@ Creating a database and deploying a project are separate actions on Pxxl. Simply
 </AccordionGroup>
 
 <Tip>
-  For the complete database setup flow — including provisioning, connection string formats, and backups — see the [Database documentation](/dashboard/database).
+  For the complete database setup flow, including provisioning, connection string formats, and backups, see the [Database documentation](/database/overview).
 </Tip>

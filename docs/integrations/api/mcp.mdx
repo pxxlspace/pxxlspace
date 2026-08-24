@@ -1,0 +1,123 @@
+---
+title: "MCP API"
+description: "Call Pxxl tools and resources through JSON-RPC over HTTP."
+---
+
+MCP uses a separate endpoint:
+
+```text
+https://mcp.pxxl.app/mcp
+```
+
+## Required headers
+
+<ParamField header="Authorization" type="string" required>
+  `Bearer` followed by your MCP API key.
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `application/json`.
+</ParamField>
+
+<ParamField header="MCP-Protocol-Version" type="string" default="2025-06-18">
+  MCP protocol version used by the client.
+</ParamField>
+
+## JSON-RPC request
+
+<ParamField body="jsonrpc" type="string" required>
+  Must be `2.0`.
+</ParamField>
+
+<ParamField body="id" type="string | number" required>
+  Client-generated request ID.
+</ParamField>
+
+<ParamField body="method" type="string" required>
+  MCP method such as `tools/list`.
+</ParamField>
+
+<ParamField body="params" type="object">
+  Method parameters.
+</ParamField>
+
+## MCP methods
+
+| Method | Parameters | Returns |
+| --- | --- | --- |
+| `initialize` | Protocol version, capabilities, and client info | Server capabilities and information |
+| `ping` | None | Empty successful result |
+| `tools/list` | Optional pagination | Tool definitions and schemas |
+| `tools/call` | `name`, `arguments` | Tool content and structured result |
+| `resources/list` | Optional pagination | Resource definitions |
+| `resources/read` | `uri` | Resource contents |
+
+## List tools
+
+```bash
+curl https://mcp.pxxl.app/mcp \
+  --header "Authorization: Bearer $PXXL_MCP_API_KEY" \
+  --header "Content-Type: application/json" \
+  --header "MCP-Protocol-Version: 2025-06-18" \
+  --data '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}'
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "1",
+  "result": {
+    "tools": [
+      {
+        "name": "projects_list",
+        "description": "List projects available to this key.",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "limit": { "type": "integer" } }
+        }
+      }
+    ]
+  }
+}
+```
+
+## Call a tool
+
+```bash
+curl https://mcp.pxxl.app/mcp \
+  --header "Authorization: Bearer $PXXL_MCP_API_KEY" \
+  --header "Content-Type: application/json" \
+  --header "MCP-Protocol-Version: 2025-06-18" \
+  --data '{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"projects_list","arguments":{"limit":10}}}'
+```
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "2",
+  "result": {
+    "content": [
+      { "type": "text", "text": "{\"projects\":[],\"total\":0}" }
+    ],
+    "structuredContent": { "projects": [], "total": 0 },
+    "isError": false
+  }
+}
+```
+
+## Error responses
+
+JSON-RPC errors use the top-level `error` field.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": "2",
+  "error": {
+    "code": -32602,
+    "message": "Invalid tool arguments"
+  }
+}
+```
+
+A tool can also return `isError: true` inside `result`. Check both forms.

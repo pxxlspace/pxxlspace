@@ -1,0 +1,27 @@
+---
+title: "Environment variables"
+description: "Manage project variables without placing secrets in source control."
+---
+
+## Inspect variables
+
+```bash
+pxxl env list proj_123
+pxxl env diff proj_123 --file .env.production
+```
+
+## Push a file
+
+```bash
+pxxl env push proj_123 --file .env.production
+```
+
+Add `--force` to replace remote variables instead of merging them.
+
+```bash
+pxxl env push proj_123 --file .env.production --force
+```
+
+<Warning>
+  Do not commit `.env` files containing production secrets.
+</Warning>
