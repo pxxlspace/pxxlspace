@@ -59,6 +59,13 @@ ${bold("Account")}
   ${cyan("pxxl stats")}                      Show platform stats for the current scope
   ${cyan("pxxl usage")}                      Show usage for the current scope
 
+${bold("MCP")}
+  ${cyan("pxxl mcp ping")}                   Check the MCP connection
+  ${cyan("pxxl mcp tools")}                  List available tools
+  ${cyan("pxxl mcp call")} <tool> --data '{}' Call a tool
+  ${cyan("pxxl mcp resources")}              List available resources
+  ${cyan("pxxl mcp read")} <uri>             Read a resource
+
 ${bold("Deploy")}
   ${cyan("pxxl doctor")}                     Check auth, git, config, package manager, and deploy issues
   ${cyan("pxxl inspect")}                    Show detected framework, runtime, env files, and deploy size
@@ -428,6 +435,7 @@ async function main() {
   if (command === "whoami" || command === "status") return whoami(client, args);
   if (command === "stats") return stats(client, args);
   if (command === "usage") return usageOverview(client, args);
+  if (command === "mcp") return mcp(client, args);
   if (command === "deploy") return deploy(client, args);
   if (command === "redeploy") return redeploy(client, args);
   if (command === "project" || command === "projects") return projects(client, args);
@@ -731,6 +739,25 @@ async function cdn(client: PxxlClient, args: string[]) {
     const result = await spinner("Fetching CDN usage events", () => client.usage(Number(flagValue(args, "--limit") || 100)));
     if (wantsJSON(args)) return printJSON(result);
     return printCDNUsage(result);
+  }
+  if (command === "proxy-logs") {
+    const result = await spinner("Fetching CDN proxy logs", () => client.cdnProxyLogs({
+      projectId: flagValue(args, "--project"),
+      limit: flagValue(args, "--limit") ? Number(flagValue(args, "--limit")) : undefined,
+    }));
+    return printJSON(result);
+  }
+  if (command === "edge-functions") {
+    const result = await spinner("Fetching edge functions", () => client.listEdgeFunctions({
+      projectId: flagValue(args, "--project"),
+      status: flagValue(args, "--status"),
+      limit: flagValue(args, "--limit") ? Number(flagValue(args, "--limit")) : undefined,
+    }));
+    return printJSON(result);
+  }
+  if (command === "edge-function-create") {
+    const result = await spinner("Creating edge function", () => client.createEdgeFunction(jsonFlag(args, "--data") as { name: string }));
+    return printJSON(result);
   }
   if (command === "delete") {
     const id = required(args.shift(), "asset id");
@@ -1487,6 +1514,22 @@ async function databases(client: PxxlClient, args: string[]) {
     if (wantsJSON(args)) return printJSON(result);
     return printNestedObject("Database stats", result);
   }
+  if (command === "metrics") {
+    const id = await resolveDatabaseId(client, args.shift(), args);
+    const result = await spinner("Fetching database metrics", () => client.databaseMetrics(id, flagValue(args, "--team")));
+    return wantsJSON(args) ? printJSON(result) : printNestedObject("Database metrics", result);
+  }
+  if (command === "usage") {
+    const id = await resolveDatabaseId(client, args.shift(), args);
+    const result = await spinner("Fetching database usage", () => client.databaseUsage(id, flagValue(args, "--team")));
+    return wantsJSON(args) ? printJSON(result) : printNestedObject("Database usage", result);
+  }
+  if (command === "credential") {
+    const id = await resolveDatabaseId(client, args.shift(), args);
+    const field = required(args.shift(), "credential field");
+    const result = await spinner("Revealing database credential", () => client.revealDatabaseCredential(id, field, flagValue(args, "--team")));
+    return printJSON(result);
+  }
   if (command === "tables") {
     const id = await resolveDatabaseId(client, args.shift(), args);
     const result = await spinner("Fetching database tables", () => client.databaseTables(id, flagValue(args, "--team")));
@@ -1494,6 +1537,23 @@ async function databases(client: PxxlClient, args: string[]) {
     return printNestedObject("Database tables", result);
   }
   throw new Error(`Unknown database command: ${command || ""}`);
+}
+
+async function mcp(client: PxxlClient, args: string[]) {
+  const command = args.shift() || "tools";
+  if (command === "ping") return printJSON(await spinner("Checking MCP", () => client.mcpRPC("ping")));
+  if (command === "tools") return printJSON(await spinner("Fetching MCP tools", () => client.mcpRPC("tools/list")));
+  if (command === "resources") return printJSON(await spinner("Fetching MCP resources", () => client.mcpRPC("resources/list")));
+  if (command === "call") {
+    const name = required(firstValueArg(args), "tool name");
+    const data = flagValue(args, "--data") ? jsonFlag(args, "--data") : {};
+    return printJSON(await spinner(`Calling ${name}`, () => client.mcpRPC("tools/call", { name, arguments: data })));
+  }
+  if (command === "read") {
+    const uri = required(firstValueArg(args), "resource URI");
+    return printJSON(await spinner("Reading MCP resource", () => client.mcpRPC("resources/read", { uri })));
+  }
+  throw new Error(`Unknown MCP command: ${command}`);
 }
 
 async function analyzeLocalProject(cwd: string) {

@@ -1,4 +1,38 @@
-import type { AnalyticsTimeframe, CreateInvoiceInput, ConnectDomainInput, CreateCronJobInput, CreateDatabaseInput, CreateStorageAccessKeyInput, CreateStorageBucketInput, CustomerInput, DomainCurrency, DomainDNSRecordInput, PxxlClient, PurchaseDomainInput, UpdateCronJobInput, UpdateCustomerInput, UpdateDatabaseInput, UpdateStorageBucketInput } from "./index.js";
+import type { AnalyticsTimeframe, CreateInvoiceInput, ConnectDomainInput, CreateCronJobInput, CreateDatabaseInput, CreateStorageAccessKeyInput, CreateStorageBucketInput, CustomerInput, DomainCurrency, DomainDNSRecordInput, EnvVarInput, PxxlClient, PxxlRequestOptions, PurchaseDomainInput, UpdateCronJobInput, UpdateCustomerInput, UpdateDatabaseInput, UpdateStorageBucketInput } from "./index.js";
+export declare class PxxlIdentity {
+    private readonly client;
+    constructor(client: PxxlClient);
+    whoami(): Promise<unknown>;
+    stats(teamId?: string): Promise<unknown>;
+    usage(teamId?: string): Promise<unknown>;
+}
+export declare class PxxlRawAPI {
+    private readonly client;
+    constructor(client: PxxlClient);
+    request<T = unknown>(path: string, options?: PxxlRequestOptions): Promise<T>;
+    raw(path: string, options?: PxxlRequestOptions): Promise<Response>;
+}
+export interface PxxlMCPOptions {
+    apiKey?: string;
+    endpoint?: string;
+    fetchImpl?: typeof fetch;
+    protocolVersion?: string;
+}
+export declare class PxxlMCP {
+    private readonly apiKey?;
+    private readonly endpoint;
+    private readonly fetchImpl;
+    private readonly protocolVersion;
+    private requestId;
+    constructor(options?: PxxlMCPOptions);
+    initialize(): Promise<Record<string, unknown>>;
+    ping(): Promise<Record<string, unknown>>;
+    listTools(): Promise<Array<Record<string, unknown>>>;
+    callTool(name: string, arguments_?: Record<string, unknown>): Promise<Record<string, unknown>>;
+    listResources(): Promise<Array<Record<string, unknown>>>;
+    readResource(uri: string): Promise<Record<string, unknown>>;
+    rpc<T = Record<string, unknown>>(method: string, params?: Record<string, unknown>): Promise<T>;
+}
 export declare class PxxlAssets {
     private readonly client;
     constructor(client: PxxlClient);
@@ -21,6 +55,16 @@ export declare class PxxlAssets {
         space: import("./index.js").CDNSpace;
         storageName?: string;
     }>;
+    proxyLogs(input?: {
+        limit?: number;
+        projectId?: string;
+    }): Promise<unknown>;
+    edgeFunctions(input?: {
+        projectId?: string;
+        status?: string;
+        limit?: number;
+    }): Promise<unknown>;
+    createEdgeFunction(input: Parameters<PxxlClient["createEdgeFunction"]>[0]): Promise<unknown>;
 }
 export declare class PxxlStorage {
     private readonly client;
@@ -108,6 +152,9 @@ export declare class PxxlDomains {
         count: number;
         query: string;
     }>;
+    types(): Promise<unknown>;
+    tldsByType(type: string): Promise<unknown>;
+    availability(domain: string): Promise<unknown>;
     search(input: {
         query: string;
         type?: string;
@@ -295,6 +342,20 @@ export declare class PxxlProjects {
         since?: string;
     }): Promise<unknown>;
 }
+export declare class PxxlEnvironmentVariables {
+    private readonly client;
+    constructor(client: PxxlClient);
+    list(projectId: string, options?: {
+        global?: boolean;
+    }): Promise<unknown>;
+    diff(projectId: string, vars: EnvVarInput[], options?: {
+        global?: boolean;
+    }): Promise<import("./index.js").EnvDiffResult>;
+    push(projectId: string, vars: EnvVarInput[], options?: {
+        global?: boolean;
+        replace?: boolean;
+    }): Promise<unknown>;
+}
 export declare class PxxlDeployments {
     private readonly client;
     constructor(client: PxxlClient);
@@ -327,6 +388,7 @@ export declare class PxxlTeams {
         team: import("./index.js").TeamSummary;
         success?: boolean;
     }>;
+    databases(id: string): Promise<unknown>;
 }
 export declare class PxxlDatabases {
     private readonly client;
@@ -353,6 +415,9 @@ export declare class PxxlDatabases {
     stop(id: string, teamId?: string): Promise<unknown>;
     restart(id: string, teamId?: string): Promise<unknown>;
     stats(id: string, teamId?: string): Promise<unknown>;
+    metrics(id: string, teamId?: string): Promise<unknown>;
+    usage(id: string, teamId?: string): Promise<unknown>;
     tables(id: string, teamId?: string): Promise<unknown>;
+    credential(id: string, field: string, teamId?: string): Promise<unknown>;
 }
 //# sourceMappingURL=resources.d.ts.map

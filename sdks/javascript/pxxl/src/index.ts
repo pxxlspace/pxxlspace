@@ -14,7 +14,11 @@ import {
   PxxlDatabases,
   PxxlDeployments,
   PxxlDomains,
+  PxxlEnvironmentVariables,
+  PxxlIdentity,
   PxxlInvoices,
+  PxxlMCP,
+  PxxlRawAPI,
   PxxlProjects,
   PxxlStorage,
   PxxlTeams,
@@ -32,6 +36,25 @@ export interface PxxlClientOptions {
   baseUrl?: string;
   teamId?: string;
   fetchImpl?: typeof fetch;
+  mcpApiKey?: string;
+  mcpEndpoint?: string;
+}
+
+export const PXXL_MCP_ENDPOINT = "https://mcp.pxxl.app/mcp";
+export const PXXL_MCP_PROTOCOL_VERSION = "2025-06-18";
+
+export interface PxxlRequestOptions extends RequestInit {
+  skipContentType?: boolean;
+}
+
+export interface EdgeFunctionInput {
+  name: string;
+  projectId?: string;
+  route?: string;
+  runtime?: string;
+  source?: string;
+  status?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export type DomainCurrency = "NGN" | "USD";
@@ -810,6 +833,18 @@ export class PxxlClient {
     return response.events;
   }
 
+  async cdnProxyLogs(input: { limit?: number; projectId?: string } = {}): Promise<unknown> {
+    return this.request(`/cdn/proxy-logs${queryString(input)}`);
+  }
+
+  async listEdgeFunctions(input: { projectId?: string; status?: string; limit?: number } = {}): Promise<unknown> {
+    return this.request(`/cdn/edge-functions${queryString(input)}`);
+  }
+
+  async createEdgeFunction(input: EdgeFunctionInput): Promise<unknown> {
+    return this.request("/cdn/edge-functions", { method: "POST", body: JSON.stringify(input) });
+  }
+
   async listStorageBuckets(): Promise<{ buckets: StorageBucket[]; total?: number; access?: unknown }> {
     return this.request("/storage/buckets");
   }
@@ -886,6 +921,18 @@ export class PxxlClient {
 
   async getTLD(tld: string): Promise<{ tld: DomainTLD }> {
     return this.request(`/domains/tlds/${encodeURIComponent(tld)}`);
+  }
+
+  async listTLDTypes(): Promise<unknown> {
+    return this.request("/domains/types");
+  }
+
+  async listTLDsByType(type: string): Promise<unknown> {
+    return this.request(`/domains/types/${encodeURIComponent(type)}/tlds`);
+  }
+
+  async checkDomainAvailability(domain: string): Promise<unknown> {
+    return this.request("/domains/check-availability", { method: "POST", body: JSON.stringify({ domain }) });
   }
 
   async domainDNSLookup(domain: string, type?: string): Promise<DomainDNSLookupResult> {
@@ -1217,6 +1264,10 @@ export class PxxlClient {
     return this.request(`/teams/${encodeURIComponent(id)}`);
   }
 
+  async listTeamDatabases(id: string): Promise<unknown> {
+    return this.request(`/teams/${encodeURIComponent(id)}/databases`);
+  }
+
   async listDatabases(teamId = this.teamId): Promise<{ databases: DatabaseSummary[]; total: number; success?: boolean }> {
     return this.request(`/databases${teamQuery(teamId)}`);
   }
@@ -1259,6 +1310,18 @@ export class PxxlClient {
 
   async databaseStats(id: string, teamId = this.teamId): Promise<unknown> {
     return this.request(`/databases/${encodeURIComponent(id)}/stats${teamQuery(teamId)}`);
+  }
+
+  async databaseMetrics(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}/metrics${teamQuery(teamId)}`);
+  }
+
+  async databaseUsage(id: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}/usage${teamQuery(teamId)}`);
+  }
+
+  async revealDatabaseCredential(id: string, field: string, teamId = this.teamId): Promise<unknown> {
+    return this.request(`/databases/${encodeURIComponent(id)}/credentials/${encodeURIComponent(field)}${teamQuery(teamId)}`);
   }
 
   async databaseTables(id: string, teamId = this.teamId): Promise<unknown> {
@@ -1420,13 +1483,15 @@ export class PxxlClient {
     return this.request("/projects/spacedrop", { method: "POST", body: form, skipContentType: true });
   }
 
-  private async request<T>(path: string, init: RequestInit & { skipContentType?: boolean } = {}): Promise<T> {
+  async request<T = unknown>(path: string, init: PxxlRequestOptions = {}): Promise<T> {
+    if (!path.startsWith("/")) throw new Error("Pxxl request path must start with /");
     const response = await this.rawRequest(path, init);
     const data = await response.json().catch(() => ({}));
     return data as T;
   }
 
-  private async rawRequest(path: string, init: RequestInit & { skipContentType?: boolean } = {}): Promise<Response> {
+  async rawRequest(path: string, init: PxxlRequestOptions = {}): Promise<Response> {
+    if (!path.startsWith("/")) throw new Error("Pxxl request path must start with /");
     const headers = new Headers(init.headers);
     if (this.apiKey) headers.set("Authorization", `Bearer ${this.apiKey}`);
     if (!init.skipContentType && init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
@@ -1449,6 +1514,33 @@ export class PxxlClient {
     }
     return response;
   }
+
+  async mcpRPC<T = Record<string, unknown>>(
+    method: string,
+    params?: Record<string, unknown>,
+    endpoint = PXXL_MCP_ENDPOINT,
+  ): Promise<T> {
+    if (!this.apiKey) throw new Error("Pxxl MCP requires an API key");
+    const response = await this.fetchImpl(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        "MCP-Protocol-Version": PXXL_MCP_PROTOCOL_VERSION,
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: `pxxl-sdk-${Date.now()}`,
+        method,
+        ...(params ? { params } : {}),
+      }),
+    });
+    const payload = await response.json().catch(() => ({})) as { result?: T; error?: { message?: string } };
+    if (!response.ok || payload.error || payload.result === undefined) {
+      throw new PxxlAPIError(payload.error?.message || `Pxxl MCP request failed with ${response.status}`, response.status, payload.error || payload);
+    }
+    return payload.result;
+  }
 }
 
 export const PxxlCDN = PxxlClient;
@@ -1459,11 +1551,15 @@ export const PxxlCDNError = PxxlAPIError;
  * compatibility, while grouped resources keep larger integrations readable.
  */
 export class Pxxl extends PxxlClient {
+  readonly identity: PxxlIdentity;
+  readonly api: PxxlRawAPI;
   readonly assets: PxxlAssets;
   readonly cdn: PxxlAssets;
   readonly storage: PxxlStorage;
   readonly analytics: PxxlAnalytics;
   readonly projects: PxxlProjects;
+  readonly env: PxxlEnvironmentVariables;
+  readonly environments: PxxlEnvironmentVariables;
   readonly deployments: PxxlDeployments;
   readonly domains: PxxlDomains;
   readonly customers: PxxlCustomers;
@@ -1473,14 +1569,19 @@ export class Pxxl extends PxxlClient {
   readonly cron: PxxlCronJobs;
   readonly teams: PxxlTeams;
   readonly databases: PxxlDatabases;
+  readonly mcp: PxxlMCP;
 
   constructor(options: PxxlClientOptions = {}) {
     super(options);
+    this.identity = new PxxlIdentity(this);
+    this.api = new PxxlRawAPI(this);
     this.assets = new PxxlAssets(this);
     this.cdn = this.assets;
     this.storage = new PxxlStorage(this);
     this.analytics = new PxxlAnalytics(this);
     this.projects = new PxxlProjects(this);
+    this.env = new PxxlEnvironmentVariables(this);
+    this.environments = this.env;
     this.deployments = new PxxlDeployments(this);
     this.domains = new PxxlDomains(this);
     this.customers = new PxxlCustomers(this);
@@ -1490,6 +1591,11 @@ export class Pxxl extends PxxlClient {
     this.cron = this.cronjobs;
     this.teams = new PxxlTeams(this);
     this.databases = new PxxlDatabases(this);
+    this.mcp = new PxxlMCP({
+      apiKey: options.mcpApiKey || options.apiKey,
+      endpoint: options.mcpEndpoint,
+      fetchImpl: options.fetchImpl,
+    });
   }
 }
 
@@ -1502,7 +1608,11 @@ export {
   PxxlDatabases,
   PxxlDeployments,
   PxxlDomains,
+  PxxlEnvironmentVariables,
+  PxxlIdentity,
   PxxlInvoices,
+  PxxlMCP,
+  PxxlRawAPI,
   PxxlProjects,
   PxxlStorage,
   PxxlTeams,
@@ -1684,4 +1794,12 @@ function querySuffix(input: object): string {
 
 function teamQuery(teamId?: string): string {
   return teamId && teamId.trim() ? `?teamId=${encodeURIComponent(teamId.trim())}` : "";
+}
+
+function queryString(values: Record<string, unknown>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+  }
+  return params.size ? `?${params.toString()}` : "";
 }

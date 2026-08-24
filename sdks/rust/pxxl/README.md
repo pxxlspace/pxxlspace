@@ -1,6 +1,7 @@
 # Pxxl Rust SDK
 
-Official Rust client for Pxxl CDN uploads, domain search and DNS management, cron jobs, and source deploys.
+Use one Rust client for projects, deployments, environment variables, domains,
+billing, CDN, Storage, databases, cron jobs, analytics, teams, and MCP.
 
 ```bash
 cargo add pxxl
@@ -25,6 +26,17 @@ async fn main() -> Result<(), pxxl::PxxlError> {
 }
 ```
 
+## Platform services
+
+```rust
+let projects = client.list_projects(None).await?;
+let buckets = client.list_storage_buckets().await?;
+let databases = client.list_databases(None).await?;
+let identity = client.whoami().await?;
+```
+
+Use `request_json` for a new API route and `mcp_rpc` for Pxxl MCP tools and resources.
+
 ## Domains
 
 ```rust
@@ -47,6 +59,8 @@ let job = client.create_cron_job(CreateCronJob {
     ..Default::default()
 }).await?;
 ```
+
+See the [SDK documentation](../../../docs/integrations/sdk/overview.mdx) for every module and the [publishing guide](../../../docs/integrations/sdk/publishing.mdx) for release steps.
 
 ## Deploy
 

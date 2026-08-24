@@ -29,18 +29,20 @@ const jobs = await pxxl.cronjobs.list();
 
 The grouped client includes:
 
-- `cdn` / `assets` — CDN files, downloads, usage, and deletion.
-- `storage` — buckets, objects, S3 access keys, analytics, and billing.
-- `domains` — TLD prices, availability, registration, DNS, nameservers,
+- `identity` and `api` for account details and direct API requests.
+- `cdn` / `assets` for files, proxy logs, usage, and edge functions.
+- `storage` for buckets, objects, S3 access keys, analytics, and billing.
+- `domains` for TLD prices, availability, registration, DNS, nameservers,
   certificates, custom-domain connections, and domain orders.
-- `customers` — saved registrant contacts used during domain checkout.
-- `invoices` — domain invoice details, payment URLs, payment providers,
+- `customers` for saved registrant contacts used during domain checkout.
+- `invoices` for domain invoice details, payment URLs, payment providers,
   cancellation, and purchased domains.
-- `billing` — all invoices, legacy invoice details, and payment links.
-- `cronjobs` / `cron` — scheduled HTTP jobs, validation, lifecycle actions,
+- `billing` for invoices and payment links.
+- `cronjobs` / `cron` for scheduled HTTP jobs, validation, lifecycle actions,
   manual triggers, and run history.
-- `projects`, `deployments`, `databases`, `teams`, and `analytics` — the same
+- `projects`, `deployments`, `env`, `databases`, `teams`, and `analytics` for the same
   platform operations available through the CLI.
+- `mcp` for Pxxl tools and resources over MCP.
 
 `PxxlClient` is also exported. It keeps the original flat method names for
 existing integrations, while `Pxxl` adds the grouped resource API.
@@ -129,7 +131,7 @@ pxxl invoices payment-url <invoice-id>
 pxxl cron create --name refresh --schedule '*/15 * * * *' --url https://example.com/cron
 ```
 
-Run `pxxl --help` or see [`Pxxl CLI docs`](../../../docs/api/pxxl-cli.mdx)
+Run `pxxl --help` or see the [`Pxxl CLI docs`](../../../docs/integrations/cli/overview.mdx)
 for the full command list.
 
 ## Development
@@ -144,4 +146,4 @@ npm pack --dry-run
 ```
 
 The source and tests for this package are in this directory. Publishing steps
-are documented in [`the npm publishing guide`](../../../docs/api/npm-publishing.mdx).
+are documented in the [`SDK publishing guide`](../../../docs/integrations/sdk/publishing.mdx).

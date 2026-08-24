@@ -628,6 +628,56 @@ test("unified client exposes Storage objects and general billing", async () => {
   assert.equal(calls.every(({ init }) => init.headers.get("Authorization") === "Bearer pxxl_storage"), true);
 });
 
+test("unified client exposes the complete automation resources", async () => {
+  const calls = [];
+  const pxxl = new Pxxl({
+    apiKey: "pxxl_test",
+    teamId: "team_1",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, method: init.method || "GET", body: init.body });
+      if (url.includes("/credentials/")) return Response.json({ value: "secret" });
+      return Response.json({ success: true, tools: [], resources: [] });
+    },
+  });
+
+  await pxxl.identity.usage();
+  await pxxl.cdn.proxyLogs({ projectId: "proj_1" });
+  await pxxl.cdn.edgeFunctions({ status: "active" });
+  await pxxl.env.list("proj_1");
+  await pxxl.databases.metrics("db_1");
+  await pxxl.databases.usage("db_1");
+  await pxxl.databases.credential("db_1", "password");
+  await pxxl.teams.databases("team_1");
+  await pxxl.api.request("/cli/whoami");
+
+  assert.deepEqual(calls.map((call) => call.url), [
+    "https://server.pxxl.app/api/v3/cli/usage?teamId=team_1",
+    "https://server.pxxl.app/api/v3/cdn/proxy-logs?projectId=proj_1",
+    "https://server.pxxl.app/api/v3/cdn/edge-functions?status=active",
+    "https://server.pxxl.app/api/v3/cli/projects/proj_1/envs",
+    "https://server.pxxl.app/api/v3/databases/db_1/metrics?teamId=team_1",
+    "https://server.pxxl.app/api/v3/databases/db_1/usage?teamId=team_1",
+    "https://server.pxxl.app/api/v3/databases/db_1/credentials/password?teamId=team_1",
+    "https://server.pxxl.app/api/v3/teams/team_1/databases",
+    "https://server.pxxl.app/api/v3/cli/whoami",
+  ]);
+});
+
+test("MCP client sends JSON-RPC requests to the production MCP endpoint", async () => {
+  const pxxl = new Pxxl({
+    apiKey: "pxxl_test",
+    fetchImpl: async (url, init) => {
+      assert.equal(url, "https://mcp.pxxl.app/mcp");
+      assert.equal(init.headers.Authorization, "Bearer pxxl_test");
+      const body = JSON.parse(init.body);
+      assert.equal(body.method, "tools/list");
+      return Response.json({ jsonrpc: "2.0", id: body.id, result: { tools: [{ name: "list_projects" }] } });
+    },
+  });
+  const tools = await pxxl.mcp.listTools();
+  assert.equal(tools[0].name, "list_projects");
+});
+
 test("CLI help exposes the unified platform commands", async () => {
   const result = await execFile(process.execPath, ["dist/cli.js", "--help"]);
   assert.match(result.stdout, /pxxl storage buckets/);

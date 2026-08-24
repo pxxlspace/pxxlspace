@@ -1,6 +1,7 @@
 # Pxxl Python SDK
 
-Official Python client for Pxxl CDN uploads, domain search and DNS management, cron jobs, and source deploys.
+Use one Python client for projects, deployments, environment variables, domains,
+billing, CDN, Storage, databases, cron jobs, analytics, teams, and MCP.
 
 ```bash
 pip install pxxl
@@ -17,6 +18,17 @@ asset = client.upload_asset(
 )
 print(asset["publicUrl"])
 ```
+
+## Platform services
+
+```python
+projects = client.list_projects()
+buckets = client.list_storage_buckets()
+databases = client.list_databases()
+identity = client.whoami()
+```
+
+Use `client.request()` for a new API route and `client.mcp_rpc()` for Pxxl MCP tools and resources.
 
 ## Domains
 
@@ -58,3 +70,5 @@ result = client.deploy(
 )
 print(result["deploymentUrl"])
 ```
+
+See the [SDK documentation](../../../docs/integrations/sdk/overview.mdx) for every module and the [publishing guide](../../../docs/integrations/sdk/publishing.mdx) for release steps.

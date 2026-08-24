@@ -8,6 +8,8 @@ use walkdir::WalkDir;
 use zip::write::FileOptions;
 
 pub const PXXL_API_BASE_URL: &str = "https://server.pxxl.app/api/v3";
+pub const PXXL_MCP_ENDPOINT: &str = "https://mcp.pxxl.app/mcp";
+pub const PXXL_MCP_PROTOCOL_VERSION: &str = "2025-06-18";
 pub const MAX_DEPLOY_FILES: usize = 12_000;
 pub const MAX_DEPLOY_SOURCE_BYTES: u64 = 220 * 1024 * 1024;
 
@@ -61,6 +63,14 @@ impl PxxlClient {
         self
     }
 
+    pub fn with_base_url(mut self, base_url: impl Into<String>) -> Self {
+        let base_url = base_url.into().trim().trim_end_matches('/').to_string();
+        if !base_url.is_empty() {
+            self.base_url = base_url;
+        }
+        self
+    }
+
     pub async fn summary(&self) -> Result<CdnSummary, PxxlError> {
         let body: Value = self.request(Method::GET, "/cdn/summary", None).await?;
         serde_json::from_value(body["data"].clone())
@@ -97,6 +107,9 @@ impl PxxlClient {
         }
         if let Some(deployment_id) = input.deployment_id {
             form = form.text("deploymentId", deployment_id);
+        }
+        if let Some(bucket_id) = input.bucket_id {
+            form = form.text("bucketId", bucket_id);
         }
         self.multipart("/cdn/assets", form).await
     }
@@ -650,6 +663,710 @@ impl PxxlClient {
     }
 }
 
+impl PxxlClient {
+    /// Call any Pxxl API route with this client's authentication.
+    pub async fn request_json(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+    ) -> Result<Value, PxxlError> {
+        if !path.starts_with('/') {
+            return Err(PxxlError::InvalidInput(
+                "request path must start with /".into(),
+            ));
+        }
+        let method = Method::from_bytes(method.as_bytes())
+            .map_err(|error| PxxlError::InvalidInput(error.to_string()))?;
+        self.request(method, path, body).await
+    }
+
+    pub async fn whoami(&self) -> Result<Value, PxxlError> {
+        self.request(Method::GET, "/cli/whoami", None).await
+    }
+
+    pub async fn stats(&self, team_id: Option<&str>) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/cli/stats{}", self.team_query(team_id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn platform_usage(&self, team_id: Option<&str>) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/cli/usage{}", self.team_query(team_id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_cdn_space(&self) -> Result<Value, PxxlError> {
+        self.request(Method::GET, "/cdn/space", None).await
+    }
+
+    pub async fn create_cdn_space(&self, name: Option<&str>) -> Result<Value, PxxlError> {
+        self.request(Method::POST, "/cdn/space", Some(json!({ "name": name })))
+            .await
+    }
+
+    pub async fn cdn_usage(&self, limit: usize) -> Result<Value, PxxlError> {
+        self.request(Method::GET, &format!("/cdn/usage?limit={limit}"), None)
+            .await
+    }
+
+    pub async fn cdn_proxy_logs(&self, query: Option<&[(&str, &str)]>) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/cdn/proxy-logs{}", query_string(query)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_edge_functions(
+        &self,
+        query: Option<&[(&str, &str)]>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/cdn/edge-functions{}", query_string(query)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_edge_function(&self, input: Value) -> Result<Value, PxxlError> {
+        self.request(Method::POST, "/cdn/edge-functions", Some(input))
+            .await
+    }
+
+    pub async fn list_storage_buckets(&self) -> Result<Value, PxxlError> {
+        self.request(Method::GET, "/storage/buckets", None).await
+    }
+
+    pub async fn get_storage_bucket(&self, id: &str) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/storage/buckets/{}", escape(id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_storage_bucket(&self, input: Value) -> Result<Value, PxxlError> {
+        self.request(Method::POST, "/storage/buckets", Some(input))
+            .await
+    }
+
+    pub async fn update_storage_bucket(&self, id: &str, input: Value) -> Result<Value, PxxlError> {
+        self.request(
+            Method::PATCH,
+            &format!("/storage/buckets/{}", escape(id)),
+            Some(input),
+        )
+        .await
+    }
+
+    pub async fn delete_storage_bucket(&self, id: &str) -> Result<(), PxxlError> {
+        self.raw(
+            Method::DELETE,
+            &format!("/storage/buckets/{}", escape(id)),
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn storage_analytics(&self, id: &str, timeframe: &str) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/storage/buckets/{}/analytics?timeframe={}",
+                escape(id),
+                escape(timeframe)
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn storage_billing(
+        &self,
+        query: Option<&[(&str, &str)]>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/storage/billing{}", query_string(query)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_storage_access_keys(&self, bucket_id: &str) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/storage/buckets/{}/access-keys", escape(bucket_id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_storage_access_key(
+        &self,
+        bucket_id: &str,
+        input: Value,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::POST,
+            &format!("/storage/buckets/{}/access-keys", escape(bucket_id)),
+            Some(input),
+        )
+        .await
+    }
+
+    pub async fn delete_storage_access_key(
+        &self,
+        bucket_id: &str,
+        key_id: &str,
+    ) -> Result<(), PxxlError> {
+        self.raw(
+            Method::DELETE,
+            &format!(
+                "/storage/buckets/{}/access-keys/{}",
+                escape(bucket_id),
+                escape(key_id)
+            ),
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn project_traffic(
+        &self,
+        project_id: &str,
+        query: Option<&[(&str, &str)]>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/projects/{}/analytics/traffic{}",
+                escape(project_id),
+                query_string(query)
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn domain_traffic(
+        &self,
+        domain_id: &str,
+        query: Option<&[(&str, &str)]>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/domains/my/{}/analytics{}",
+                escape(domain_id),
+                query_string(query)
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn user_domain_traffic(
+        &self,
+        domain: &str,
+        timeframe: &str,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/user/analytics{}",
+                query_string(Some(&[("domain", domain), ("timeframe", timeframe)]))
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_tld(&self, tld: &str) -> Result<Value, PxxlError> {
+        self.request(Method::GET, &format!("/domains/tlds/{}", escape(tld)), None)
+            .await
+    }
+
+    pub async fn list_tld_types(&self) -> Result<Value, PxxlError> {
+        self.request(Method::GET, "/domains/types", None).await
+    }
+
+    pub async fn list_tlds_by_type(&self, kind: &str) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/domains/types/{}/tlds", escape(kind)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn check_domain_availability(&self, domain: &str) -> Result<Value, PxxlError> {
+        self.request(
+            Method::POST,
+            "/domains/check-availability",
+            Some(json!({ "domain": domain })),
+        )
+        .await
+    }
+
+    pub async fn create_customer(&self, input: Value) -> Result<Value, PxxlError> {
+        self.request(Method::POST, "/cli/contacts", Some(input))
+            .await
+    }
+
+    pub async fn list_customers(&self) -> Result<Value, PxxlError> {
+        self.request(Method::GET, "/cli/contacts", None).await
+    }
+
+    pub async fn get_customer(&self, id: &str) -> Result<Value, PxxlError> {
+        self.request(Method::GET, &format!("/cli/contacts/{}", escape(id)), None)
+            .await
+    }
+
+    pub async fn update_customer(&self, id: &str, input: Value) -> Result<Value, PxxlError> {
+        self.request(
+            Method::PUT,
+            &format!("/cli/contacts/{}", escape(id)),
+            Some(input),
+        )
+        .await
+    }
+
+    pub async fn delete_customer(&self, id: &str) -> Result<(), PxxlError> {
+        self.raw(
+            Method::DELETE,
+            &format!("/cli/contacts/{}", escape(id)),
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn purchase_domain(&self, mut input: Value) -> Result<Value, PxxlError> {
+        if let Some(customer_id) = input.get("customerId").cloned() {
+            if input.get("contactId").is_none() {
+                input["contactId"] = customer_id;
+            }
+            if let Some(object) = input.as_object_mut() {
+                object.remove("customerId");
+            }
+        }
+        self.request(
+            Method::POST,
+            "/cli/domainprovider/domain/register",
+            Some(input),
+        )
+        .await
+    }
+
+    pub async fn list_domain_invoices(&self, team_id: Option<&str>) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/cli/domainprovider/invoices{}", self.team_query(team_id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_domain_invoice(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/cli/domainprovider/invoice/{}{}",
+                escape(id),
+                self.team_query(team_id)
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_payment_url(
+        &self,
+        id: &str,
+        currency: Option<&str>,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        let mut query = Vec::new();
+        if let Some(value) = currency {
+            query.push(("currency", value));
+        }
+        if let Some(value) = team_id.or(self.team_id.as_deref()) {
+            query.push(("teamId", value));
+        }
+        self.request(
+            Method::GET,
+            &format!(
+                "/cli/domainprovider/invoice/{}/payment-url{}",
+                escape(id),
+                query_string(Some(&query))
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn pay_domain_invoice(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::POST,
+            "/cli/domainprovider/invoice/pay",
+            Some(json!({ "invoiceId": id, "teamId": team_id.or(self.team_id.as_deref()) })),
+        )
+        .await
+    }
+
+    pub async fn cancel_domain_invoice(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::POST,
+            &format!(
+                "/cli/domainprovider/invoice/{}/cancel{}",
+                escape(id),
+                self.team_query(team_id)
+            ),
+            Some(json!({})),
+        )
+        .await
+    }
+
+    pub async fn list_purchased_domains(&self) -> Result<Value, PxxlError> {
+        self.request(Method::GET, "/cli/purchased-domains", None)
+            .await
+    }
+
+    pub async fn list_projects(&self, query: Option<&[(&str, &str)]>) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/cli/projects{}", query_string(query)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_project(&self, id: &str) -> Result<Value, PxxlError> {
+        self.request(Method::GET, &format!("/cli/projects/{}", escape(id)), None)
+            .await
+    }
+
+    pub async fn project_deployments(
+        &self,
+        id: &str,
+        query: Option<&[(&str, &str)]>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/cli/projects/{}/deployments{}",
+                escape(id),
+                query_string(query)
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn project_logs(
+        &self,
+        id: &str,
+        live: bool,
+        query: Option<&[(&str, &str)]>,
+    ) -> Result<Value, PxxlError> {
+        let suffix = if live { "live-logs" } else { "logs" };
+        self.request(
+            Method::GET,
+            &format!(
+                "/cli/projects/{}/{suffix}{}",
+                escape(id),
+                query_string(query)
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_deployments(
+        &self,
+        query: Option<&[(&str, &str)]>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/cli/deployments{}", query_string(query)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_deployment(&self, id: &str) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/cli/deployments/{}", escape(id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn deployment_logs(&self, id: &str, build: bool) -> Result<Value, PxxlError> {
+        let suffix = if build { "build-logs" } else { "logs" };
+        self.request(
+            Method::GET,
+            &format!("/cli/deployments/{}/{suffix}", escape(id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_project_env(&self, id: &str, global: bool) -> Result<Value, PxxlError> {
+        self.request(Method::GET, &project_env_path(id, global), None)
+            .await
+    }
+
+    pub async fn diff_project_env(
+        &self,
+        id: &str,
+        global: bool,
+        input: Value,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::POST,
+            &format!("{}/diff", project_env_path(id, global)),
+            Some(input),
+        )
+        .await
+    }
+
+    pub async fn push_project_env(
+        &self,
+        id: &str,
+        global: bool,
+        input: Value,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::POST,
+            &format!("{}/bulk", project_env_path(id, global)),
+            Some(input),
+        )
+        .await
+    }
+
+    pub async fn list_databases(&self, team_id: Option<&str>) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/databases{}", self.team_query(team_id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_database(&self, id: &str, team_id: Option<&str>) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/databases/{}{}", escape(id), self.team_query(team_id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_database(&self, input: Value) -> Result<Value, PxxlError> {
+        self.request(Method::POST, "/databases", Some(input)).await
+    }
+
+    pub async fn update_database(
+        &self,
+        id: &str,
+        input: Value,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::PATCH,
+            &format!("/databases/{}{}", escape(id), self.team_query(team_id)),
+            Some(input),
+        )
+        .await
+    }
+
+    pub async fn delete_database(&self, id: &str, team_id: Option<&str>) -> Result<(), PxxlError> {
+        self.raw(
+            Method::DELETE,
+            &format!("/databases/{}{}", escape(id), self.team_query(team_id)),
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub async fn database_action(
+        &self,
+        id: &str,
+        action: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        if !matches!(action, "start" | "stop" | "restart") {
+            return Err(PxxlError::InvalidInput(
+                "database action must be start, stop, or restart".into(),
+            ));
+        }
+        self.request(
+            Method::POST,
+            &format!(
+                "/databases/{}/{action}{}",
+                escape(id),
+                self.team_query(team_id)
+            ),
+            Some(json!({})),
+        )
+        .await
+    }
+
+    pub async fn database_metrics(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.database_read(id, "metrics", team_id).await
+    }
+
+    pub async fn database_stats(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.database_read(id, "stats", team_id).await
+    }
+
+    pub async fn database_tables(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.database_read(id, "tables", team_id).await
+    }
+
+    pub async fn database_usage(
+        &self,
+        id: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.database_read(id, "usage", team_id).await
+    }
+
+    pub async fn reveal_database_credential(
+        &self,
+        id: &str,
+        field: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/databases/{}/credentials/{}{}",
+                escape(id),
+                escape(field),
+                self.team_query(team_id)
+            ),
+            None,
+        )
+        .await
+    }
+
+    pub async fn list_teams(&self) -> Result<Value, PxxlError> {
+        self.request(Method::GET, "/teams", None).await
+    }
+
+    pub async fn get_team(&self, id: &str) -> Result<Value, PxxlError> {
+        self.request(Method::GET, &format!("/teams/{}", escape(id)), None)
+            .await
+    }
+
+    pub async fn list_team_databases(&self, id: &str) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!("/teams/{}/databases", escape(id)),
+            None,
+        )
+        .await
+    }
+
+    pub async fn mcp_rpc(
+        &self,
+        method: &str,
+        params: Value,
+        endpoint: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        let response = self
+            .http
+            .post(endpoint.unwrap_or(PXXL_MCP_ENDPOINT))
+            .bearer_auth(&self.api_key)
+            .header("Content-Type", "application/json")
+            .header("MCP-Protocol-Version", PXXL_MCP_PROTOCOL_VERSION)
+            .json(
+                &json!({ "jsonrpc": "2.0", "id": "pxxl-rust", "method": method, "params": params }),
+            )
+            .send()
+            .await?;
+        let status = response.status();
+        let payload: Value = response.json().await?;
+        if !status.is_success() || payload.get("error").is_some() {
+            return Err(PxxlError::Api {
+                status: status.as_u16(),
+                message: payload
+                    .pointer("/error/message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("MCP request failed")
+                    .to_string(),
+                body: payload.to_string(),
+            });
+        }
+        Ok(payload.get("result").cloned().unwrap_or_else(|| json!({})))
+    }
+
+    async fn database_read(
+        &self,
+        id: &str,
+        suffix: &str,
+        team_id: Option<&str>,
+    ) -> Result<Value, PxxlError> {
+        self.request(
+            Method::GET,
+            &format!(
+                "/databases/{}/{suffix}{}",
+                escape(id),
+                self.team_query(team_id)
+            ),
+            None,
+        )
+        .await
+    }
+}
+
+fn project_env_path(id: &str, global: bool) -> String {
+    let suffix = if global { "global-envs" } else { "envs" };
+    format!("/cli/projects/{}/{suffix}", escape(id))
+}
+
 fn domain_name_from_value(value: &Value) -> String {
     let paths: &[&[&str]] = &[
         &["name"],
@@ -713,6 +1430,7 @@ pub struct UploadAsset {
     pub kind: Option<String>,
     pub project_id: Option<String>,
     pub deployment_id: Option<String>,
+    pub bucket_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -924,6 +1642,28 @@ mod tests {
         assert_eq!(
             query_string(Some(&[("teamId", "team one")])),
             "?teamId=team%20one"
+        );
+    }
+
+    #[tokio::test]
+    async fn raw_request_rejects_absolute_urls() {
+        let client = PxxlClient::new("pxxl_test").unwrap();
+        let error = client
+            .request_json("GET", "https://example.com", None)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("must start with /"));
+    }
+
+    #[test]
+    fn project_environment_paths_are_stable() {
+        assert_eq!(
+            project_env_path("proj_1", false),
+            "/cli/projects/proj_1/envs"
+        );
+        assert_eq!(
+            project_env_path("proj_1", true),
+            "/cli/projects/proj_1/global-envs"
         );
     }
 }

@@ -1,3 +1,81 @@
+import { PXXL_MCP_ENDPOINT, PXXL_MCP_PROTOCOL_VERSION } from "./index.js";
+export class PxxlIdentity {
+    client;
+    constructor(client) {
+        this.client = client;
+    }
+    whoami() { return this.client.whoami(); }
+    stats(teamId) { return this.client.stats(teamId); }
+    usage(teamId) { return this.client.platformUsage(teamId); }
+}
+export class PxxlRawAPI {
+    client;
+    constructor(client) {
+        this.client = client;
+    }
+    request(path, options = {}) {
+        return this.client.request(path, options);
+    }
+    raw(path, options = {}) {
+        return this.client.rawRequest(path, options);
+    }
+}
+export class PxxlMCP {
+    apiKey;
+    endpoint;
+    fetchImpl;
+    protocolVersion;
+    requestId = 0;
+    constructor(options = {}) {
+        this.apiKey = (options.apiKey || "").trim() || undefined;
+        this.endpoint = (options.endpoint || PXXL_MCP_ENDPOINT).replace(/\/+$/, "");
+        this.fetchImpl = options.fetchImpl || fetch;
+        this.protocolVersion = options.protocolVersion || PXXL_MCP_PROTOCOL_VERSION;
+    }
+    initialize() {
+        return this.rpc("initialize", {
+            protocolVersion: this.protocolVersion,
+            capabilities: {},
+            clientInfo: { name: "@pxxlapp/pxxl", version: "0.1.12" },
+        });
+    }
+    ping() { return this.rpc("ping"); }
+    async listTools() {
+        const result = await this.rpc("tools/list");
+        return result.tools || [];
+    }
+    callTool(name, arguments_ = {}) {
+        return this.rpc("tools/call", { name, arguments: arguments_ });
+    }
+    async listResources() {
+        const result = await this.rpc("resources/list");
+        return result.resources || [];
+    }
+    readResource(uri) { return this.rpc("resources/read", { uri }); }
+    async rpc(method, params) {
+        if (!this.apiKey)
+            throw new Error("Pxxl MCP requires an API key");
+        const response = await this.fetchImpl(this.endpoint, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${this.apiKey}`,
+                "Content-Type": "application/json",
+                "MCP-Protocol-Version": this.protocolVersion,
+            },
+            body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: `pxxl-sdk-${++this.requestId}`,
+                method,
+                ...(params ? { params } : {}),
+            }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.error || payload.result === undefined) {
+            throw new Error(payload.error?.message || `Pxxl MCP request failed with ${response.status}`);
+        }
+        return payload.result;
+    }
+}
 export class PxxlAssets {
     client;
     constructor(client) {
@@ -11,6 +89,9 @@ export class PxxlAssets {
     usage(limit) { return this.client.usage(limit); }
     space() { return this.client.getCDNSpace(); }
     createSpace(input) { return this.client.createCDNSpace(input); }
+    proxyLogs(input) { return this.client.cdnProxyLogs(input); }
+    edgeFunctions(input) { return this.client.listEdgeFunctions(input); }
+    createEdgeFunction(input) { return this.client.createEdgeFunction(input); }
 }
 export class PxxlStorage {
     client;
@@ -61,6 +142,9 @@ export class PxxlDomains {
     getTLD(tld) { return this.client.getTLD(tld); }
     popularTLDs() { return this.client.popularTLDs(); }
     searchTLDs(query) { return this.client.searchTLDs(query); }
+    types() { return this.client.listTLDTypes(); }
+    tldsByType(type) { return this.client.listTLDsByType(type); }
+    availability(domain) { return this.client.checkDomainAvailability(domain); }
     search(input) { return this.client.searchDomains(input); }
     searchDomains(input) { return this.client.searchDomains(input); }
     dnsLookup(domain, type) { return this.client.domainDNSLookup(domain, type); }
@@ -152,6 +236,15 @@ export class PxxlProjects {
     logs(id, input) { return this.client.projectLogs(id, input); }
     liveLogs(id, input) { return this.client.projectLogs(id, { ...input, live: true }); }
 }
+export class PxxlEnvironmentVariables {
+    client;
+    constructor(client) {
+        this.client = client;
+    }
+    list(projectId, options) { return this.client.listProjectEnv(projectId, options); }
+    diff(projectId, vars, options) { return this.client.diffProjectEnv(projectId, vars, options); }
+    push(projectId, vars, options) { return this.client.pushProjectEnv(projectId, vars, options); }
+}
 export class PxxlDeployments {
     client;
     constructor(client) {
@@ -171,6 +264,7 @@ export class PxxlTeams {
     }
     list() { return this.client.listTeams(); }
     get(id) { return this.client.getTeam(id); }
+    databases(id) { return this.client.listTeamDatabases(id); }
 }
 export class PxxlDatabases {
     client;
@@ -186,5 +280,8 @@ export class PxxlDatabases {
     stop(id, teamId) { return this.client.stopDatabase(id, teamId); }
     restart(id, teamId) { return this.client.restartDatabase(id, teamId); }
     stats(id, teamId) { return this.client.databaseStats(id, teamId); }
+    metrics(id, teamId) { return this.client.databaseMetrics(id, teamId); }
+    usage(id, teamId) { return this.client.databaseUsage(id, teamId); }
     tables(id, teamId) { return this.client.databaseTables(id, teamId); }
+    credential(id, field, teamId) { return this.client.revealDatabaseCredential(id, field, teamId); }
 }

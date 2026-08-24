@@ -1,3 +1,4 @@
+import { PXXL_MCP_ENDPOINT, PXXL_MCP_PROTOCOL_VERSION } from "./index.js";
 import type {
   AnalyticsTimeframe,
   CreateInvoiceInput,
@@ -9,13 +10,109 @@ import type {
   CustomerInput,
   DomainCurrency,
   DomainDNSRecordInput,
+  EnvVarInput,
   PxxlClient,
+  PxxlRequestOptions,
   PurchaseDomainInput,
   UpdateCronJobInput,
   UpdateCustomerInput,
   UpdateDatabaseInput,
   UpdateStorageBucketInput,
 } from "./index.js";
+
+export class PxxlIdentity {
+  constructor(private readonly client: PxxlClient) {}
+
+  whoami() { return this.client.whoami(); }
+  stats(teamId?: string) { return this.client.stats(teamId); }
+  usage(teamId?: string) { return this.client.platformUsage(teamId); }
+}
+
+export class PxxlRawAPI {
+  constructor(private readonly client: PxxlClient) {}
+
+  request<T = unknown>(path: string, options: PxxlRequestOptions = {}) {
+    return this.client.request<T>(path, options);
+  }
+
+  raw(path: string, options: PxxlRequestOptions = {}) {
+    return this.client.rawRequest(path, options);
+  }
+}
+
+export interface PxxlMCPOptions {
+  apiKey?: string;
+  endpoint?: string;
+  fetchImpl?: typeof fetch;
+  protocolVersion?: string;
+}
+
+export class PxxlMCP {
+  private readonly apiKey?: string;
+  private readonly endpoint: string;
+  private readonly fetchImpl: typeof fetch;
+  private readonly protocolVersion: string;
+  private requestId = 0;
+
+  constructor(options: PxxlMCPOptions = {}) {
+    this.apiKey = (options.apiKey || "").trim() || undefined;
+    this.endpoint = (options.endpoint || PXXL_MCP_ENDPOINT).replace(/\/+$/, "");
+    this.fetchImpl = options.fetchImpl || fetch;
+    this.protocolVersion = options.protocolVersion || PXXL_MCP_PROTOCOL_VERSION;
+  }
+
+  initialize() {
+    return this.rpc("initialize", {
+      protocolVersion: this.protocolVersion,
+      capabilities: {},
+      clientInfo: { name: "@pxxlapp/pxxl", version: "0.1.12" },
+    });
+  }
+
+  ping() { return this.rpc("ping"); }
+
+  async listTools(): Promise<Array<Record<string, unknown>>> {
+    const result = await this.rpc<{ tools?: Array<Record<string, unknown>> }>("tools/list");
+    return result.tools || [];
+  }
+
+  callTool(name: string, arguments_: Record<string, unknown> = {}) {
+    return this.rpc("tools/call", { name, arguments: arguments_ });
+  }
+
+  async listResources(): Promise<Array<Record<string, unknown>>> {
+    const result = await this.rpc<{ resources?: Array<Record<string, unknown>> }>("resources/list");
+    return result.resources || [];
+  }
+
+  readResource(uri: string) { return this.rpc("resources/read", { uri }); }
+
+  async rpc<T = Record<string, unknown>>(method: string, params?: Record<string, unknown>): Promise<T> {
+    if (!this.apiKey) throw new Error("Pxxl MCP requires an API key");
+    const response = await this.fetchImpl(this.endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        "MCP-Protocol-Version": this.protocolVersion,
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: `pxxl-sdk-${++this.requestId}`,
+        method,
+        ...(params ? { params } : {}),
+      }),
+    });
+    const payload = await response.json().catch(() => ({})) as {
+      result?: T;
+      error?: { message?: string };
+    };
+    if (!response.ok || payload.error || payload.result === undefined) {
+      throw new Error(payload.error?.message || `Pxxl MCP request failed with ${response.status}`);
+    }
+    return payload.result;
+  }
+}
 
 export class PxxlAssets {
   constructor(private readonly client: PxxlClient) {}
@@ -28,6 +125,9 @@ export class PxxlAssets {
   usage(limit?: number) { return this.client.usage(limit); }
   space() { return this.client.getCDNSpace(); }
   createSpace(input?: { name?: string }) { return this.client.createCDNSpace(input); }
+  proxyLogs(input?: { limit?: number; projectId?: string }) { return this.client.cdnProxyLogs(input); }
+  edgeFunctions(input?: { projectId?: string; status?: string; limit?: number }) { return this.client.listEdgeFunctions(input); }
+  createEdgeFunction(input: Parameters<PxxlClient["createEdgeFunction"]>[0]) { return this.client.createEdgeFunction(input); }
 }
 
 export class PxxlStorage {
@@ -74,6 +174,9 @@ export class PxxlDomains {
   getTLD(tld: string) { return this.client.getTLD(tld); }
   popularTLDs() { return this.client.popularTLDs(); }
   searchTLDs(query: string) { return this.client.searchTLDs(query); }
+  types() { return this.client.listTLDTypes(); }
+  tldsByType(type: string) { return this.client.listTLDsByType(type); }
+  availability(domain: string) { return this.client.checkDomainAvailability(domain); }
   search(input: { query: string; type?: string }) { return this.client.searchDomains(input); }
   searchDomains(input: { query: string; type?: string }) { return this.client.searchDomains(input); }
   dnsLookup(domain: string, type?: string) { return this.client.domainDNSLookup(domain, type); }
@@ -162,6 +265,14 @@ export class PxxlProjects {
   liveLogs(id: string, input?: { lines?: number; since?: string }) { return this.client.projectLogs(id, { ...input, live: true }); }
 }
 
+export class PxxlEnvironmentVariables {
+  constructor(private readonly client: PxxlClient) {}
+
+  list(projectId: string, options?: { global?: boolean }) { return this.client.listProjectEnv(projectId, options); }
+  diff(projectId: string, vars: EnvVarInput[], options?: { global?: boolean }) { return this.client.diffProjectEnv(projectId, vars, options); }
+  push(projectId: string, vars: EnvVarInput[], options?: { global?: boolean; replace?: boolean }) { return this.client.pushProjectEnv(projectId, vars, options); }
+}
+
 export class PxxlDeployments {
   constructor(private readonly client: PxxlClient) {}
 
@@ -178,6 +289,7 @@ export class PxxlTeams {
 
   list() { return this.client.listTeams(); }
   get(id: string) { return this.client.getTeam(id); }
+  databases(id: string) { return this.client.listTeamDatabases(id); }
 }
 
 export class PxxlDatabases {
@@ -192,5 +304,8 @@ export class PxxlDatabases {
   stop(id: string, teamId?: string) { return this.client.stopDatabase(id, teamId); }
   restart(id: string, teamId?: string) { return this.client.restartDatabase(id, teamId); }
   stats(id: string, teamId?: string) { return this.client.databaseStats(id, teamId); }
+  metrics(id: string, teamId?: string) { return this.client.databaseMetrics(id, teamId); }
+  usage(id: string, teamId?: string) { return this.client.databaseUsage(id, teamId); }
   tables(id: string, teamId?: string) { return this.client.databaseTables(id, teamId); }
+  credential(id: string, field: string, teamId?: string) { return this.client.revealDatabaseCredential(id, field, teamId); }
 }

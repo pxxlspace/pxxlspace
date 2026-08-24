@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, BinaryIO, Mapping
 
 PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3"
+PXXL_MCP_ENDPOINT = "https://mcp.pxxl.app/mcp"
+PXXL_MCP_PROTOCOL_VERSION = "2025-06-18"
 MAX_DEPLOY_FILES = 12000
 MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024
 
@@ -37,9 +39,89 @@ class PxxlClient:
             raise ValueError("pxxl: api_key is required")
         self.team_id = (self.team_id or "").strip() or None
         self.base_url = PXXL_API_BASE_URL
+        self._mcp_request_id = 0
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+        json_body: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Call any Pxxl API route using this client's authentication."""
+        if not path.startswith("/"):
+            raise ValueError("pxxl: request path must start with /")
+        return self._request(method.upper(), path + _query(params or {}), json_body=json_body)
+
+    def whoami(self) -> dict[str, Any]:
+        return self._request("GET", "/cli/whoami")
+
+    def stats(self, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", "/cli/stats" + self._team_query(team_id))
+
+    def platform_usage(self, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", "/cli/usage" + self._team_query(team_id))
 
     def summary(self) -> dict[str, Any]:
         return self._request("GET", "/cdn/summary")["data"]
+
+    def get_cdn_space(self) -> dict[str, Any]:
+        return self._request("GET", "/cdn/space")
+
+    def create_cdn_space(self, name: str | None = None) -> dict[str, Any]:
+        return self._request("POST", "/cdn/space", json_body={"name": name})
+
+    def cdn_usage(self, limit: int = 100) -> dict[str, Any]:
+        return self._request("GET", "/cdn/usage" + _query({"limit": limit}))
+
+    def cdn_proxy_logs(self, **params: Any) -> dict[str, Any]:
+        return self._request("GET", "/cdn/proxy-logs" + _query(params))
+
+    def list_edge_functions(self, **params: Any) -> dict[str, Any]:
+        return self._request("GET", "/cdn/edge-functions" + _query(params))
+
+    def create_edge_function(self, values: Mapping[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/cdn/edge-functions", json_body=values)
+
+    def list_storage_buckets(self) -> dict[str, Any]:
+        return self._request("GET", "/storage/buckets")
+
+    def get_storage_bucket(self, bucket_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/storage/buckets/{_escape(bucket_id)}")
+
+    def create_storage_bucket(self, values: Mapping[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/storage/buckets", json_body=values)
+
+    def update_storage_bucket(self, bucket_id: str, values: Mapping[str, Any]) -> dict[str, Any]:
+        return self._request("PATCH", f"/storage/buckets/{_escape(bucket_id)}", json_body=values)
+
+    def delete_storage_bucket(self, bucket_id: str) -> None:
+        self._request("DELETE", f"/storage/buckets/{_escape(bucket_id)}")
+
+    def storage_analytics(self, bucket_id: str, timeframe: str = "30d") -> dict[str, Any]:
+        return self._request("GET", f"/storage/buckets/{_escape(bucket_id)}/analytics" + _query({"timeframe": timeframe}))
+
+    def storage_billing(self, **params: Any) -> dict[str, Any]:
+        return self._request("GET", "/storage/billing" + _query(params))
+
+    def list_storage_access_keys(self, bucket_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/storage/buckets/{_escape(bucket_id)}/access-keys")
+
+    def create_storage_access_key(self, bucket_id: str, values: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        return self._request("POST", f"/storage/buckets/{_escape(bucket_id)}/access-keys", json_body=values or {})
+
+    def delete_storage_access_key(self, bucket_id: str, key_id: str) -> None:
+        self._request("DELETE", f"/storage/buckets/{_escape(bucket_id)}/access-keys/{_escape(key_id)}")
+
+    def project_traffic(self, project_id: str, **params: Any) -> dict[str, Any]:
+        return self._request("GET", f"/projects/{_escape(project_id)}/analytics/traffic" + _query(params))
+
+    def domain_traffic(self, domain_id: str, **params: Any) -> dict[str, Any]:
+        return self._request("GET", f"/domains/my/{_escape(domain_id)}/analytics" + _query(params))
+
+    def user_domain_traffic(self, domain: str, timeframe: str = "24h") -> dict[str, Any]:
+        return self._request("GET", "/user/analytics" + _query({"domain": domain, "timeframe": timeframe}))
 
     def list_assets(self, **params: Any) -> dict[str, Any]:
         return self._request("GET", "/cdn/assets" + _query(params))
@@ -82,6 +164,57 @@ class PxxlClient:
 
     def search_domains(self, query: str, type: str | None = None) -> dict[str, Any]:
         return self._request("POST", "/domains/search", json_body={"query": query, "type": type})
+
+    def get_tld(self, tld: str) -> dict[str, Any]:
+        return self._request("GET", f"/domains/tlds/{_escape(tld)}")
+
+    def list_tld_types(self) -> dict[str, Any]:
+        return self._request("GET", "/domains/types")
+
+    def list_tlds_by_type(self, type: str) -> dict[str, Any]:
+        return self._request("GET", f"/domains/types/{_escape(type)}/tlds")
+
+    def check_domain_availability(self, domain: str) -> dict[str, Any]:
+        return self._request("POST", "/domains/check-availability", json_body={"domain": domain})
+
+    def create_customer(self, values: Mapping[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/cli/contacts", json_body=values)
+
+    def list_customers(self) -> dict[str, Any]:
+        return self._request("GET", "/cli/contacts")
+
+    def get_customer(self, customer_id: str | int) -> dict[str, Any]:
+        return self._request("GET", f"/cli/contacts/{_escape(str(customer_id))}")
+
+    def update_customer(self, customer_id: str | int, values: Mapping[str, Any]) -> dict[str, Any]:
+        return self._request("PUT", f"/cli/contacts/{_escape(str(customer_id))}", json_body=values)
+
+    def delete_customer(self, customer_id: str | int) -> None:
+        self._request("DELETE", f"/cli/contacts/{_escape(str(customer_id))}")
+
+    def purchase_domain(self, values: Mapping[str, Any]) -> dict[str, Any]:
+        payload = dict(values)
+        if "customerId" in payload and "contactId" not in payload:
+            payload["contactId"] = payload.pop("customerId")
+        return self._request("POST", "/cli/domainprovider/domain/register", json_body=payload)
+
+    def list_domain_invoices(self, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", "/cli/domainprovider/invoices" + self._team_query(team_id))
+
+    def get_domain_invoice(self, invoice_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", f"/cli/domainprovider/invoice/{_escape(invoice_id)}" + self._team_query(team_id))
+
+    def get_payment_url(self, invoice_id: str, currency: str | None = None, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", f"/cli/domainprovider/invoice/{_escape(invoice_id)}/payment-url" + _query({"currency": currency, "teamId": team_id or self.team_id}))
+
+    def pay_domain_invoice(self, invoice_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("POST", "/cli/domainprovider/invoice/pay", json_body={"invoiceId": invoice_id, "teamId": team_id or self.team_id})
+
+    def cancel_domain_invoice(self, invoice_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("POST", f"/cli/domainprovider/invoice/{_escape(invoice_id)}/cancel" + self._team_query(team_id), json_body={})
+
+    def list_purchased_domains(self) -> dict[str, Any]:
+        return self._request("GET", "/cli/purchased-domains")
 
     def list_domains(self, team_id: str | None = None) -> dict[str, Any]:
         return self._request("GET", "/cli/domains" + self._team_query(team_id))
@@ -214,6 +347,117 @@ class PxxlClient:
     def validate_cron_url(self, url: str) -> dict[str, Any]:
         return self._request("POST", "/cli/cronjobs/validate-url", json_body={"url": url})
 
+    def list_projects(self, **params: Any) -> dict[str, Any]:
+        params.setdefault("teamId", self.team_id)
+        return self._request("GET", "/cli/projects" + _query(params))
+
+    def get_project(self, project_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/cli/projects/{_escape(project_id)}")
+
+    def project_deployments(self, project_id: str, **params: Any) -> dict[str, Any]:
+        return self._request("GET", f"/cli/projects/{_escape(project_id)}/deployments" + _query(params))
+
+    def project_logs(self, project_id: str, *, live: bool = False, **params: Any) -> dict[str, Any]:
+        suffix = "live-logs" if live else "logs"
+        return self._request("GET", f"/cli/projects/{_escape(project_id)}/{suffix}" + _query(params))
+
+    def list_deployments(self, **params: Any) -> dict[str, Any]:
+        params.setdefault("teamId", self.team_id)
+        return self._request("GET", "/cli/deployments" + _query(params))
+
+    def get_deployment(self, deployment_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/cli/deployments/{_escape(deployment_id)}")
+
+    def deployment_logs(self, deployment_id: str, *, build: bool = False, **params: Any) -> dict[str, Any]:
+        suffix = "build-logs" if build else "logs"
+        return self._request("GET", f"/cli/deployments/{_escape(deployment_id)}/{suffix}" + _query(params))
+
+    def list_project_env(self, project_id: str, *, global_: bool = False) -> dict[str, Any]:
+        suffix = "global-envs" if global_ else "envs"
+        return self._request("GET", f"/cli/projects/{_escape(project_id)}/{suffix}")
+
+    def diff_project_env(self, project_id: str, values: Mapping[str, Any], *, global_: bool = False) -> dict[str, Any]:
+        suffix = "global-envs" if global_ else "envs"
+        return self._request("POST", f"/cli/projects/{_escape(project_id)}/{suffix}/diff", json_body=values)
+
+    def push_project_env(self, project_id: str, values: Mapping[str, Any], *, global_: bool = False, replace: bool = False) -> dict[str, Any]:
+        suffix = "global-envs" if global_ else "envs"
+        payload = dict(values)
+        payload["replace"] = replace
+        return self._request("POST", f"/cli/projects/{_escape(project_id)}/{suffix}/bulk", json_body=payload)
+
+    def list_databases(self, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", "/databases" + self._team_query(team_id))
+
+    def get_database(self, database_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", f"/databases/{_escape(database_id)}" + self._team_query(team_id))
+
+    def create_database(self, values: Mapping[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/databases", json_body=values)
+
+    def update_database(self, database_id: str, values: Mapping[str, Any], team_id: str | None = None) -> dict[str, Any]:
+        return self._request("PATCH", f"/databases/{_escape(database_id)}" + self._team_query(team_id), json_body=values)
+
+    def delete_database(self, database_id: str, team_id: str | None = None) -> None:
+        self._request("DELETE", f"/databases/{_escape(database_id)}" + self._team_query(team_id))
+
+    def database_action(self, database_id: str, action: str, team_id: str | None = None) -> dict[str, Any]:
+        if action not in {"start", "stop", "restart"}:
+            raise ValueError("pxxl: database action must be start, stop, or restart")
+        return self._request("POST", f"/databases/{_escape(database_id)}/{action}" + self._team_query(team_id), json_body={})
+
+    def database_stats(self, database_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._database_read(database_id, "stats", team_id)
+
+    def database_metrics(self, database_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._database_read(database_id, "metrics", team_id)
+
+    def database_usage(self, database_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._database_read(database_id, "usage", team_id)
+
+    def database_tables(self, database_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._database_read(database_id, "tables", team_id)
+
+    def reveal_database_credential(self, database_id: str, field: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", f"/databases/{_escape(database_id)}/credentials/{_escape(field)}" + self._team_query(team_id))
+
+    def list_teams(self) -> dict[str, Any]:
+        return self._request("GET", "/teams")
+
+    def get_team(self, team_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/teams/{_escape(team_id)}")
+
+    def list_team_databases(self, team_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/teams/{_escape(team_id)}/databases")
+
+    def mcp_rpc(
+        self,
+        method: str,
+        params: Mapping[str, Any] | None = None,
+        *,
+        endpoint: str = PXXL_MCP_ENDPOINT,
+    ) -> dict[str, Any]:
+        self._mcp_request_id += 1
+        payload = json.dumps({
+            "jsonrpc": "2.0",
+            "id": f"pxxl-python-{self._mcp_request_id}",
+            "method": method,
+            **({"params": dict(params)} if params else {}),
+        }).encode()
+        request = urllib.request.Request(endpoint, data=payload, method="POST")
+        request.add_header("Authorization", f"Bearer {self.api_key}")
+        request.add_header("Content-Type", "application/json")
+        request.add_header("MCP-Protocol-Version", PXXL_MCP_PROTOCOL_VERSION)
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                body = json.loads(response.read().decode())
+        except urllib.error.HTTPError as error:
+            raw = error.read()
+            raise PxxlAPIError(error.code, _error_message(raw) or str(error.reason), raw) from error
+        if body.get("error"):
+            raise RuntimeError(f"pxxl: MCP request failed: {body['error'].get('message', 'unknown error')}")
+        return body.get("result", {})
+
     def deploy(
         self,
         *,
@@ -244,6 +488,9 @@ class PxxlClient:
 
     def _cron_action(self, cron_job_id: str, action: str, team_id: str | None = None) -> dict[str, Any]:
         return self._request("POST", f"/cli/cronjobs/{_escape(cron_job_id)}/{action}" + self._team_query(team_id), json_body={})
+
+    def _database_read(self, database_id: str, suffix: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._request("GET", f"/databases/{_escape(database_id)}/{suffix}" + self._team_query(team_id))
 
     def _team_query(self, team_id: str | None = None) -> str:
         return _query({"teamId": team_id or self.team_id})

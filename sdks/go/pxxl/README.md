@@ -1,6 +1,7 @@
 # Pxxl Go SDK
 
-Official Go client for Pxxl CDN uploads, domain search/pricing, and local codebase deploys.
+Use one Go client for projects, deployments, environment variables, domains,
+billing, CDN, Storage, databases, cron jobs, analytics, teams, and MCP.
 
 ```bash
 go get github.com/pxxlspace/pxxlspace/sdks/go/pxxl
@@ -30,7 +31,18 @@ if err != nil {
 fmt.Println(asset.PublicURL)
 ```
 
-Use a Pxxl API key with `scope=cdn` and `permission=read_write` for upload and delete operations.
+The client also provides `Request` for new API routes without waiting for an SDK release.
+
+## Platform services
+
+```go
+projects, _ := client.ListProjects(context.Background(), nil)
+buckets, _ := client.ListStorageBuckets(context.Background())
+databases, _ := client.ListDatabases(context.Background(), "")
+identity, _ := client.WhoAmI(context.Background())
+```
+
+Use `client.MCP` to call tools and resources from the Pxxl MCP server.
 
 ## Deploy a local codebase
 
@@ -103,4 +115,4 @@ triggered, err := client.TriggerCronJob(context.Background(), job.ID, "")
 
 Cron read operations require `scope=cron`, `scope=cronjobs`, or `scope=all` with `permission=read`. Create, update, delete, start, stop, and trigger require `permission=read_write`.
 
-See `examples/go-sdk-functions` for copyable functions.
+See the [SDK documentation](../../../docs/integrations/sdk/overview.mdx) for every module and the [publishing guide](../../../docs/integrations/sdk/publishing.mdx) for release steps.

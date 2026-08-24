@@ -2,6 +2,10 @@
   "name": "@pxxlapp/pxxl",
   "version": "0.1.12",
   "description": "Official Pxxl CLI and JavaScript SDK for deploys, storage, domains, billing, cron jobs, and platform operations.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pxxlspace/pxxlspace.git"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +25,6 @@
     "dist",
     "examples",
     "boilerplates",
-    "docs",
     "skills",
     "readme.md",
     "sdks/javascript/pxxl/README.md"

@@ -1,4 +1,4 @@
-import { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlInvoices, PxxlProjects, PxxlStorage, PxxlTeams } from "./resources.js";
+import { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlEnvironmentVariables, PxxlIdentity, PxxlInvoices, PxxlMCP, PxxlRawAPI, PxxlProjects, PxxlStorage, PxxlTeams } from "./resources.js";
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
 export declare const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
@@ -10,6 +10,22 @@ export interface PxxlClientOptions {
     baseUrl?: string;
     teamId?: string;
     fetchImpl?: typeof fetch;
+    mcpApiKey?: string;
+    mcpEndpoint?: string;
+}
+export declare const PXXL_MCP_ENDPOINT = "https://mcp.pxxl.app/mcp";
+export declare const PXXL_MCP_PROTOCOL_VERSION = "2025-06-18";
+export interface PxxlRequestOptions extends RequestInit {
+    skipContentType?: boolean;
+}
+export interface EdgeFunctionInput {
+    name: string;
+    projectId?: string;
+    route?: string;
+    runtime?: string;
+    source?: string;
+    status?: string;
+    metadata?: Record<string, unknown>;
 }
 export type DomainCurrency = "NGN" | "USD";
 export interface CustomerInput {
@@ -633,6 +649,16 @@ export declare class PxxlClient {
     downloadStorageObject(id: string): Promise<Blob>;
     deleteStorageObject(id: string): Promise<void>;
     usage(limit?: number): Promise<unknown[]>;
+    cdnProxyLogs(input?: {
+        limit?: number;
+        projectId?: string;
+    }): Promise<unknown>;
+    listEdgeFunctions(input?: {
+        projectId?: string;
+        status?: string;
+        limit?: number;
+    }): Promise<unknown>;
+    createEdgeFunction(input: EdgeFunctionInput): Promise<unknown>;
     listStorageBuckets(): Promise<{
         buckets: StorageBucket[];
         total?: number;
@@ -696,6 +722,9 @@ export declare class PxxlClient {
     getTLD(tld: string): Promise<{
         tld: DomainTLD;
     }>;
+    listTLDTypes(): Promise<unknown>;
+    listTLDsByType(type: string): Promise<unknown>;
+    checkDomainAvailability(domain: string): Promise<unknown>;
     domainDNSLookup(domain: string, type?: string): Promise<DomainDNSLookupResult>;
     bulkDomainDNSLookup(domains: string[]): Promise<{
         results: Record<string, DomainDNSLookupResult>;
@@ -814,6 +843,7 @@ export declare class PxxlClient {
         team: TeamSummary;
         success?: boolean;
     }>;
+    listTeamDatabases(id: string): Promise<unknown>;
     listDatabases(teamId?: string | undefined): Promise<{
         databases: DatabaseSummary[];
         total: number;
@@ -836,6 +866,9 @@ export declare class PxxlClient {
     stopDatabase(id: string, teamId?: string | undefined): Promise<unknown>;
     restartDatabase(id: string, teamId?: string | undefined): Promise<unknown>;
     databaseStats(id: string, teamId?: string | undefined): Promise<unknown>;
+    databaseMetrics(id: string, teamId?: string | undefined): Promise<unknown>;
+    databaseUsage(id: string, teamId?: string | undefined): Promise<unknown>;
+    revealDatabaseCredential(id: string, field: string, teamId?: string | undefined): Promise<unknown>;
     databaseTables(id: string, teamId?: string | undefined): Promise<unknown>;
     getProject(id: string): Promise<{
         project?: ProjectSummary;
@@ -908,8 +941,9 @@ export declare class PxxlClient {
     createInvoicePaymentLink(id: string): Promise<PaymentLinkResult>;
     cancelDomainInvoice(id: string, teamId?: string | undefined): Promise<unknown>;
     deploy(input: DeployInput): Promise<unknown>;
-    private request;
-    private rawRequest;
+    request<T = unknown>(path: string, init?: PxxlRequestOptions): Promise<T>;
+    rawRequest(path: string, init?: PxxlRequestOptions): Promise<Response>;
+    mcpRPC<T = Record<string, unknown>>(method: string, params?: Record<string, unknown>, endpoint?: string): Promise<T>;
 }
 export declare const PxxlCDN: typeof PxxlClient;
 export declare const PxxlCDNError: typeof PxxlAPIError;
@@ -918,11 +952,15 @@ export declare const PxxlCDNError: typeof PxxlAPIError;
  * compatibility, while grouped resources keep larger integrations readable.
  */
 export declare class Pxxl extends PxxlClient {
+    readonly identity: PxxlIdentity;
+    readonly api: PxxlRawAPI;
     readonly assets: PxxlAssets;
     readonly cdn: PxxlAssets;
     readonly storage: PxxlStorage;
     readonly analytics: PxxlAnalytics;
     readonly projects: PxxlProjects;
+    readonly env: PxxlEnvironmentVariables;
+    readonly environments: PxxlEnvironmentVariables;
     readonly deployments: PxxlDeployments;
     readonly domains: PxxlDomains;
     readonly customers: PxxlCustomers;
@@ -932,9 +970,10 @@ export declare class Pxxl extends PxxlClient {
     readonly cron: PxxlCronJobs;
     readonly teams: PxxlTeams;
     readonly databases: PxxlDatabases;
+    readonly mcp: PxxlMCP;
     constructor(options?: PxxlClientOptions);
 }
-export { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlInvoices, PxxlProjects, PxxlStorage, PxxlTeams, };
+export { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlEnvironmentVariables, PxxlIdentity, PxxlInvoices, PxxlMCP, PxxlRawAPI, PxxlProjects, PxxlStorage, PxxlTeams, };
 export declare const defaultPxxlIgnore: string[];
 export declare function createProjectZip(cwd: string): Promise<Uint8Array>;
 export declare function readPxxlToml(cwd: string): Promise<DeployConfig>;

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -118,6 +119,52 @@ func TestTypedAPIError(t *testing.T) {
 	}
 	if apiErr.StatusCode != http.StatusForbidden || apiErr.Message != "nope" {
 		t.Fatalf("api error = %#v", apiErr)
+	}
+}
+
+func TestCompleteAutomationRoutes(t *testing.T) {
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.RequestURI())
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("pxxl_test", WithBaseURL(server.URL))
+	ctx := context.Background()
+	_, _ = client.WhoAmI(ctx)
+	_, _ = client.CDNProxyLogs(ctx, url.Values{"projectId": {"proj_1"}})
+	_, _ = client.StorageAnalytics(ctx, "bucket_1", "30d")
+	_, _ = client.ProjectLogs(ctx, "proj_1", true, nil)
+	_, _ = client.DatabaseMetrics(ctx, "db_1", "team_1")
+	_, _ = client.RevealDatabaseCredential(ctx, "db_1", "password", "team_1")
+	_, _ = client.ListTeamDatabases(ctx, "team_1")
+	_, _ = client.CreateCustomer(ctx, map[string]any{"email": "ada@example.com"})
+	_, _ = client.PurchaseDomain(ctx, map[string]any{"customerId": "cus_1", "domains": []string{"example.com"}})
+	_, _ = client.GetPaymentURL(ctx, "inv_1", "USD", "team_1")
+
+	want := []string{
+		"GET /cli/whoami",
+		"GET /cdn/proxy-logs?projectId=proj_1",
+		"GET /storage/buckets/bucket_1/analytics?timeframe=30d",
+		"GET /cli/projects/proj_1/live-logs",
+		"GET /databases/db_1/metrics?teamId=team_1",
+		"GET /databases/db_1/credentials/password?teamId=team_1",
+		"GET /teams/team_1/databases",
+		"POST /cli/contacts",
+		"POST /cli/domainprovider/domain/register",
+		"GET /cli/domainprovider/invoice/inv_1/payment-url?currency=USD&teamId=team_1",
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("calls = %#v", calls)
+	}
+}
+
+func TestRequestRejectsAbsoluteURL(t *testing.T) {
+	client, _ := NewClient("pxxl_test")
+	err := client.Request(context.Background(), http.MethodGet, "https://example.com", nil, nil)
+	if err == nil || !strings.Contains(err.Error(), "must start with /") {
+		t.Fatalf("err = %v", err)
 	}
 }
 
