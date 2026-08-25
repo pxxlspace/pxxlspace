@@ -1,0 +1,56 @@
+---
+title: "Regions"
+sidebarTitle: "Available Regions"
+description: "Choose where Pxxl runs your project."
+---
+
+Pxxl regions let you run a project closer to the people using it. Select a region during deployment based on location and availability.
+
+## Available regions
+
+| Region | Slug | Location | Runtime servers | Status |
+|---|---|---|---|---|
+| Europe Central | `eu-central` | Nuremberg, Germany | Orion | Enabled and default |
+| Europe West | `eu-west` | Paris, France | Pulsar | Enabled |
+| Europe North | `eu-north` | Helsinki and Copenhagen | Titan, Nova | Enabled. Titan is online. Nova is decommissioned. |
+
+<Note>
+  New projects use **Europe Central** unless another enabled region is selected.
+</Note>
+
+## Choose a region
+
+Choose the enabled region closest to most of your users. This can reduce request latency and keep your project near the services it communicates with.
+
+<Steps>
+  <Step title="Open build configuration">
+    Start a deployment and continue to **Build Configuration**.
+  </Step>
+  <Step title="Select a region">
+    Choose Europe Central, Europe West, or Europe North. If you make no selection, Pxxl uses Europe Central.
+  </Step>
+  <Step title="Deploy">
+    Review the remaining project settings, then deploy. Pxxl schedules the runtime on an available server in the selected region.
+  </Step>
+</Steps>
+
+## Region slugs
+
+Use the region slug when a deployment option, API request, SDK method, or CLI command asks for a region.
+
+```text
+eu-central
+eu-west
+eu-north
+```
+
+The slug selects the region, not an individual runtime server. Pxxl chooses an available server inside that region.
+
+## Runtime availability
+
+- **Orion** serves Europe Central.
+- **Pulsar** serves Europe West.
+- **Titan** is the active Europe North runtime.
+- **Nova** is decommissioned and does not receive new deployments.
+
+If a region is temporarily unavailable, choose another enabled region before deploying. Changing a project to another region requires a new deployment.

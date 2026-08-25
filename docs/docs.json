@@ -58,6 +58,12 @@
             ]
           },
           {
+            "group": "Regions",
+            "pages": [
+              "regions/overview"
+            ]
+          },
+          {
             "group": "Storage",
             "pages": [
               "storage/overview",
