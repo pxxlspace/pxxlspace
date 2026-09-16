@@ -4,13 +4,21 @@ sidebarTitle: "pxxl.toml"
 description: "Configure Pxxl builds with the exact pxxl.toml fields supported by the Gateway buildpack pipeline."
 ---
 
-`pxxl.toml` lets a repository override Pxxl buildpack detection with versioned build configuration.
+`pxxl.toml` is the versioned deployment contract for Pxxl builds and edge routing.
 
 Gateway reads this file during GitHub-backed deployments. It fetches `pxxl.toml` from the deployment commit SHA. If the project has a base directory, Gateway checks `baseDirectory/pxxl.toml` first, then falls back to the repository root `pxxl.toml`.
 
 <Note>
   For local `pxxl deploy`, the CLI also reads top-level deploy metadata such as `name`, `domainChoice`, and `projectId`. The Gateway buildpack fields below are the fields applied during server-side builds.
 </Note>
+
+New files should declare the current schema version:
+
+```toml
+version = 1
+```
+
+Build-only files created before versioning remain compatible. Routing fields require `version = 1`.
 
 ## Build configuration
 
@@ -91,6 +99,56 @@ startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT"
 
 <ParamField body="build.rustVersion" type="string">
   Sets the Rust version stored on the project build settings.
+</ParamField>
+
+## Routing configuration
+
+Use `[routing]` and ordered rule tables for static deployments. See [Routing, rewrites, and redirects](/routing-and-rewrites) for matching, precedence, security, and migration details.
+
+```toml
+version = 1
+
+[build]
+command = "npm run build"
+output = "dist"
+
+[routing]
+spa = true
+cleanUrls = false
+
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://api.example.com/api/:path*"
+
+[[redirects]]
+source = "/docs-old"
+destination = "/docs"
+status = 308
+
+[[headers]]
+source = "/assets/:path*"
+[headers.headers]
+Cache-Control = "public, max-age=31536000, immutable"
+```
+
+<ParamField body="routing.spa" type="boolean">
+  Serves `index.html` for extensionless application paths after redirects and rewrites are evaluated.
+</ParamField>
+
+<ParamField body="routing.cleanUrls" type="boolean">
+  Maps an extensionless path such as `/about` to `/about.html`. When `spa` is also `true`, SPA fallback takes precedence.
+</ParamField>
+
+<ParamField body="rewrites" type="object[]">
+  Rewrites a matching path internally. The browser URL and status do not change. An external destination must be an explicit `https://` URL.
+</ParamField>
+
+<ParamField body="redirects" type="object[]">
+  Returns a client redirect. `status` must be `301`, `302`, `307`, or `308`.
+</ParamField>
+
+<ParamField body="headers" type="object[]">
+  Adds safe response headers to matching paths. Pxxl rejects secret-bearing, platform-owned, and hop-by-hop headers.
 </ParamField>
 
 ## System packages
@@ -261,6 +319,8 @@ runtime = ["curl"]
 ## Complete example
 
 ```toml
+version = 1
+
 [build]
 language = "python"
 framework = "flask"
@@ -291,3 +351,8 @@ Gateway validates `pxxl.toml` before applying it.
 | Environment values | Each value is limited to `8192` characters. |
 | Packages | Maximum `80` total package entries. Names must match `^[A-Za-z0-9][A-Za-z0-9+._-]{0,79}$`. |
 | Ports | Build ports are applied only when they are between `1` and `65535`. |
+| Routing rules | Maximum `64` total rewrites, redirects, and header rules. |
+| Normalized routing | The validated routing manifest is limited to `6144` serialized bytes. |
+| Routing paths | Paths are limited to `2048` characters and support exact matches or one trailing `:path*` capture. |
+| Redirect status | Must be `301`, `302`, `307`, or `308`. Redirect loops are rejected. |
+| Header rules | Maximum `32` headers per rule. Secret-bearing, platform-owned, and hop-by-hop headers are rejected. |

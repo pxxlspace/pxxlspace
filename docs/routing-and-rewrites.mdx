@@ -1,0 +1,150 @@
+---
+title: "Routing, rewrites, and redirects"
+description: "Configure static routing at the Pxxl edge with pxxl.toml, including SPA fallback, external API rewrites, redirects, and response headers."
+---
+
+Pxxl reads routing configuration during deployment and stores the normalized result with the immutable static artifact. The active deployment artifact is the only source for edge routing. A rollback restores that deployment's routing configuration exactly.
+
+`pxxl.toml` is canonical. If it is absent, Pxxl reads the supported `vercel.json` subset. If `pxxl.toml` is present but invalid, the deployment fails before publication. Pxxl does not fall back to `vercel.json` in that case.
+
+Deployment logs identify the selected source as `pxxl.toml`, `vercel.json compatibility`, or `platform defaults`.
+
+## Matching grammar
+
+A source is either an exact absolute path or a path ending in `:path*`.
+
+| Source | Matches | Does not match |
+| --- | --- | --- |
+| `/login` | `/login` | `/login/help` |
+| `/api/:path*` | `/api`, `/api/auth`, `/api/auth/providers` | `/v1/api` |
+
+`:path*` is the only wildcard syntax in `pxxl.toml`. It captures zero or more path segments and can appear once at the end. Use the same capture in the destination.
+
+```toml
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://api.example.com/api/:path*"
+```
+
+Rules match the normalized URL path, not the query string. Pxxl preserves the original query string during a rewrite. A configured destination cannot include its own query string or fragment.
+
+## Precedence
+
+Pxxl applies routing in this order:
+
+1. Matching response headers
+2. Redirects
+3. Rewrites
+4. Clean URL handling
+5. SPA fallback
+6. Static file serving
+
+Within rewrites, redirects, or header rules, the more specific source runs first. Rules with equal specificity keep their file order. A redirect wins over a rewrite when both match the same path.
+
+## Rewrites
+
+A rewrite is internal. The Pxxl edge handles it without changing the browser URL or returning a redirect status.
+
+For an external rewrite, Pxxl proxies the original request to the HTTPS destination. The request method, body, query string, client-supplied cookies, and client-supplied authorization header are preserved. The destination host receives its own `Host` header. Response status, body, headers, and cookies return through the Pxxl edge.
+
+<Warning>
+  An external rewrite is executed by the Pxxl edge. It is not performed by the browser or the Vite bundle.
+</Warning>
+
+## Redirects
+
+Redirects return a `Location` header to the client.
+
+```toml
+[[redirects]]
+source = "/account-old/:path*"
+destination = "/account/:path*"
+status = 308
+```
+
+Use `307` or `308` when the client must preserve the request method and body. Pxxl rejects direct and multi-rule redirect loops.
+
+## Response headers
+
+Header rules add response headers to a matching path.
+
+```toml
+[[headers]]
+source = "/assets/:path*"
+[headers.headers]
+Cache-Control = "public, max-age=31536000, immutable"
+X-Content-Type-Options = "nosniff"
+```
+
+You cannot use a manifest to set `Authorization`, `Cookie`, `Set-Cookie`, `Host`, `Content-Length`, `X-Pxxl-*`, proxy headers, or hop-by-hop headers. Header values cannot contain line breaks. Store secrets in dashboard environment variables, not in `pxxl.toml`.
+
+## Security restrictions
+
+External destinations must use HTTPS on port `443` and cannot include credentials. Pxxl blocks:
+
+- Loopback, private, carrier-grade NAT, link-local, multicast, and reserved addresses
+- Cloud metadata endpoints
+- Tailscale and internal DNS names
+- Pxxl control-plane and managed-domain addresses
+- Destinations that resolve to any blocked address
+- Reserved `/__pxxl` source or destination paths
+
+When the edge activates a route, it resolves every destination address and rejects the whole rule if any answer is unsafe. The validated public addresses are pinned as dial targets while TLS still verifies the destination hostname. This prevents a later DNS answer from rebinding a request to an internal address. Route reconciliation resolves and validates the destination again.
+
+## Migration from vercel.json
+
+When `pxxl.toml` is absent, Pxxl supports compatible `vercel.json` rewrites, redirects, headers, `cleanUrls`, and the common SPA fallback from `/(.*)` to `/index.html`.
+
+Prefer `pxxl.toml` for new deployments:
+
+```toml
+version = 1
+
+[routing]
+spa = true
+```
+
+The Pxxl wildcard grammar is `/api/:path*`. Regular-expression sources such as `/api/(.*)` are not accepted in `pxxl.toml`.
+
+A later deployment with no rules stores an explicit empty routing manifest. This removes deployment-derived rules from the edge. Dashboard domain rules do not replace or persist deployment routing rules.
+
+## Adaptive Auth.js example
+
+This complete Vite example builds `dist`, proxies same-origin Auth.js requests to the external API, and serves `index.html` for application routes:
+
+```toml
+version = 1
+
+[build]
+command = "npm run build"
+output = "dist"
+
+[routing]
+spa = true
+
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://adaptive-api.vercel.app/api/:path*"
+```
+
+With this manifest:
+
+- `/api/auth/providers` is proxied by the Pxxl edge and returns the Auth.js JSON response.
+- `/dashboard` serves `dist/index.html` for the Vite application.
+- `/assets/app.js` continues to serve the static asset.
+
+## Validation errors
+
+Pxxl fails the deployment before publishing files when configuration is unsafe or ambiguous.
+
+The source configuration is limited to `64 KiB`. The normalized routing manifest is limited to `6144` serialized bytes so it fits safely in immutable artifact metadata.
+
+```text
+invalid pxxl.toml: version must be 1
+invalid rewrite 1: external destination host is reserved
+invalid redirect 2: status must be 301, 302, 307, or 308
+invalid redirects: redirect loop detected at /account
+invalid header rule 1: header "Authorization" is not allowed
+```
+
+Fix the repository file and create a new deployment. Pxxl never silently ignores a present but invalid `pxxl.toml`.

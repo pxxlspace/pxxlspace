@@ -53,6 +53,7 @@
               "deploy/overview",
               "deploy/sources",
               "deploy/configuration",
+              "routing-and-rewrites",
               "deploy/multiple-services",
               "deploy/lifecycle"
             ]
