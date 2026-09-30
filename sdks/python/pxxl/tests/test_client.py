@@ -2,13 +2,20 @@ from pathlib import Path
 import json
 import unittest
 
-from pxxl import PxxlClient, create_project_zip
+from pxxl import PxxlAPIError, PxxlClient, create_project_zip, is_plan_gate_error
 
 
 class PxxlClientTests(unittest.TestCase):
     def test_client_requires_api_key(self):
         with self.assertRaisesRegex(ValueError, "api_key is required"):
             PxxlClient(api_key="")
+
+    def test_plan_gate_errors_expose_structured_fields(self):
+        error = PxxlAPIError(403, "upgrade", b'{"code":"CRON_JOB_LIMIT_REACHED","limit":2,"used":2,"requiredPlan":"pro"}')
+        self.assertTrue(is_plan_gate_error(error))
+        self.assertEqual(error.code, "CRON_JOB_LIMIT_REACHED")
+        self.assertEqual(error.current, 2)
+        self.assertEqual(error.required_plan, "pro")
 
     def test_create_project_zip_skips_secrets(self):
         import tempfile

@@ -33,6 +33,26 @@ pub enum PxxlError {
     InvalidInput(String),
 }
 
+impl PxxlError {
+    pub fn is_plan_gate(&self) -> bool {
+        let Self::Api { status, body, .. } = self else {
+            return false;
+        };
+        if *status == 402 {
+            return true;
+        }
+        let Ok(payload) = serde_json::from_str::<Value>(body) else {
+            return false;
+        };
+        let details = payload.get("details").unwrap_or(&payload);
+        if details.get("upgradeRequired").and_then(Value::as_bool) == Some(true) {
+            return true;
+        }
+        let code = details.get("code").and_then(Value::as_str).unwrap_or("").to_uppercase();
+        ["PLAN", "LIMIT", "UPGRADE"].iter().any(|marker| code.contains(marker))
+    }
+}
+
 #[derive(Clone)]
 pub struct PxxlClient {
     api_key: String,
@@ -972,6 +992,22 @@ impl PxxlClient {
         .await
     }
 
+    pub async fn purchase_domain_checkout(&self, input: Value) -> Result<Value, PxxlError> {
+        let currency = input.get("currency").and_then(Value::as_str).map(str::to_owned);
+        let team_id = input.get("teamId").and_then(Value::as_str).map(str::to_owned);
+        let purchase = self.purchase_domain(input).await?;
+        let invoice_id = purchase
+            .pointer("/data/invoiceId")
+            .or_else(|| purchase.pointer("/data/invoice/id"))
+            .or_else(|| purchase.get("invoiceId"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| PxxlError::InvalidInput("domain purchase did not return an invoice id".into()))?;
+        let payment = self
+            .get_payment_url(invoice_id, currency.as_deref(), team_id.as_deref())
+            .await?;
+        Ok(json!({ "purchase": purchase, "payment": payment }))
+    }
+
     pub async fn list_domain_invoices(&self, team_id: Option<&str>) -> Result<Value, PxxlError> {
         self.request(
             Method::GET,
@@ -1665,5 +1701,15 @@ mod tests {
             project_env_path("proj_1", true),
             "/cli/projects/proj_1/global-envs"
         );
+    }
+
+    #[test]
+    fn plan_gate_errors_are_detected() {
+        let error = PxxlError::Api {
+            status: 403,
+            message: "upgrade".into(),
+            body: r#"{"code":"CRON_JOB_LIMIT_REACHED","limit":2}"#.into(),
+        };
+        assert!(error.is_plan_gate());
     }
 }

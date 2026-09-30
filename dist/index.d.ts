@@ -1,4 +1,6 @@
 import { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlEnvironmentVariables, PxxlIdentity, PxxlInvoices, PxxlMCP, PxxlRawAPI, PxxlProjects, PxxlStorage, PxxlTeams } from "./resources.js";
+export { PxxlS3 } from "./s3.js";
+export type { PxxlS3Credentials } from "./s3.js";
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
 export declare const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
@@ -612,8 +614,14 @@ export interface DeployInput extends DeployConfig {
 export declare class PxxlAPIError extends Error {
     status: number;
     details: unknown;
+    code?: string;
+    limit?: number;
+    current?: number;
+    requiredPlan?: string;
+    upgradeRequired: boolean;
     constructor(message: string, status: number, details: unknown);
 }
+export declare function isPlanGateError(error: unknown): error is PxxlAPIError;
 export declare class PxxlClient {
     private readonly apiKey?;
     private readonly baseUrl;
@@ -741,6 +749,10 @@ export declare class PxxlClient {
         addon: DomainAddon;
     }>;
     purchaseDomain(input: PurchaseDomainInput): Promise<DomainPurchaseResult>;
+    purchaseDomainCheckout(input: PurchaseDomainInput): Promise<{
+        purchase: DomainPurchaseResult;
+        payment: PaymentUrl;
+    }>;
     createDomainAddonInvoice(domainId: string, addonIds: string[], currency?: DomainCurrency): Promise<unknown>;
     createDomainOrder(input: {
         domains: string[];

@@ -267,9 +267,14 @@ type DeployResult struct {
 }
 
 type APIError struct {
-	StatusCode int
-	Message    string
-	Body       []byte
+	StatusCode      int
+	Message         string
+	Body            []byte
+	Code            string
+	Limit           int
+	Current         int
+	RequiredPlan    string
+	UpgradeRequired bool
 }
 
 func (e *APIError) Error() string {
@@ -277,6 +282,10 @@ func (e *APIError) Error() string {
 		return fmt.Sprintf("pxxl: request failed with %d: %s", e.StatusCode, e.Message)
 	}
 	return fmt.Sprintf("pxxl: request failed with %d", e.StatusCode)
+}
+
+func (e *APIError) IsPlanGate() bool {
+	return e != nil && e.UpgradeRequired
 }
 
 func (c *Client) Summary(ctx context.Context) (*CDNSummary, error) {
@@ -890,16 +899,39 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body io.Re
 
 func decodeAPIError(resp *http.Response) error {
 	body, _ := io.ReadAll(resp.Body)
-	var payload struct {
-		Message string `json:"message"`
-		Error   string `json:"error"`
-	}
+	var payload map[string]any
 	_ = json.Unmarshal(body, &payload)
-	message := payload.Message
+	message := nestedString(payload, "message")
 	if message == "" {
-		message = payload.Error
+		message = nestedString(payload, "error")
 	}
-	return &APIError{StatusCode: resp.StatusCode, Message: message, Body: body}
+	details := payload
+	if nested, ok := payload["details"].(map[string]any); ok {
+		details = nested
+	}
+	code := nestedString(details, "code")
+	current := intValue(details["current"])
+	if current == 0 {
+		current = intValue(details["used"])
+	}
+	upgrade, _ := details["upgradeRequired"].(bool)
+	upgrade = upgrade || resp.StatusCode == http.StatusPaymentRequired || strings.Contains(strings.ToUpper(code), "PLAN") || strings.Contains(strings.ToUpper(code), "LIMIT") || strings.Contains(strings.ToUpper(code), "UPGRADE")
+	return &APIError{
+		StatusCode: resp.StatusCode, Message: message, Body: body, Code: code,
+		Limit: intValue(details["limit"]), Current: current,
+		RequiredPlan: nestedString(details, "requiredPlan"), UpgradeRequired: upgrade,
+	}
+}
+
+func intValue(value any) int {
+	switch number := value.(type) {
+	case float64:
+		return int(number)
+	case int:
+		return number
+	default:
+		return 0
+	}
 }
 
 func writeField(writer *multipart.Writer, key, value string) {

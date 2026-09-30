@@ -1,5 +1,9 @@
 # Pxxl Python SDK
 
+Use `purchase_domain_checkout(...)` to create a domain invoice and its hosted
+payment URL in one backend flow. Persist the invoice ID and confirm payment
+before provisioning the domain.
+
 Use one Python client for projects, deployments, environment variables, domains,
 billing, CDN, Storage, databases, cron jobs, analytics, teams, and MCP.
 

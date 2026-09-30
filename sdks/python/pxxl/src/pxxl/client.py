@@ -25,6 +25,22 @@ class PxxlAPIError(RuntimeError):
         self.status_code = status_code
         self.message = message
         self.body = body
+        try:
+            parsed = json.loads(body.decode())
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            parsed = {}
+        self.details = parsed.get("details", parsed) if isinstance(parsed, dict) else {}
+        self.code = self.details.get("code")
+        self.limit = self.details.get("limit")
+        self.current = self.details.get("current", self.details.get("used"))
+        self.required_plan = self.details.get("requiredPlan")
+        self.upgrade_required = bool(self.details.get("upgradeRequired")) or status_code == 402 or any(
+            marker in str(self.code or "").upper() for marker in ("PLAN", "LIMIT", "UPGRADE")
+        )
+
+
+def is_plan_gate_error(error: BaseException) -> bool:
+    return isinstance(error, PxxlAPIError) and error.upgrade_required
 
 
 @dataclass
@@ -197,6 +213,20 @@ class PxxlClient:
         if "customerId" in payload and "contactId" not in payload:
             payload["contactId"] = payload.pop("customerId")
         return self._request("POST", "/cli/domainprovider/domain/register", json_body=payload)
+
+    def purchase_domain_checkout(self, values: Mapping[str, Any]) -> dict[str, Any]:
+        purchase = self.purchase_domain(values)
+        data = purchase.get("data") if isinstance(purchase.get("data"), dict) else purchase
+        invoice = data.get("invoice") if isinstance(data.get("invoice"), dict) else {}
+        invoice_id = data.get("invoiceId") or invoice.get("id")
+        if not invoice_id:
+            raise ValueError("pxxl: domain purchase did not return an invoice id")
+        payment = self.get_payment_url(
+            str(invoice_id),
+            str(values["currency"]) if values.get("currency") else None,
+            str(values["teamId"]) if values.get("teamId") else None,
+        )
+        return {"purchase": purchase, "payment": payment}
 
     def list_domain_invoices(self, team_id: str | None = None) -> dict[str, Any]:
         return self._request("GET", "/cli/domainprovider/invoices" + self._team_query(team_id))

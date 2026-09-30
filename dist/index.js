@@ -6,6 +6,7 @@ import { zipSync } from "fflate";
 import ignore from "ignore";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlEnvironmentVariables, PxxlIdentity, PxxlInvoices, PxxlMCP, PxxlRawAPI, PxxlProjects, PxxlStorage, PxxlTeams, } from "./resources.js";
+export { PxxlS3 } from "./s3.js";
 export const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
 export const MAX_DEPLOY_FILES = 12000;
 export const MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024;
@@ -14,12 +15,33 @@ export const PXXL_MCP_PROTOCOL_VERSION = "2025-06-18";
 export class PxxlAPIError extends Error {
     status;
     details;
+    code;
+    limit;
+    current;
+    requiredPlan;
+    upgradeRequired;
     constructor(message, status, details) {
         super(message);
         this.name = "PxxlAPIError";
         this.status = status;
         this.details = details;
+        const data = errorDetails(details);
+        this.code = typeof data.code === "string" ? data.code : undefined;
+        this.limit = typeof data.limit === "number" ? data.limit : undefined;
+        this.current = typeof data.current === "number" ? data.current : typeof data.used === "number" ? data.used : undefined;
+        this.requiredPlan = typeof data.requiredPlan === "string" ? data.requiredPlan : undefined;
+        this.upgradeRequired = Boolean(data.upgradeRequired) || status === 402 || /(?:PLAN|LIMIT|UPGRADE)/i.test(this.code || "");
     }
+}
+function errorDetails(details) {
+    if (!details || typeof details !== "object")
+        return {};
+    const record = details;
+    const nested = record.details;
+    return nested && typeof nested === "object" ? { ...record, ...nested } : record;
+}
+export function isPlanGateError(error) {
+    return error instanceof PxxlAPIError && error.upgradeRequired;
 }
 function readStringPath(value, path) {
     let current = value;
@@ -241,6 +263,11 @@ export class PxxlClient {
             ...result.data,
             invoice: result.data.invoice ?? { id: result.data.invoiceId, status: "pending" },
         };
+    }
+    async purchaseDomainCheckout(input) {
+        const purchase = await this.purchaseDomain(input);
+        const payment = await this.getPaymentUrl(purchase.invoiceId, input.currency, input.teamId);
+        return { purchase, payment };
     }
     async createDomainAddonInvoice(domainId, addonIds, currency = "NGN") {
         const result = await this.request(`/cli/domainprovider/domain/${encodeURIComponent(domainId)}/addons/invoice`, { method: "POST", body: JSON.stringify({ addonIds, currency }) });

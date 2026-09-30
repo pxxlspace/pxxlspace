@@ -23,6 +23,8 @@ import {
   PxxlStorage,
   PxxlTeams,
 } from "./resources.js";
+export { PxxlS3 } from "./s3.js";
+export type { PxxlS3Credentials } from "./s3.js";
 
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
@@ -696,13 +698,35 @@ export interface DeployInput extends DeployConfig {
 export class PxxlAPIError extends Error {
   status: number;
   details: unknown;
+  code?: string;
+  limit?: number;
+  current?: number;
+  requiredPlan?: string;
+  upgradeRequired: boolean;
 
   constructor(message: string, status: number, details: unknown) {
     super(message);
     this.name = "PxxlAPIError";
     this.status = status;
     this.details = details;
+    const data = errorDetails(details);
+    this.code = typeof data.code === "string" ? data.code : undefined;
+    this.limit = typeof data.limit === "number" ? data.limit : undefined;
+    this.current = typeof data.current === "number" ? data.current : typeof data.used === "number" ? data.used : undefined;
+    this.requiredPlan = typeof data.requiredPlan === "string" ? data.requiredPlan : undefined;
+    this.upgradeRequired = Boolean(data.upgradeRequired) || status === 402 || /(?:PLAN|LIMIT|UPGRADE)/i.test(this.code || "");
   }
+}
+
+function errorDetails(details: unknown): Record<string, unknown> {
+  if (!details || typeof details !== "object") return {};
+  const record = details as Record<string, unknown>;
+  const nested = record.details;
+  return nested && typeof nested === "object" ? { ...record, ...(nested as Record<string, unknown>) } : record;
+}
+
+export function isPlanGateError(error: unknown): error is PxxlAPIError {
+  return error instanceof PxxlAPIError && error.upgradeRequired;
 }
 
 function readStringPath(value: unknown, path: string[]): string | undefined {
@@ -973,6 +997,12 @@ export class PxxlClient {
       ...result.data,
       invoice: result.data.invoice ?? { id: result.data.invoiceId, status: "pending" },
     } as DomainPurchaseResult;
+  }
+
+  async purchaseDomainCheckout(input: PurchaseDomainInput): Promise<{ purchase: DomainPurchaseResult; payment: PaymentUrl }> {
+    const purchase = await this.purchaseDomain(input);
+    const payment = await this.getPaymentUrl(purchase.invoiceId, input.currency, input.teamId);
+    return { purchase, payment };
   }
 
   async createDomainAddonInvoice(domainId: string, addonIds: string[], currency: DomainCurrency = "NGN"): Promise<unknown> {
