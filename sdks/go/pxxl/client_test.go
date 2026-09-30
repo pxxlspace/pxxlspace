@@ -104,7 +104,7 @@ func TestDownloadAsset(t *testing.T) {
 func TestTypedAPIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte(`{"message":"nope"}`))
+		_, _ = w.Write([]byte(`{"message":"upgrade","code":"CRON_JOB_LIMIT_REACHED","limit":2,"used":2,"requiredPlan":"pro"}`))
 	}))
 	defer server.Close()
 
@@ -117,8 +117,11 @@ func TestTypedAPIError(t *testing.T) {
 	if !ok {
 		t.Fatalf("error type = %T", err)
 	}
-	if apiErr.StatusCode != http.StatusForbidden || apiErr.Message != "nope" {
+	if apiErr.StatusCode != http.StatusForbidden || apiErr.Message != "upgrade" {
 		t.Fatalf("api error = %#v", apiErr)
+	}
+	if !apiErr.IsPlanGate() || apiErr.Code != "CRON_JOB_LIMIT_REACHED" || apiErr.Limit != 2 || apiErr.Current != 2 || apiErr.RequiredPlan != "pro" {
+		t.Fatalf("plan gate = %#v", apiErr)
 	}
 }
 

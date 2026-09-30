@@ -71,6 +71,10 @@ tlds, err := client.ListTLDs(context.Background())
 
 ## Connect and manage domains
 
+For a hosted checkout, `PurchaseDomainCheckout` composes domain purchase,
+invoice creation, and payment-link generation. Persist the returned invoice ID
+and confirm its paid state before provisioning the domain.
+
 ```go
 connected, err := client.ConnectDomain(context.Background(), pxxl.ConnectDomainInput{
   Domain: "example.com",

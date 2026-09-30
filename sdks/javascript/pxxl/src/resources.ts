@@ -1,4 +1,6 @@
 import { PXXL_MCP_ENDPOINT, PXXL_MCP_PROTOCOL_VERSION } from "./index.js";
+import { PxxlS3 } from "./s3.js";
+import type { PxxlS3Credentials } from "./s3.js";
 import type {
   AnalyticsTimeframe,
   CreateInvoiceInput,
@@ -147,6 +149,12 @@ export class PxxlStorage {
   listAccessKeys(bucketId: string) { return this.client.listStorageAccessKeys(bucketId); }
   createAccessKey(bucketId: string, input?: CreateStorageAccessKeyInput) { return this.client.createStorageAccessKey(bucketId, input); }
   deleteAccessKey(bucketId: string, keyId: string) { return this.client.deleteStorageAccessKey(bucketId, keyId); }
+  s3(credentials: PxxlS3Credentials) { return new PxxlS3(credentials); }
+  async createS3Client(bucketId: string, input?: CreateStorageAccessKeyInput) {
+    const { key } = await this.createAccessKey(bucketId, input);
+    if (!key.secretAccessKey) throw new Error("Pxxl did not return the one-time S3 secret access key");
+    return new PxxlS3(key as PxxlS3Credentials);
+  }
 }
 
 export class PxxlAnalytics {
@@ -185,6 +193,7 @@ export class PxxlDomains {
   addons(input?: { type?: string }) { return this.client.listDomainAddons(input); }
   addon(id: string) { return this.client.getDomainAddon(id); }
   purchase(input: PurchaseDomainInput) { return this.client.purchaseDomain(input); }
+  checkout(input: PurchaseDomainInput) { return this.client.purchaseDomainCheckout(input); }
   createAddonInvoice(domainId: string, addonIds: string[], currency?: DomainCurrency) { return this.client.createDomainAddonInvoice(domainId, addonIds, currency); }
   createOrder(input: { domains: string[]; customerId?: number | string; contactId?: number | string }) { return this.client.createDomainOrder(input); }
   listOrders() { return this.client.listDomainOrders(); }

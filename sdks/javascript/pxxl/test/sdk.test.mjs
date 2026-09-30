@@ -10,6 +10,8 @@ import {
   PxxlAPIError,
   Pxxl,
   PxxlClient,
+  PxxlS3,
+  isPlanGateError,
   createProjectZip,
   readBoilerplateManifest,
   readPxxlToml,
@@ -32,6 +34,36 @@ test("sends bearer auth and parses CDN summary", async () => {
   });
   const summary = await client.summary();
   assert.equal(summary.totalFiles, 1);
+});
+
+test("S3 client uses bucket credentials without a Pxxl API key", async () => {
+  const s3 = new PxxlS3({
+    accessKeyId: "storage_access",
+    secretAccessKey: "storage_secret",
+    endpoint: "https://storage.pxxl.app/s3",
+    region: "auto",
+    bucket: "bucket_1",
+    pathStyle: true,
+  });
+  const endpoint = await s3.client.config.endpoint();
+  assert.equal(endpoint.hostname, "storage.pxxl.app");
+  assert.equal(endpoint.path, "/s3");
+  assert.equal(s3.client.config.forcePathStyle, true);
+  assert.equal(s3.bucket, "bucket_1");
+  s3.client.destroy();
+});
+
+test("normalizes plan gates into typed SDK error fields", () => {
+  const error = new PxxlAPIError("Upgrade required", 403, {
+    code: "CRON_JOB_LIMIT_REACHED",
+    limit: 2,
+    used: 2,
+    requiredPlan: "pro",
+  });
+  assert.equal(error.code, "CRON_JOB_LIMIT_REACHED");
+  assert.equal(error.current, 2);
+  assert.equal(error.requiredPlan, "pro");
+  assert.equal(isPlanGateError(error), true);
 });
 
 test("reads boilerplate manifest deploy defaults", async () => {
@@ -553,12 +585,11 @@ test("unified client keeps customer, purchase, invoice, and cron flows together"
     postalCode: "100001",
     country: "NG",
   });
-  const purchase = await client.domains.purchase({
+  const checkout = await client.domains.checkout({
     customerId: customer.id,
     currency: "NGN",
     domains: [{ domainName: "example.com", years: 1 }],
   });
-  const payment = await client.invoices.getPaymentUrl(purchase.invoice.id);
   const cron = await client.cronjobs.create({
     name: "refresh",
     schedule: "*/15 * * * *",
@@ -566,8 +597,8 @@ test("unified client keeps customer, purchase, invoice, and cron flows together"
     method: "POST",
   });
 
-  assert.equal(purchase.invoiceId, "inv_42");
-  assert.equal(payment.paymentUrl, "https://pay.example/inv_42");
+  assert.equal(checkout.purchase.invoiceId, "inv_42");
+  assert.equal(checkout.payment.paymentUrl, "https://pay.example/inv_42");
   assert.equal(cron.id, "cron_1");
   assert.equal(requests.every(({ init }) => init.headers.get("Authorization") === "Bearer pxxl_unified"), true);
 });

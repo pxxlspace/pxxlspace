@@ -1,3 +1,5 @@
+import { PxxlS3 } from "./s3.js";
+import type { PxxlS3Credentials } from "./s3.js";
 import type { AnalyticsTimeframe, CreateInvoiceInput, ConnectDomainInput, CreateCronJobInput, CreateDatabaseInput, CreateStorageAccessKeyInput, CreateStorageBucketInput, CustomerInput, DomainCurrency, DomainDNSRecordInput, EnvVarInput, PxxlClient, PxxlRequestOptions, PurchaseDomainInput, UpdateCronJobInput, UpdateCustomerInput, UpdateDatabaseInput, UpdateStorageBucketInput } from "./index.js";
 export declare class PxxlIdentity {
     private readonly client;
@@ -107,6 +109,8 @@ export declare class PxxlStorage {
         notice?: string;
     }>;
     deleteAccessKey(bucketId: string, keyId: string): Promise<void>;
+    s3(credentials: PxxlS3Credentials): PxxlS3;
+    createS3Client(bucketId: string, input?: CreateStorageAccessKeyInput): Promise<PxxlS3>;
 }
 export declare class PxxlAnalytics {
     private readonly client;
@@ -191,6 +195,10 @@ export declare class PxxlDomains {
         addon: import("./index.js").DomainAddon;
     }>;
     purchase(input: PurchaseDomainInput): Promise<import("./index.js").DomainPurchaseResult>;
+    checkout(input: PurchaseDomainInput): Promise<{
+        purchase: import("./index.js").DomainPurchaseResult;
+        payment: import("./index.js").PaymentUrl;
+    }>;
     createAddonInvoice(domainId: string, addonIds: string[], currency?: DomainCurrency): Promise<unknown>;
     createOrder(input: {
         domains: string[];

@@ -65,20 +65,19 @@ const customer = await pxxl.customers.create({
   country: "NG",
 });
 
-const purchase = await pxxl.domains.purchase({
+const { purchase, payment } = await pxxl.domains.checkout({
   customerId: customer.id,
   currency: "NGN",
   domains: [{ domainName: "example.com", years: 1 }],
 });
 
-const payment = await pxxl.invoices.getPaymentUrl(purchase.invoice.id);
 console.log(payment.paymentUrl);
 ```
 
 Payment URLs can expire. Request a fresh URL when needed, and use the invoice
 ID to check status instead of repeating a purchase after a timeout.
 
-Storage objects use the same authenticated API client:
+Use the authenticated management API for dashboard-style object operations:
 
 ```ts
 const object = await pxxl.storage.uploadObject("bucket_123", {
@@ -90,6 +89,24 @@ const object = await pxxl.storage.uploadObject("bucket_123", {
 
 await pxxl.storage.deleteObject(object.id);
 ```
+
+For S3-compatible workloads, create a bucket-scoped key once and use that key
+for object traffic. The resulting S3 client does not send the Pxxl API key:
+
+```ts
+const s3 = await pxxl.storage.createS3Client("bucket_123", {
+  name: "invoice-worker",
+  permission: "read_write",
+});
+
+await s3.put("invoices/inv_123.pdf", pdfBytes, {
+  ContentType: "application/pdf",
+});
+const url = await s3.signedGetUrl("invoices/inv_123.pdf", 900);
+```
+
+The S3 secret is returned only when it is created. Store it in your secret
+manager, then construct `PxxlS3` directly in later processes.
 
 For older billing records, use the separate billing resource:
 

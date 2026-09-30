@@ -180,6 +180,43 @@ func (c *Client) PurchaseDomain(ctx context.Context, input map[string]any) (map[
 	return c.requestMap(ctx, http.MethodPost, "/cli/domainprovider/domain/register", payload)
 }
 
+func (c *Client) PurchaseDomainCheckout(ctx context.Context, input map[string]any) (map[string]any, error) {
+	purchase, err := c.PurchaseDomain(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	invoiceID := nestedString(purchase, "invoiceId")
+	if data, ok := purchase["data"].(map[string]any); ok {
+		invoiceID = nestedString(data, "invoiceId")
+		if invoiceID == "" {
+			invoiceID = nestedString(data, "invoice", "id")
+		}
+	}
+	if invoiceID == "" {
+		return nil, fmt.Errorf("pxxl: domain purchase did not return an invoice id")
+	}
+	currency, _ := input["currency"].(string)
+	teamID, _ := input["teamId"].(string)
+	payment, err := c.GetPaymentURL(ctx, invoiceID, currency, teamID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"purchase": purchase, "payment": payment}, nil
+}
+
+func nestedString(value map[string]any, path ...string) string {
+	var current any = value
+	for _, key := range path {
+		object, ok := current.(map[string]any)
+		if !ok {
+			return ""
+		}
+		current = object[key]
+	}
+	result, _ := current.(string)
+	return result
+}
+
 func (c *Client) ListDomainInvoices(ctx context.Context, teamID string) (map[string]any, error) {
 	return c.requestMap(ctx, http.MethodGet, "/cli/domainprovider/invoices"+teamQuery(teamID), nil)
 }
