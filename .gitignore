@@ -3,3 +3,5 @@ dist/
 target/
 .DS_Store
 coverage/
+**/__pycache__/
+sdks/rust/pxxl/Cargo.lock

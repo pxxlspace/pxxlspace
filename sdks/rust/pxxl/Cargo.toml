@@ -1,6 +1,6 @@
 [package]
 name = "pxxl"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Official Rust SDK for Pxxl projects, deployments, domains, storage, databases, cron jobs, analytics, teams, and MCP."
 license = "MIT"
