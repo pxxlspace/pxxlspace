@@ -47,3 +47,7 @@ client.validate_cron_url("https://example.com/job").await?;
 ```
 
 Pxxl accepts 5-field cron expressions, public `http` or `https` URLs, and `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`. Private and reserved IP targets are blocked before a job is saved.
+
+## Plan Limit Errors
+
+`PxxlError::is_plan_gate()` identifies structured plan and resource-limit responses. The original API body remains available on `PxxlError::Api` when an integration needs the exact limit metadata.

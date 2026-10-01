@@ -145,3 +145,51 @@ const history = await pxxl.cron.runs("cron_123", { page: 1, limit: 20 });
 <Note>
   Job headers can contain secrets. Keep cron management in trusted server code.
 </Note>
+
+## Handle plan limits
+
+Plan and resource-limit responses include structured fields. Use the SDK helper instead of parsing response text or hardcoding plan limits.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    import { isPlanGateError } from "@pxxlapp/pxxl";
+
+    try {
+      await pxxl.cron.create({
+        name: "invoice reconciliation",
+        schedule: "*/10 * * * *",
+        url: "https://api.example.com/jobs/reconcile-invoices",
+        method: "POST",
+      });
+    } catch (error) {
+      if (isPlanGateError(error)) {
+        console.log(error.code, error.limit, error.current, error.requiredPlan);
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    var apiErr *pxxl.APIError
+    if errors.As(err, &apiErr) && apiErr.IsPlanGate() {
+      log.Println(apiErr.Code, apiErr.Limit, apiErr.Current, apiErr.RequiredPlan)
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from pxxl import is_plan_gate_error
+
+    if is_plan_gate_error(error):
+        print(error.code, error.limit, error.current, error.required_plan)
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    if error.is_plan_gate() {
+        eprintln!("The current plan cannot create another cron job");
+    }
+    ```
+  </Tab>
+</Tabs>

@@ -59,4 +59,4 @@ Pxxl accepts 5-field cron expressions, public `http` or `https` URLs, and `GET`,
 
 ## Plan Limit Errors
 
-The Go SDK returns `*pxxl.APIError` for non-2xx API responses. When the cron job plan limit is reached, inspect `StatusCode` and `Details` for `CRON_JOB_LIMIT_REACHED`, `limit`, and `current`.
+The Go SDK returns `*pxxl.APIError` for non-2xx API responses. Use `IsPlanGate()` and the `Code`, `Limit`, `Current`, and `RequiredPlan` fields to build an upgrade response without parsing JSON yourself.

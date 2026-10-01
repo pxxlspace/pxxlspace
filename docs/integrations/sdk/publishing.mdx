@@ -30,10 +30,10 @@ cd pxxlspace/sdks/go/pxxl
 go mod tidy
 go test ./...
 cd ../../..
-git tag -a sdks/go/pxxl/v0.2.0 -m "feat: release Go SDK v0.2.0"
-git push origin sdks/go/pxxl/v0.2.0
+git tag -a sdks/go/pxxl/v0.2.1 -m "feat: release Go SDK v0.2.1"
+git push origin sdks/go/pxxl/v0.2.1
 GOPROXY=proxy.golang.org go list -m \
-  github.com/pxxlspace/pxxlspace/sdks/go/pxxl@v0.2.0
+  github.com/pxxlspace/pxxlspace/sdks/go/pxxl@v0.2.1
 ```
 
 Do not move or replace a published tag. Release a new version if a fix is needed.
