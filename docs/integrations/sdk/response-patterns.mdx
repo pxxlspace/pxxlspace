@@ -94,8 +94,8 @@ Non-successful API responses throw an SDK error. The original API response remai
       await pxxl.storage.createBucket({ name: "uploads" });
     } catch (error) {
       if (error instanceof PxxlAPIError) {
-        console.log(error.status);
-        console.log(error.details);
+        console.log(error.status, error.code);
+        console.log(error.limit, error.current, error.requiredPlan);
       }
     }
     ```
@@ -104,24 +104,36 @@ Non-successful API responses throw an SDK error. The original API response remai
     ```go
     result, err := client.CreateStorageBucket(ctx, input)
     if err != nil {
-      log.Fatal(err)
+      var apiErr *pxxl.APIError
+      if errors.As(err, &apiErr) && apiErr.IsPlanGate() {
+        log.Println(apiErr.Code, apiErr.Limit, apiErr.Current, apiErr.RequiredPlan)
+      }
     }
     ```
   </Tab>
   <Tab title="Python">
     ```python
+    from pxxl import is_plan_gate_error
+
     try:
         result = client.create_storage_bucket(input)
     except PxxlAPIError as error:
-        print(error.status, error.details)
+        if is_plan_gate_error(error):
+            print(error.code, error.limit, error.current, error.required_plan)
     ```
   </Tab>
   <Tab title="Rust">
     ```rust
-    let result = client.create_storage_bucket(input).await?;
+    if let Err(error) = client.create_storage_bucket(input).await {
+        if error.is_plan_gate() {
+            eprintln!("Upgrade required for another storage bucket");
+        }
+    }
     ```
   </Tab>
 </Tabs>
+
+Node.js also exports `isPlanGateError(error)`. Structured plan-gate handling works across storage, domains, deployments, databases, and cron jobs.
 
 <Note>
   Response examples show the fields used most often. The API can add fields without breaking existing integrations.

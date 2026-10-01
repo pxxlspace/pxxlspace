@@ -5,6 +5,20 @@ description: "Use one Pxxl client to deploy projects and manage platform service
 
 The Pxxl SDK covers projects, deployments, environment variables, domains, billing, CDN, Storage, databases, cron jobs, analytics, teams, and MCP.
 
+Version `0.2.1` adds bucket-scoped S3 clients, composed domain checkout helpers, and structured plan-gate errors across the supported SDKs.
+
+<CardGroup cols={3}>
+  <Card title="S3-compatible storage" href="/integrations/sdk/cdn-storage">
+    Upload and download objects with a bucket access key and secret key.
+  </Card>
+  <Card title="Domain checkout" href="/integrations/sdk/domains-billing">
+    Purchase domains and generate a hosted payment link in one workflow.
+  </Card>
+  <Card title="Plan gates" href="/integrations/sdk/response-patterns">
+    Handle resource limits with structured SDK error fields.
+  </Card>
+</CardGroup>
+
 ```mermaid
 flowchart LR
   App["Your application"] --> SDK["Pxxl SDK"]

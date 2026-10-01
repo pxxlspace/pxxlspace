@@ -149,7 +149,7 @@ curl --request POST \
     "accessKeyId": "pxxl_access_123",
     "secretAccessKey": "shown-only-once",
     "permission": "read_write",
-    "endpoint": "https://storage.pxxl.app",
+    "endpoint": "https://storage.pxxl.app/s3",
     "region": "auto",
     "bucket": "uploads",
     "pathStyle": true,
@@ -162,6 +162,8 @@ curl --request POST \
 <Warning>
   `secretAccessKey` is returned once. Store it securely and never include it in logs.
 </Warning>
+
+Use the Pxxl API key only for bucket and key management. Send object requests to the returned S3 endpoint with the bucket-scoped `accessKeyId` and `secretAccessKey`; do not send `PXXL_API_KEY` to `https://storage.pxxl.app/s3`.
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |

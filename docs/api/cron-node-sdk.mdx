@@ -11,7 +11,7 @@ npm install @pxxlapp/pxxl
 ```
 
 ```ts
-import { PxxlAPIError, PxxlClient } from '@pxxlapp/pxxl';
+import { PxxlClient, isPlanGateError } from '@pxxlapp/pxxl';
 
 const pxxl = new PxxlClient({ apiKey: process.env.PXXL_API_KEY! });
 ```
@@ -73,8 +73,8 @@ try {
     url: 'https://example.com/job',
   });
 } catch (error) {
-  if (error instanceof PxxlAPIError && error.details?.code === 'CRON_JOB_LIMIT_REACHED') {
-    console.log(error.details.limit, error.details.current);
+  if (isPlanGateError(error)) {
+    console.log(error.code, error.limit, error.current, error.requiredPlan);
   }
 }
 ```

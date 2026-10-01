@@ -192,49 +192,47 @@ const customer = await pxxl.customers.create({
 <Tabs>
   <Tab title="Node.js">
     ```ts
-    const purchase = await pxxl.domains.purchase({
+    const { purchase, payment } = await pxxl.domains.checkout({
       customerId: customer.id,
       domains: [{ domainName: "example.com", years: 1 }],
       currency: "USD",
     });
 
-    const checkout = await pxxl.invoices.paymentUrl(
-      purchase.invoiceId,
-      "USD",
-    );
+    return Response.redirect(payment.paymentUrl, 303);
     ```
   </Tab>
   <Tab title="Go">
     ```go
-    purchase, err := client.PurchaseDomain(ctx, map[string]any{
+    checkout, err := client.PurchaseDomainCheckout(ctx, map[string]any{
       "customerId": customerID,
       "domains": []map[string]any{{"domainName": "example.com", "years": 1}},
       "currency": "USD",
     })
-    checkout, err := client.GetPaymentURL(ctx, invoiceID, "USD", "")
     ```
   </Tab>
   <Tab title="Python">
     ```python
-    purchase = client.purchase_domain({
+    checkout = client.purchase_domain_checkout({
         "customerId": customer["id"],
         "domains": [{"domainName": "example.com", "years": 1}],
         "currency": "USD",
     })
-    checkout = client.get_payment_url(purchase["invoiceId"], "USD")
     ```
   </Tab>
   <Tab title="Rust">
     ```rust
-    let purchase = client.purchase_domain(json!({
+    let checkout = client.purchase_domain_checkout(json!({
         "customerId": customer["id"],
         "domains": [{"domainName": "example.com", "years": 1}],
         "currency": "USD"
     })).await?;
-    let checkout = client.get_payment_url(invoice_id, Some("USD"), None).await?;
     ```
   </Tab>
 </Tabs>
+
+The composed checkout returns both `purchase` and `payment`. The lower-level purchase and payment URL methods remain available when you need to persist or validate additional state between calls.
+
+Treat the hosted payment URL as a redirect destination, not proof of payment. Read the invoice again from your backend and require a paid state before provisioning the domain or any plan-gated service.
 
 **Purchase response**
 
