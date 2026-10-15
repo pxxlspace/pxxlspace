@@ -56,6 +56,8 @@ Named HTTP method exports take precedence over the default export. A default exp
 
 An internal rewrite can send a public page request to a detected function. The browser keeps the original URL.
 
+A `pxxl.toml` rewrite whose destination is `/api` or `/api/**` also explicitly selects the function runtime. This keeps deployment classification deterministic if repository directory discovery is temporarily unavailable; the build still verifies that the referenced handler exists before activating routes.
+
 ```toml
 version = 1
 
