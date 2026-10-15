@@ -1,9 +1,9 @@
 ---
 title: "Routing, rewrites, and redirects"
-description: "Configure static routing at the Pxxl edge with pxxl.toml, including SPA fallback, external API rewrites, redirects, and response headers."
+description: "Configure edge routing with pxxl.toml, including conditional rewrites, functions, SPA fallback, redirects, and response headers."
 ---
 
-Pxxl reads routing configuration during deployment and stores the normalized result with the immutable static artifact. The active deployment artifact is the only source for edge routing. A rollback restores that deployment's routing configuration exactly.
+Pxxl reads routing configuration during deployment and stores the normalized result with the immutable deployment. The active deployment is the only source for edge routing. A rollback restores that deployment's routing configuration exactly. Rules apply to static releases and runtime-hosted [Pxxl Functions](/deploy/functions).
 
 `pxxl.toml` is canonical. If it is absent, Pxxl reads the supported `vercel.json` subset. If `pxxl.toml` is present but invalid, the deployment fails before publication. Pxxl does not fall back to `vercel.json` in that case.
 
@@ -11,14 +11,16 @@ Deployment logs identify the selected source as `pxxl.toml`, `vercel.json compat
 
 ## Matching grammar
 
-A source is either an exact absolute path or a path ending in `:path*`.
+A source can be an exact absolute path, named path parameters, or a trailing `:path*` capture.
 
 | Source | Matches | Does not match |
 | --- | --- | --- |
 | `/login` | `/login` | `/login/help` |
+| `/:slug` | `/robin` | `/robin/settings` |
+| `/:slug/:page` | `/robin/settings` | `/robin` |
 | `/api/:path*` | `/api`, `/api/auth`, `/api/auth/providers` | `/v1/api` |
 
-`:path*` is the only wildcard syntax in `pxxl.toml`. It captures zero or more path segments and can appear once at the end. Use the same capture in the destination.
+Named parameters capture one path segment. `:path*` captures zero or more path segments and can appear once at the end. Use the same capture names in the destination.
 
 ```toml
 [[rewrites]]
@@ -26,7 +28,20 @@ source = "/api/:path*"
 destination = "https://api.example.com/api/:path*"
 ```
 
-Rules match the normalized URL path, not the query string. Pxxl preserves the original query string during a rewrite. A configured destination cannot include its own query string or fragment.
+Rules match the normalized URL path. A destination can include a query string and interpolate named captures. Pxxl preserves the original query string when the destination does not replace it. Fragments are not accepted.
+
+## Conditional matching
+
+Add `has` or `missing` conditions to match a header, cookie, hostname, or query value. A rule supports up to eight conditions. Regex values are limited to 1 KiB and use Go's linear-time regular expression engine.
+
+```toml
+[[rewrites]]
+source = "/:slug"
+destination = "/api/og?username=:slug"
+has_header = { key = "user-agent", regex = "(?i).*(twitterbot|whatsapp|googlebot).*" }
+```
+
+The `has_header` form is a concise alternative to a full `has` condition. `vercel.json` can use its standard `has` and `missing` arrays.
 
 ## Precedence
 
@@ -39,7 +54,7 @@ Pxxl applies routing in this order:
 5. SPA fallback
 6. Static file serving
 
-Within rewrites, redirects, or header rules, the more specific source runs first. Rules with equal specificity keep their file order. A redirect wins over a rewrite when both match the same path.
+`vercel.json` rules keep their written order. Pxxl sorts `pxxl.toml` rules by source specificity, and rules with equal specificity keep their file order. A redirect wins over a rewrite when both match the same path.
 
 ## Rewrites
 
@@ -93,7 +108,7 @@ When the edge activates a route, it resolves every destination address and rejec
 
 ## Migration from vercel.json
 
-When `pxxl.toml` is absent, Pxxl supports compatible `vercel.json` rewrites, redirects, headers, `cleanUrls`, and the common SPA fallback from `/(.*)` to `/index.html`.
+When `pxxl.toml` is absent, Pxxl supports compatible `vercel.json` rewrites, redirects, headers, `has` and `missing` conditions, `cleanUrls`, and SPA fallbacks such as `/(.*)` to `/index.html` or `/spa.html`.
 
 Prefer `pxxl.toml` for new deployments:
 
@@ -104,7 +119,7 @@ version = 1
 spa = true
 ```
 
-The Pxxl wildcard grammar is `/api/:path*`. Regular-expression sources such as `/api/(.*)` are not accepted in `pxxl.toml`.
+Use `/api/:path*` for a trailing capture and `/:slug` for a named segment in `pxxl.toml`. The Vercel compatibility parser accepts the catch-all source `/(.*)` for SPA fallback.
 
 A later deployment with no rules stores an explicit empty routing manifest. This removes deployment-derived rules from the edge. Dashboard domain rules do not replace or persist deployment routing rules.
 

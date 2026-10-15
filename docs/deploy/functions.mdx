@@ -1,0 +1,93 @@
+---
+title: "Pxxl Functions"
+description: "Run Node.js and TypeScript API handlers beside a frontend deployment."
+---
+
+Pxxl Functions lets a frontend repository expose lightweight HTTP handlers from `api/**`. Pxxl detects the files, bundles them during the build, and deploys the frontend and functions as one immutable runtime generation. Route activation happens only after the new runtime is healthy, so a deployment cannot combine old functions with new frontend files.
+
+<Note>
+  Pxxl Functions is available on staging first. It runs as a warm, gVisor-isolated Node.js workload in your project's compute pool. Function requests are not billed a second time per invocation.
+</Note>
+
+## Create a function
+
+Add a JavaScript or TypeScript file below `api/`. Each file becomes a route with the same path.
+
+| File | Route |
+| --- | --- |
+| `api/index.ts` | `/api` |
+| `api/og.ts` | `/api/og` |
+| `api/users/[id].ts` | `/api/users/:id` |
+| `api/files/[...path].ts` | `/api/files/:path*` |
+
+Pxxl bundles up to 64 function files, with up to eight directory levels. Supported extensions are `.js`, `.mjs`, `.cjs`, `.ts`, `.mts`, and `.cts`. Declaration, test, and spec files are ignored.
+
+## Use a Vercel-style handler
+
+Existing `@vercel/node` handlers can normally move without source changes. Type-only imports are removed by the TypeScript bundle.
+
+```ts
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const username = req.query.username;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "public, s-maxage=300");
+  return res.status(200).send(`<h1>${username}</h1>`);
+}
+```
+
+The response supports `status()`, `send()`, `json()`, `redirect()`, `setHeader()`, `getHeader()`, `write()`, and `end()`. The request includes parsed `query`, `cookies`, and JSON `body` values.
+
+## Use a Web handler
+
+You can also export a Web API handler that returns a `Response`.
+
+```ts
+export async function GET(request: Request) {
+  const username = new URL(request.url).searchParams.get("username");
+  return Response.json({ username });
+}
+```
+
+Named HTTP method exports take precedence over the default export. A default export with two parameters is treated as a Vercel-style handler; a one-parameter export is treated as a Web handler.
+
+## Route requests to a function
+
+An internal rewrite can send a public page request to a detected function. The browser keeps the original URL.
+
+```toml
+version = 1
+
+[[rewrites]]
+source = "/:slug"
+destination = "/api/og?username=:slug"
+has_header = { key = "user-agent", regex = "(?i).*(twitterbot|whatsapp|discordbot|googlebot).*" }
+
+[[rewrites]]
+source = "/(.*)"
+destination = "/spa.html"
+```
+
+You can keep an equivalent `vercel.json` unchanged when `pxxl.toml` is absent. Pxxl applies its rewrites to both static and function-enabled deployments. Real asset requests such as `/favicon.ico` and `/assets/app.js` win over parameter rewrites.
+
+## Cache function responses
+
+Return `Cache-Control` with `s-maxage` to cache a successful function response in the warm workload.
+
+```ts
+res.setHeader("Cache-Control", "public, s-maxage=300");
+```
+
+The cache is bounded to 128 responses by default, caps `s-maxage` at one hour, and skips responses that are private, use `no-store`, set cookies, exceed 1 MiB, or return an error. Its key includes the deployment generation, method, rewritten path, and query string. A new deployment therefore starts with a fresh cache automatically.
+
+## Limits and safety
+
+- Request bodies are limited to 4 MiB by default.
+- Function builds fail when a TypeScript or JavaScript bundle cannot be produced.
+- Invalid conditional or `/api/**` rewrites fail the deployment instead of publishing a partially working release.
+- Function errors are written to project logs. Callers receive a generic error response without the internal exception message.
+- Secrets come from project environment variables. Do not store secrets in `pxxl.toml` or `vercel.json`.
+
+Function CPU and memory usage appears with the rest of the project runtime usage. Scaling replaces the active generation through the normal zero-downtime route cutover; it does not create a separate function invoice.
+
