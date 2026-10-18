@@ -3,15 +3,38 @@ title: "Pxxl Functions"
 description: "Run Node.js and TypeScript API handlers beside a frontend deployment."
 ---
 
-Pxxl Functions lets a frontend repository expose lightweight HTTP handlers from `api/**`. Pxxl detects the files, bundles them during the build, and deploys the frontend and functions as one immutable runtime generation. Route activation happens only after the new runtime is healthy, so a deployment cannot combine old functions with new frontend files.
+Pxxl Functions lets a frontend repository expose lightweight HTTP handlers from a directory you declare in `pxxl.toml`. Pxxl bundles those handlers during the build and deploys the frontend and functions as one immutable runtime generation. Route activation happens only after the new runtime is healthy, so a deployment cannot combine old functions with new frontend files.
 
 <Note>
-  Pxxl Functions is available on staging first. It runs as a warm, gVisor-isolated Node.js workload in your project's compute pool. Function requests are not billed a second time per invocation.
+  Pxxl Functions is available on paid plans. Functions run as a warm, gVisor-isolated Node.js workload inside your project's compute pool. Requests are not billed a second time per invocation; CPU and memory count toward the project's normal compute usage.
 </Note>
+
+## Enable Functions in `pxxl.toml`
+
+Functions are opt-in. Add a `[functions]` section to the `pxxl.toml` used by your deployment:
+
+```toml
+version = 1
+
+[functions]
+enabled = true
+root = "api"
+prefix = "/api"
+```
+
+- `enabled = true` tells Pxxl to build this deployment as a Functions workload.
+- `root` is the project-relative directory that contains the handlers. It defaults to `api`.
+- `prefix` is the public URL prefix for the generated routes. It defaults to `/api`.
+
+Pxxl does not enable Functions merely because a repository contains an `api/` directory or a rewrite points to `/api`. This avoids classifying client libraries and ordinary application folders as deployable functions. If `[functions].enabled` is missing or false, the project keeps its normal static or web-service deployment type.
+
+<Warning>
+  Enabling Functions without at least one supported handler in `root` fails the deployment. The currently active deployment remains online.
+</Warning>
 
 ## Create a function
 
-Add a JavaScript or TypeScript file below `api/`. Each file becomes a route with the same path.
+Add a JavaScript or TypeScript file below the configured `root`. Each file becomes a route below the configured `prefix`.
 
 | File | Route |
 | --- | --- |
@@ -19,6 +42,8 @@ Add a JavaScript or TypeScript file below `api/`. Each file becomes a route with
 | `api/og.ts` | `/api/og` |
 | `api/users/[id].ts` | `/api/users/:id` |
 | `api/files/[...path].ts` | `/api/files/:path*` |
+
+For example, with `root = "functions"` and `prefix = "/v1"`, `functions/users/[id].ts` becomes `/v1/users/:id`.
 
 Pxxl bundles up to 64 function files, with up to eight directory levels. Supported extensions are `.js`, `.mjs`, `.cjs`, `.ts`, `.mts`, and `.cts`. Declaration, test, and spec files are ignored.
 
@@ -54,9 +79,7 @@ Named HTTP method exports take precedence over the default export. A default exp
 
 ## Route requests to a function
 
-An internal rewrite can send a public page request to a detected function. The browser keeps the original URL.
-
-A `pxxl.toml` rewrite whose destination is `/api` or `/api/**` also explicitly selects the function runtime. This keeps deployment classification deterministic if repository directory discovery is temporarily unavailable; the build still verifies that the referenced handler exists before activating routes.
+An internal rewrite can send a public page request to an enabled function. The browser keeps the original URL. A rewrite only changes routing; it does not enable Functions by itself.
 
 ```toml
 version = 1
@@ -71,7 +94,13 @@ source = "/(.*)"
 destination = "/spa.html"
 ```
 
-You can keep an equivalent `vercel.json` unchanged when `pxxl.toml` is absent. Pxxl applies its rewrites to both static and function-enabled deployments. Real asset requests such as `/favicon.ico` and `/assets/app.js` win over parameter rewrites.
+Pxxl applies rewrites to both static and function-enabled deployments. Real asset requests such as `/favicon.ico` and `/assets/app.js` win over parameter rewrites. `vercel.json` remains supported for compatible routing rules, but Functions must be enabled explicitly in `pxxl.toml`.
+
+## Deploy and verify
+
+Commit `pxxl.toml` and the handler files together, then create a deployment. Pxxl validates the configuration, confirms that the declared handlers exist, bundles them, starts the candidate runtime, and moves traffic only after it passes health checks.
+
+After the deployment succeeds, the Functions tab shows the routes and effective limits from the last successful deployment. A failed deployment does not replace that inventory or disable the currently active Functions generation.
 
 ## Cache function responses
 
@@ -86,8 +115,9 @@ The cache is bounded to 128 responses by default, caps `s-maxage` at one hour, a
 ## Limits and safety
 
 - Request bodies are limited to 4 MiB by default.
+- Functions must be enabled explicitly with `[functions].enabled = true` in `pxxl.toml`.
 - Function builds fail when a TypeScript or JavaScript bundle cannot be produced.
-- Invalid conditional or `/api/**` rewrites fail the deployment instead of publishing a partially working release.
+- Invalid conditional or function rewrites fail the deployment instead of publishing a partially working release.
 - Function errors are written to project logs. Callers receive a generic error response without the internal exception message.
 - Secrets come from project environment variables. Do not store secrets in `pxxl.toml` or `vercel.json`.
 
