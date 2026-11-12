@@ -1,6 +1,6 @@
 {
   "name": "@pxxlapp/pxxl",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Official Pxxl CLI and JavaScript SDK for deploys, storage, domains, billing, cron jobs, and platform operations.",
   "repository": {
     "type": "git",
@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.0",
+    "@types/ws": "^8.18.1",
     "typescript": "^5.9.3"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1143.0",
     "fflate": "^0.8.3",
     "ignore": "^7.0.5",
-    "smol-toml": "^1.9.0"
+    "smol-toml": "^1.9.0",
+    "ws": "^8.22.1"
   }
 }

@@ -25,10 +25,34 @@ import {
 } from "./resources.js";
 export { PxxlS3 } from "./s3.js";
 export type { PxxlS3Credentials } from "./s3.js";
+import { PxxlTools, PxxlTunnels, PxxlWebhooks } from "./tools.js";
+export * from "./tools.js";
 
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
 export const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
+
+/**
+ * The API base URL. PXXL_API_URL may point the SDK at a Pxxl staging Gateway
+ * (https://*.pxxl.app) or a local one (localhost) for testing; any other host
+ * is refused so an API key is never sent elsewhere.
+ */
+export function resolvePxxlAPIBaseURL(): string {
+  const raw = typeof process !== "undefined" ? String(process.env?.PXXL_API_URL || "").trim() : "";
+  if (!raw) return PXXL_API_BASE_URL;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("PXXL_API_URL must be a URL, like https://staging-gateway.pxxl.app");
+  }
+  const host = url.hostname;
+  const pxxlHost = url.protocol === "https:" && (host === "pxxl.app" || host.endsWith(".pxxl.app"));
+  const localHost = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(host);
+  if (!pxxlHost && !localHost) throw new Error("PXXL_API_URL must be an https://*.pxxl.app Gateway or localhost");
+  const base = `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+  return base.endsWith("/api/v3") ? base : `${base}/api/v3`;
+}
 export const MAX_DEPLOY_FILES = 12000;
 export const MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024;
 
@@ -774,7 +798,7 @@ export class PxxlClient {
 
   constructor(options: PxxlClientOptions = {}) {
     this.apiKey = (options.apiKey || "").trim() || undefined;
-    this.baseUrl = PXXL_API_BASE_URL;
+    this.baseUrl = resolvePxxlAPIBaseURL();
     this.teamId = (options.teamId || "").trim() || undefined;
     this.fetchImpl = options.fetchImpl || fetch;
   }
@@ -1513,6 +1537,17 @@ export class PxxlClient {
     return this.request("/projects/spacedrop", { method: "POST", body: form, skipContentType: true });
   }
 
+  /** @internal The full API URL for a path (used by connections that are not fetch, like tunnels). */
+  apiURL(path: string): string {
+    if (!path.startsWith("/")) throw new Error("Pxxl request path must start with /");
+    return `${this.baseUrl}${path}`;
+  }
+
+  /** @internal The Authorization header for connections that are not fetch. */
+  authHeaders(): Record<string, string> {
+    return this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {};
+  }
+
   async request<T = unknown>(path: string, init: PxxlRequestOptions = {}): Promise<T> {
     if (!path.startsWith("/")) throw new Error("Pxxl request path must start with /");
     const response = await this.rawRequest(path, init);
@@ -1600,9 +1635,15 @@ export class Pxxl extends PxxlClient {
   readonly teams: PxxlTeams;
   readonly databases: PxxlDatabases;
   readonly mcp: PxxlMCP;
+  readonly tools: PxxlTools;
+  readonly tunnels: PxxlTunnels;
+  readonly webhooks: PxxlWebhooks;
 
   constructor(options: PxxlClientOptions = {}) {
     super(options);
+    this.tools = new PxxlTools(this);
+    this.tunnels = new PxxlTunnels(this);
+    this.webhooks = new PxxlWebhooks(this);
     this.identity = new PxxlIdentity(this);
     this.api = new PxxlRawAPI(this);
     this.assets = new PxxlAssets(this);
