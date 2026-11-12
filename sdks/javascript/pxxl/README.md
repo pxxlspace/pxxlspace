@@ -134,6 +134,53 @@ const runs = await pxxl.cronjobs.runs(job.id, { limit: 20 });
 Cron endpoints must be public over HTTP or HTTPS. Authenticate requests with a
 secret, make handlers safe to retry, and move long work to a queue.
 
+## Tunnels
+
+Share an app on your machine at a public HTTPS URL. The connection is outbound
+HTTPS, so it works behind NAT and firewalls, and WebSockets are relayed too.
+Tunnels are included on Plus (2), Pro (10) and Enterprise (50).
+
+```ts
+const { tunnel, connection } = await pxxl.tunnels.expose(3000, {
+  name: "my-laptop-api",            // reused if it exists, created if not
+  basicAuth: "preview:s3cret",      // optional: visitors sign in first
+  requestHeaders: { "X-From": "pxxl" },
+  hostHeader: "rewrite",            // or "preserve", or a host your app expects
+});
+
+connection.on("request", (event) => console.log(event.method, event.path, event.status));
+console.log(await connection.ready()); // https://.../t/<slug>
+// later
+connection.close();
+```
+
+`pxxl.tunnels.list()`, `create()`, `connect(nameOrId, { target })`, `rotate()`
+and `delete()` manage them. A connection reconnects on its own and stops with a
+`TunnelFatalError` when retrying cannot help (wrong key, plan limit).
+
+## Webhooks
+
+Pxxl gives each endpoint a URL that records every request. Forward them from
+Pxxl, replay them, or stream them to your machine:
+
+```ts
+const endpoint = await pxxl.webhooks.create({ name: "stripe" });
+console.log(endpoint.url); // give this to Stripe
+
+const listener = await pxxl.webhooks.listen("stripe", {
+  forward: "http://localhost:3000/webhooks",   // sent from here, so localhost works
+  onRequest: ({ request, delivery }) => console.log(request.method, delivery?.status),
+});
+
+const [latest] = await pxxl.webhooks.requests("stripe", { limit: 1 });
+await pxxl.webhooks.replay("stripe", latest.id, { url: "https://staging.example.com/webhooks" });
+```
+
+`pxxl.tools.httpCheck({ url })` and `pxxl.tools.domainCheck(host)` show what
+Pxxl's network sees, and `pxxl.tools.limits()` what your plan includes.
+
+API keys need the `all` or `tools` scope (read and write to create or connect).
+
 ## CLI
 
 ```bash
@@ -146,6 +193,12 @@ pxxl domains search example.com
 pxxl customers create --data '{"firstName":"Ada",...}'
 pxxl invoices payment-url <invoice-id>
 pxxl cron create --name refresh --schedule '*/15 * * * *' --url https://example.com/cron
+
+pxxl tunnel 3000                       # public HTTPS URL for localhost:3000
+pxxl tunnel 3000 --auth preview:s3cret --name demo
+pxxl webhook create stripe
+pxxl webhook listen stripe --forward http://localhost:3000/webhooks
+pxxl check http example.com
 ```
 
 Run `pxxl --help` or see the [`Pxxl CLI docs`](../../../docs/integrations/cli/overview.mdx)

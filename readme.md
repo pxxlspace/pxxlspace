@@ -25,6 +25,14 @@ pxxl deploy
 The CLI also handles projects, logs, environment variables, CDN assets,
 Storage, domains, invoices, databases, teams, cron jobs, and usage.
 
+Share a local app and catch webhooks without deploying:
+
+```bash
+pxxl tunnel 3000                                        # public HTTPS URL, WebSockets included
+pxxl webhook create stripe
+pxxl webhook listen stripe --forward http://localhost:3000/webhooks
+```
+
 ## JavaScript SDK
 
 The same package provides the Node.js and TypeScript SDK. The CLI and SDK use

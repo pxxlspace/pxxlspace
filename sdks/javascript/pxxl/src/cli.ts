@@ -8,8 +8,10 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
+import { checkCommand, toolsCommand, toolsHelp, tunnelCommand, webhookCommand } from "./cli-tools.js";
 import {
-  PXXL_API_BASE_URL,
+  resolvePxxlAPIBaseURL,
+  Pxxl,
   PxxlAPIError,
   PxxlClient,
   clearAuthConfig,
@@ -166,6 +168,16 @@ ${bold("Cron Jobs")}
   ${cyan("pxxl cron validate-schedule")} "*/5 * * * *"
   ${cyan("pxxl cron validate-url")} <url>
 
+${bold("Tunnels & Webhooks")}
+  ${cyan("pxxl tunnel")} <port>                Share a local app at a public HTTPS URL (WebSockets too)
+  ${cyan("pxxl tunnel list|create|connect|rotate|delete")}
+  ${cyan("pxxl webhook create")} <name>        A URL that records every request
+  ${cyan("pxxl webhook listen")} <name> --forward http://localhost:3000/webhooks
+  ${cyan("pxxl webhook requests|show|replay")} Inspect and replay what arrived
+  ${cyan("pxxl check http")} <url>             Redirects, timings and TLS from Pxxl's network
+  ${cyan("pxxl check domain")} <host>          DNS records and certificate
+  ${cyan("pxxl tools")}                        What your plan includes
+
 ${bold("Environment")}
   ${dim("PXXL_API_KEY")} overrides stored credentials.
   ${dim("PXXL_TEAM_ID")} overrides the selected spaceship/team for scoped commands.
@@ -173,6 +185,10 @@ ${bold("Environment")}
 `;
 
 const commandHelps: Record<string, string> = {
+  tunnel: toolsHelp.tunnel,
+  webhook: toolsHelp.webhook,
+  check: toolsHelp.check,
+  tools: toolsHelp.tools,
   account: `${logo}
 
 ${bold("Account Commands")}
@@ -397,6 +413,13 @@ const helpAliases: Record<string, string> = {
   db: "db",
   database: "db",
   databases: "db",
+  tunnel: "tunnel",
+  tunnels: "tunnel",
+  webhook: "webhook",
+  webhooks: "webhook",
+  hooks: "webhook",
+  check: "check",
+  tools: "tools",
   logs: "logs",
   log: "logs",
   open: "deploy",
@@ -453,6 +476,10 @@ async function main() {
   if (command === "cron") return cron(client, args);
   if (command === "team" || command === "teams" || command === "spaceship" || command === "spaceships") return teams(client, args);
   if (command === "db" || command === "database" || command === "databases") return databases(client, args);
+  if (command === "tunnel" || command === "tunnels") return tunnelCommand(client, args);
+  if (command === "webhook" || command === "webhooks" || command === "hooks") return webhookCommand(client, args);
+  if (command === "check") return checkCommand(client, args);
+  if (command === "tools") return toolsCommand(client, args);
 
   throw new Error(`Unknown command: ${command}`);
 }
@@ -510,7 +537,7 @@ async function doctor(args: string[]) {
   }
 
   try {
-    const response = await fetch(`${PXXL_API_BASE_URL}/cli/whoami`, { method: "GET" });
+    const response = await fetch(`${resolvePxxlAPIBaseURL()}/cli/whoami`, { method: "GET" });
     const reachable = response.status < 500;
     add("internet", reachable, reachable ? `Pxxl Gateway is reachable (HTTP ${response.status})` : `Gateway returned HTTP ${response.status}`, !reachable);
   } catch {
@@ -1694,10 +1721,10 @@ async function checkDNS(domain: string) {
   return { a, aaaa, cname, ns, ssl };
 }
 
-async function authedClient(): Promise<PxxlClient> {
+async function authedClient(): Promise<Pxxl> {
   const config = await readAuthConfig();
   if (!config.apiKey) throw new Error("Run `pxxl login --api-key <key>` or set PXXL_API_KEY.");
-  return new PxxlClient({ apiKey: config.apiKey, teamId: config.selectedTeamId });
+  return new Pxxl({ apiKey: config.apiKey, teamId: config.selectedTeamId });
 }
 
 function flagValue(args: string[], name: string): string | undefined {
