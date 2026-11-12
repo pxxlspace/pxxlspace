@@ -1452,6 +1452,50 @@ export class PxxlClient {
     return this.request(path);
   }
 
+  // ---- project control (rollback, restart, settings, env, status) ----
+
+  private projectPath(id: string, suffix = "") { return `/cli/projects/${encodeURIComponent(id)}${suffix}`; }
+  private deploymentPath(id: string, suffix = "") { return `/cli/deployments/${encodeURIComponent(id)}${suffix}`; }
+
+  /** Whether the app is up: containers, health and the live URL. */
+  projectLiveStatus(id: string) { return this.request<Record<string, unknown>>(this.projectPath(id, "/live-status")); }
+  /** CPU, memory, network and request metrics (Pro and above for history). */
+  projectMetrics(id: string, input: { range?: string } = {}) { return this.request<Record<string, unknown>>(this.projectPath(id, `/metrics${input.range ? `?range=${encodeURIComponent(input.range)}` : ""}`)); }
+  projectComputeUsage(id: string) { return this.request<Record<string, unknown>>(this.projectPath(id, "/compute-usage")); }
+  projectRollbacks(id: string) { return this.request<Record<string, unknown>>(this.projectPath(id, "/rollbacks")); }
+  projectDiagnostics(id: string) { return this.request<Record<string, unknown>>(this.projectPath(id, "/runtime-diagnostics")); }
+  /** Change build and runtime settings: buildCommand, startCommand, installCommand, baseDirectory, port, branch, name, framework, nodeVersion, healthCheckPath… */
+  updateProject(id: string, settings: Record<string, unknown>) { return this.request<Record<string, unknown>>(this.projectPath(id), { method: "PUT", body: JSON.stringify(settings) }); }
+  deleteProject(id: string) { return this.request<Record<string, unknown>>(this.projectPath(id), { method: "DELETE" }); }
+  restartProject(id: string) { return this.request<Record<string, unknown>>(this.projectPath(id, "/restart"), { method: "POST" }); }
+  pauseProject(id: string) { return this.request<Record<string, unknown>>(this.projectPath(id, "/pause"), { method: "POST" }); }
+  setAutoDeploy(id: string, enabled: boolean) { return this.request<Record<string, unknown>>(this.projectPath(id, "/auto-deploy"), { method: "PUT", body: JSON.stringify({ enabled }) }); }
+  /** Purge the CDN cache. `id` makes the request idempotent (one is generated if omitted). */
+  purgeProjectCache(id: string, input: { id?: string; deploymentId?: string } = {}) {
+    const purgeId = input.id || `sdk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    return this.request<Record<string, unknown>>(this.projectPath(id, "/cache/purges"), { method: "POST", body: JSON.stringify({ id: purgeId, deployment_id: input.deploymentId }) });
+  }
+  projectCachePurge(id: string, purgeId: string) { return this.request<Record<string, unknown>>(this.projectPath(id, `/cache/purges/${encodeURIComponent(purgeId)}`)); }
+
+  activeDeployments() { return this.request<Record<string, unknown>>("/cli/deployments/active"); }
+  deploymentBuildErrors(id: string) { return this.request<Record<string, unknown>>(this.deploymentPath(id, "/build-errors")); }
+  /** Make a previous deployment live again. */
+  rollbackDeployment(id: string) { return this.request<Record<string, unknown>>(this.deploymentPath(id, "/rollback"), { method: "POST" }); }
+  cancelDeployment(id: string) { return this.request<Record<string, unknown>>(this.deploymentPath(id, "/cancel"), { method: "POST" }); }
+  rebuildDeployment(id: string) { return this.request<Record<string, unknown>>(this.deploymentPath(id, "/rebuild"), { method: "POST" }); }
+
+  /** Add one variable (secret by default). */
+  addProjectEnv(id: string, input: { key: string; value: string; secret?: boolean; serviceAlias?: string }) {
+    return this.request<Record<string, unknown>>(this.projectPath(id, "/envs"), { method: "POST", body: JSON.stringify({ key: input.key, value: input.value, isSecret: input.secret ?? true, serviceAlias: input.serviceAlias }) });
+  }
+  updateProjectEnv(id: string, input: { key: string; value: string; secret?: boolean; serviceAlias?: string }) {
+    return this.request<Record<string, unknown>>(this.projectPath(id, "/envs"), { method: "PUT", body: JSON.stringify({ key: input.key, value: input.value, isSecret: input.secret, serviceAlias: input.serviceAlias }) });
+  }
+  deleteProjectEnv(id: string, key: string) { return this.request<Record<string, unknown>>(this.projectPath(id, "/envs"), { method: "DELETE", body: JSON.stringify({ key }) }); }
+  /** One variable's value, secrets included (needs a read-and-write key). */
+  revealProjectEnv(id: string, key: string) { return this.request<Record<string, unknown>>(this.projectPath(id, `/envs/reveal?key=${encodeURIComponent(key)}`)); }
+  projectEnvHistory(id: string) { return this.request<Record<string, unknown>>(this.projectPath(id, "/envs/history")); }
+
   async listDomainInvoices(teamId = this.teamId): Promise<{ invoices: DomainInvoice[]; error?: boolean }> {
     return this.request(`/cli/domainprovider/invoices${teamQuery(teamId)}`);
   }
@@ -1574,7 +1618,11 @@ export class PxxlClient {
       } catch {
         details = await response.text().catch(() => "");
       }
-      const message = typeof details === "object" && details && "message" in details ? String((details as { message: unknown }).message) : `Pxxl request failed with ${response.status}`;
+      const record = typeof details === "object" && details ? (details as { message?: unknown; error?: unknown }) : {};
+      const base = record.message !== undefined ? String(record.message) : `Pxxl request failed with ${response.status}`;
+      // Add the server's error detail when it says more than the message.
+      const detail = typeof record.error === "string" && record.error && !base.includes(record.error) ? `: ${record.error}` : "";
+      const message = `${base}${detail}`;
       throw new PxxlAPIError(message, response.status, details);
     }
     return response;

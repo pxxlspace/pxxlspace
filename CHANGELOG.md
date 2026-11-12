@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 - 2026-11-12
+
+- `pxxl deploy` streams the build and ends with the live URL; picks a Pxxl domain on the first deploy.
+- New: `pxxl link`/`unlink`, `pxxl dev [--tunnel]` (your dev server with the project's env vars),
+  `pxxl ls`, `pxxl rollback`, `pxxl rebuild`, `pxxl cancel`, `pxxl errors`, `pxxl health`,
+  `pxxl metrics`, `pxxl curl`, `pxxl restart|pause|resume`, `pxxl cache purge`, `pxxl rm`,
+  `pxxl project update|auto-deploy|history|usage`, `pxxl env add|rm|get|pull`.
+- `pxxl logs -f` prints each line once.
+- SDK: `pxxl.projects.status/metrics/update/restart/pause/resume/delete/purgeCache`,
+  `pxxl.deployments.rollback/cancel/rebuild/buildErrors`, `pxxl.env.add/update/remove/reveal`.
+- Clearer output for projects, domains, invoices, billing, analytics and doctor; API errors include the server's detail.
+
 ## 0.3.1 - 2026-11-12
 
 - Same as 0.3.0, which npm staged but never published.

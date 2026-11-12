@@ -154,6 +154,7 @@
             "pages": [
               "integrations/cli/overview",
               "integrations/cli/deploy",
+              "integrations/cli/develop-ship",
               "integrations/cli/projects-logs",
               "integrations/cli/environments",
               "integrations/cli/domains-billing",

@@ -1,0 +1,78 @@
+---
+title: "Develop and ship"
+description: "Link a folder, run it locally with your Pxxl env vars, deploy, roll back and watch it, all from the terminal."
+---
+
+## Link a folder
+
+```bash
+pxxl link            # pick a project (or pass its id)
+pxxl unlink
+```
+
+The link is saved in `pxxl.toml`, so every command in the folder uses that project. Pass `--project <id>` to any command to use another one.
+
+## Run it locally
+
+```bash
+pxxl dev                       # runs your "dev" script with the project's env vars
+pxxl dev --port 5173 --tunnel  # and shares it at a public HTTPS URL
+pxxl dev -- python manage.py runserver
+```
+
+Variables come from Pxxl and stay in memory; nothing is written to disk. A variable set in your shell wins, so `GREETING=hi pxxl dev` overrides one value for a run. `PXXL_DEV=1` is set so your app can tell.
+
+## Deploy
+
+```bash
+pxxl deploy
+```
+
+Deploy uploads the folder, streams the build log, and ends with the live URL (or `✗ Deployment failed` and the next step). Ctrl+C stops watching; the deployment carries on. `--no-wait` returns as soon as it is queued. The first deploy picks a Pxxl domain for you; choose one with `--domain`.
+
+```bash
+pxxl ls                        # deployments of this project
+pxxl errors                    # what failed in the last failed build, grouped
+pxxl rollback                  # make the previous good deployment live again
+pxxl rollback dep_123          # or a specific one
+pxxl rebuild | cancel [dep]    # rebuild a deployment, or stop one that is building
+pxxl redeploy <project-id>
+```
+
+## Watch it
+
+```bash
+pxxl health                    # running? URL, health check, container, recent output
+pxxl logs -f                   # follow runtime logs
+pxxl logs --deployment dep_123 # a deployment's build log
+pxxl metrics                   # CPU and memory now, with trends
+pxxl curl /api/health          # request the live app (-X, -H, -d, -i like curl)
+pxxl project usage             # compute usage
+```
+
+## Control it
+
+```bash
+pxxl restart                   # restart (redeploys the current version when running)
+pxxl pause | resume
+pxxl cache purge --wait
+pxxl project update --start-command "node server.js" --port 8080 --health-path /health
+pxxl project auto-deploy off   # stop deploying on git push
+pxxl project history           # rollbacks
+pxxl rm --yes                  # delete the project (asks you to type its name without --yes)
+```
+
+## Environment variables
+
+```bash
+pxxl env ls
+pxxl env add STRIPE_KEY sk_live_…      # or pipe it: echo "$KEY" | pxxl env add STRIPE_KEY
+pxxl env get STRIPE_KEY
+pxxl env rm STRIPE_KEY
+pxxl env pull                          # writes .env.local (mode 600)
+pxxl env push --file .env              # many at once
+```
+
+Values are stored encrypted. `env get`, `env pull` and `pxxl dev` read them, so they need an API key with read and write access. Redeploy after changing variables.
+
+Every command takes `--json` for scripts.

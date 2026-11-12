@@ -272,6 +272,19 @@ export class PxxlProjects {
   deployments(input: { projectId?: string; page?: number; limit?: number; teamId?: string } = {}) { return this.client.listDeployments(input); }
   logs(id: string, input?: { lines?: number; live?: boolean; since?: string }) { return this.client.projectLogs(id, input); }
   liveLogs(id: string, input?: { lines?: number; since?: string }) { return this.client.projectLogs(id, { ...input, live: true }); }
+  status(id: string) { return this.client.projectLiveStatus(id); }
+  metrics(id: string, input?: { range?: string }) { return this.client.projectMetrics(id, input); }
+  usage(id: string) { return this.client.projectComputeUsage(id); }
+  diagnostics(id: string) { return this.client.projectDiagnostics(id); }
+  rollbacks(id: string) { return this.client.projectRollbacks(id); }
+  update(id: string, settings: Record<string, unknown>) { return this.client.updateProject(id, settings); }
+  delete(id: string) { return this.client.deleteProject(id); }
+  restart(id: string) { return this.client.restartProject(id); }
+  pause(id: string) { return this.client.pauseProject(id); }
+  /** Resume a paused project (starts it again). */
+  resume(id: string) { return this.client.restartProject(id); }
+  autoDeploy(id: string, enabled: boolean) { return this.client.setAutoDeploy(id, enabled); }
+  purgeCache(id: string, input?: { id?: string; deploymentId?: string }) { return this.client.purgeProjectCache(id, input); }
 }
 
 export class PxxlEnvironmentVariables {
@@ -280,6 +293,11 @@ export class PxxlEnvironmentVariables {
   list(projectId: string, options?: { global?: boolean }) { return this.client.listProjectEnv(projectId, options); }
   diff(projectId: string, vars: EnvVarInput[], options?: { global?: boolean }) { return this.client.diffProjectEnv(projectId, vars, options); }
   push(projectId: string, vars: EnvVarInput[], options?: { global?: boolean; replace?: boolean }) { return this.client.pushProjectEnv(projectId, vars, options); }
+  add(projectId: string, input: { key: string; value: string; secret?: boolean }) { return this.client.addProjectEnv(projectId, input); }
+  update(projectId: string, input: { key: string; value: string; secret?: boolean }) { return this.client.updateProjectEnv(projectId, input); }
+  remove(projectId: string, key: string) { return this.client.deleteProjectEnv(projectId, key); }
+  reveal(projectId: string, key: string) { return this.client.revealProjectEnv(projectId, key); }
+  history(projectId: string) { return this.client.projectEnvHistory(projectId); }
 }
 
 export class PxxlDeployments {
@@ -290,6 +308,11 @@ export class PxxlDeployments {
   logs(id: string, input?: { build?: boolean; since?: string }) { return this.client.deploymentLogs(id, input); }
   buildLogs(id: string, since?: string) { return this.client.deploymentLogs(id, { build: true, since }); }
   redeploy(id: string, input?: { commitSha?: string; commitMessage?: string }) { return this.client.redeployProject(id, input); }
+  rollback(id: string) { return this.client.rollbackDeployment(id); }
+  cancel(id: string) { return this.client.cancelDeployment(id); }
+  rebuild(id: string) { return this.client.rebuildDeployment(id); }
+  buildErrors(id: string) { return this.client.deploymentBuildErrors(id); }
+  active() { return this.client.activeDeployments(); }
   deploy(input: Parameters<PxxlClient["deploy"]>[0]) { return this.client.deploy(input); }
 }
 
