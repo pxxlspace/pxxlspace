@@ -39,6 +39,15 @@ pxxl rebuild | cancel [dep]    # rebuild a deployment, or stop one that is build
 pxxl redeploy <project-id>
 ```
 
+## Watch builds live
+
+```bash
+pxxl logs --build -f           # attach to the latest deployment's build and follow it to the end
+pxxl logs --deployment dep_123 -f
+pxxl deployments get dep_123 --follow
+pxxl watch                     # wait for the next deployment (a git push too) and follow it
+```
+
 ## Watch it
 
 ```bash

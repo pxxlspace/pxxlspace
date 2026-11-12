@@ -7,7 +7,11 @@
   `pxxl ls`, `pxxl rollback`, `pxxl rebuild`, `pxxl cancel`, `pxxl errors`, `pxxl health`,
   `pxxl metrics`, `pxxl curl`, `pxxl restart|pause|resume`, `pxxl cache purge`, `pxxl rm`,
   `pxxl project update|auto-deploy|history|usage`, `pxxl env add|rm|get|pull`.
-- `pxxl logs -f` prints each line once.
+- `pxxl logs -f` prints each line once; `pxxl logs --build -f` and `pxxl watch` follow builds live.
+- `pxxl servers`: link your own servers and manage them (health, metrics, apps, events, alerts,
+  restart/start/stop/logs per app, prune, update, operations, settings, rename, unlink).
+  SDK: `pxxl.servers.*`.
+- Pickers show the 20 newest items and accept a typed name.
 - SDK: `pxxl.projects.status/metrics/update/restart/pause/resume/delete/purgeCache`,
   `pxxl.deployments.rollback/cancel/rebuild/buildErrors`, `pxxl.env.add/update/remove/reveal`.
 - Clearer output for projects, domains, invoices, billing, analytics and doctor; API errors include the server's detail.
