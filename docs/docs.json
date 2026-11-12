@@ -160,6 +160,7 @@
               "integrations/cli/cdn-storage",
               "integrations/cli/databases-cron",
               "integrations/cli/analytics-teams",
+              "integrations/cli/tunnels-webhooks",
               "integrations/cli/mcp"
             ]
           },
