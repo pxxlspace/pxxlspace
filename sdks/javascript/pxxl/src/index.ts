@@ -26,7 +26,10 @@ import {
 export { PxxlS3 } from "./s3.js";
 export type { PxxlS3Credentials } from "./s3.js";
 import { PxxlTools, PxxlTunnels, PxxlWebhooks } from "./tools.js";
+import { PxxlServers } from "./servers.js";
 export * from "./tools.js";
+export { PxxlServers } from "./servers.js";
+export type { ServerAction } from "./servers.js";
 
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
@@ -1686,9 +1689,11 @@ export class Pxxl extends PxxlClient {
   readonly tools: PxxlTools;
   readonly tunnels: PxxlTunnels;
   readonly webhooks: PxxlWebhooks;
+  readonly servers: PxxlServers;
 
   constructor(options: PxxlClientOptions = {}) {
     super(options);
+    this.servers = new PxxlServers(this, (options.teamId || "").trim() || undefined);
     this.tools = new PxxlTools(this);
     this.tunnels = new PxxlTunnels(this);
     this.webhooks = new PxxlWebhooks(this);

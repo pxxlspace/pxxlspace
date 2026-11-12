@@ -10,7 +10,7 @@ import { readPxxlToml, writeDefaultPxxlFiles, type Pxxl } from "./index.js";
 
 export type PlatformContext = {
   resolveProject: (args: string[]) => Promise<string>;
-  promptSelect: <T extends string>(label: string, options: Array<{ label: string; value: T }>) => Promise<T>;
+  promptSelect: <T extends string>(label: string, options: Array<{ label: string; value: T; name?: string; hidden?: boolean }>) => Promise<T>;
   promptConfirm: (label: string, defaultValue: boolean) => Promise<boolean>;
   promptText: (label: string, defaultValue?: string) => Promise<string>;
   interactive: () => boolean;
@@ -40,7 +40,7 @@ export function flag(args: string[], ...names: string[]): string | undefined {
   return undefined;
 }
 
-const VALUE_FLAGS = new Set(["--project", "--dir", "--port", "--range", "--name", "-X", "--method", "-H", "--header", "-d", "--data", "--command", "--file", "--build-command", "--start-command", "--install-command", "--root", "--branch", "--framework", "--node-version", "--health-path", "--team", "--limit", "--since", "--lines", "-n", "--deployment"]);
+const VALUE_FLAGS = new Set(["--project", "--dir", "--port", "--range", "--name", "-X", "--method", "-H", "--header", "-d", "--data", "--command", "--file", "--build-command", "--start-command", "--install-command", "--root", "--branch", "--framework", "--node-version", "--health-path", "--team", "--limit", "--since", "--lines", "-n", "--deployment", "--app", "--set", "--url"]);
 export function words(args: string[]): string[] {
   const out: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -147,7 +147,11 @@ export async function linkCommand(pxxl: Pxxl, ctx: PlatformContext, args: string
     const folder = basename(cwd).toLowerCase();
     const guess = projects.find((project) => text(project.name).toLowerCase() === folder);
     if (guess && (args.includes("--yes") || !ctx.interactive() || await ctx.promptConfirm(`Link to ${bold(text(guess.name))}?`, true))) projectId = text(guess.id);
-    else projectId = await ctx.promptSelect("Link this folder to", projects.map((project) => ({ label: `${text(project.name)} ${dim(text(project.status))}`, value: text(project.id) })));
+    else {
+      // Newest first; a name typed at the prompt also works, so the list stays short.
+      if (projects.length > 20) print(dim(`Showing your 20 newest projects of ${projects.length}. Type a number, or a project name.`));
+      projectId = await ctx.promptSelect("Link this folder to", projects.map((project) => ({ label: `${text(project.name)} ${dim(text(project.status))}`, value: text(project.id), name: text(project.name) })).slice(0, 20).concat(projects.slice(20).map((project) => ({ label: "", value: text(project.id), name: text(project.name), hidden: true }))));
+    }
   }
   const project = projectOf(await pxxl.getProject(projectId));
   config.projectId = text(project.id || projectId);
@@ -395,6 +399,56 @@ export async function errorsCommand(pxxl: Pxxl, ctx: PlatformContext, args: stri
     for (const line of list(group.lines || group.examples).slice(0, 3)) print(dim(`    ${text(record(line).content || line).slice(0, 200)}`));
     if (group.hint || group.suggestion) print(`  ${cyan("→")} ${text(group.hint || group.suggestion)}`);
   }
+}
+
+const inProgress = (status: string) => /(build|queue|pending|progress|deploying|starting)/i.test(status);
+
+/**
+ * `pxxl watch`: follow the deployment that is building now, or wait for the
+ * next one (a git push, a dashboard redeploy) and follow it to the end.
+ */
+export async function watchCommand(pxxl: Pxxl, ctx: PlatformContext, args: string[]) {
+  const projectId = await ctx.resolveProject(args);
+  const seen = new Set<string>();
+  const once = args.includes("--once");
+  const current = (await projectDeployments(pxxl, projectId, 5))[0];
+  if (current) seen.add(text(current.id));
+  if (current && inProgress(deploymentStatus(current))) {
+    await reportDeployment(pxxl, text(current.id), args);
+    if (once) return;
+  } else {
+    print(`${dim("Latest:")} ${current ? `${text(current.id)} ${statusTone(deploymentStatus(current))} ${dim(ago(current.createdAt))}` : "no deployments yet"}`);
+  }
+  print(dim("Waiting for the next deployment (push to git, or run pxxl deploy / redeploy). Ctrl+C to stop."));
+  while (true) {
+    await new Promise((resolveTimer) => setTimeout(resolveTimer, 3000));
+    const fresh = (await projectDeployments(pxxl, projectId, 5).catch(() => [])).find((item) => !seen.has(text(item.id)));
+    if (!fresh) continue;
+    seen.add(text(fresh.id));
+    print(`\n${cyan("●")} New deployment ${bold(text(fresh.id))}${fresh.commitMessage ? dim(`  ${text(fresh.commitMessage).split("\n")[0]!.slice(0, 60)}`) : ""}`);
+    await reportDeployment(pxxl, text(fresh.id), args);
+    process.exitCode = 0;
+    if (once) return;
+  }
+}
+
+/** `pxxl logs --build` / `--deployment <id>`: a deployment's build log, followed live with -f. */
+export async function deploymentLogsCommand(pxxl: Pxxl, ctx: PlatformContext, args: string[], deploymentId?: string) {
+  let id = deploymentId;
+  if (!id) {
+    const latest = (await projectDeployments(pxxl, await ctx.resolveProject(args), 1))[0];
+    if (!latest) throw new Error("This project has no deployments yet.");
+    id = text(latest.id);
+  }
+  const follow = args.includes("-f") || args.includes("--follow");
+  const deployment = deploymentFrom(await pxxl.getDeployment(id));
+  if (follow && inProgress(deploymentStatus(deployment))) return reportDeployment(pxxl, id, args);
+  const lines = logLines(await pxxl.deploymentLogs(id, { build: true }));
+  if (args.includes("--json")) return json(lines);
+  print(`${bold(id)}  ${statusTone(deploymentStatus(deployment))}  ${dim(ago(deployment.createdAt))}`);
+  for (const line of lines) print(`${dim(line.time)} ${line.content}`);
+  if (!lines.length) print(dim("No build output yet."));
+  if (follow) print(dim(`\nThis deployment already finished. Run ${cyan("pxxl watch")} to follow the next one.`));
 }
 
 /** Follow the deployment an action just queued when the API does not return its id. */

@@ -114,3 +114,39 @@ test("log and deployment shapes are read from every Gateway form", () => {
   assert.equal(projectUrl({ url: "https://x.pxxl.pro" }), "https://x.pxxl.pro");
   assert.equal(projectUrl({}), "");
 });
+
+test("servers use the CLI's API-key routes, with a spaceship when given", async () => {
+  const calls = [];
+  const pxxl = new Pxxl({
+    apiKey: "pxxl_test",
+    teamId: "team_9",
+    fetchImpl: async (url, init = {}) => {
+      calls.push({ url: String(url).replace("https://server.pxxl.app/api/v3", ""), method: init.method || "GET", body: init.body ? JSON.parse(String(init.body)) : undefined });
+      return new Response(JSON.stringify({ action: { id: "act_1", status: "done", output: "ok" } }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  await pxxl.servers.list();
+  await pxxl.servers.create({ name: "box" });
+  await pxxl.servers.health("srv_1");
+  await pxxl.servers.metrics("srv_1");
+  await pxxl.servers.action("srv_1", "restart", { app: "web" });
+  await pxxl.servers.runOp("srv_1", "disk.usage");
+  await pxxl.servers.runOp("srv_1", "podman.prune", { change: true });
+  await pxxl.servers.updateSettings("srv_1", { alertEmail: false });
+  await pxxl.servers.delete("srv_1");
+  const finished = await pxxl.servers.runAction("srv_1", "prune");
+  assert.deepEqual(calls.slice(0, 9).map((call) => `${call.method} ${call.url}`), [
+    "GET /cli/servers?teamId=team_9",
+    "POST /cli/servers?teamId=team_9",
+    "GET /cli/servers/srv_1/health?teamId=team_9",
+    "GET /cli/servers/srv_1/metrics?teamId=team_9",
+    "POST /cli/servers/srv_1/actions?teamId=team_9",
+    "POST /cli/servers/srv_1/ops/read?teamId=team_9",
+    "POST /cli/servers/srv_1/ops/change?teamId=team_9",
+    "PATCH /cli/servers/srv_1/settings?teamId=team_9",
+    "DELETE /cli/servers/srv_1?teamId=team_9",
+  ]);
+  assert.deepEqual(calls[4].body, { action: "restart", app: "web" });
+  assert.deepEqual(calls[5].body, { op: "disk.usage", wait: true });
+  assert.equal(finished.status, "done");
+});

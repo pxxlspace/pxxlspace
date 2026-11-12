@@ -10,9 +10,11 @@ import { stdin as input, stdout as output } from "node:process";
 import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { checkCommand, toolsCommand, toolsHelp, tunnelCommand, webhookCommand } from "./cli-tools.js";
+import { serversCommand, serversHelp } from "./cli-servers.js";
 import {
   cacheCommand, cancelCommand, curlCommand, devCommand, envCommand, errorsCommand, healthCommand, lifecycleCommand, linkCommand, logLines,
   lsCommand, metricsCommand, projectSettingsCommand, rebuildCommand, removeCommand, reportDeployment, rollbackCommand, unlinkCommand, type PlatformContext,
+  deploymentLogsCommand, watchCommand,
 } from "./cli-platform.js";
 import {
   resolvePxxlAPIBaseURL,
@@ -184,6 +186,8 @@ ${bold("Develop & Ship")}
   ${cyan("pxxl rebuild|cancel")} [deployment]  Rebuild or stop a deployment
   ${cyan("pxxl errors")} [deployment]          What failed in a build, grouped
   ${cyan("pxxl logs")} -f                      Follow runtime logs
+  ${cyan("pxxl logs")} --build -f              Follow the latest deployment's build live
+  ${cyan("pxxl watch")}                        Follow builds as they happen (git pushes too)
   ${cyan("pxxl health")}                       Is it up: status, URL, health check
   ${cyan("pxxl metrics")} [--range 1h]         CPU, memory and requests
   ${cyan("pxxl curl")} [path] [-X POST -d ...] Request your live app
@@ -194,6 +198,13 @@ ${bold("Develop & Ship")}
   ${cyan("pxxl project auto-deploy")} on|off   Deploy on git push
   ${cyan("pxxl rm")} [project] --yes           Delete a project
   ${cyan("pxxl unlink")}                       Forget the linked project
+
+${bold("Servers")}
+  ${cyan("pxxl servers")}                      Your own servers linked to Pxxl
+  ${cyan("pxxl servers add")} <name>           Link one (prints the install command)
+  ${cyan("pxxl servers health|metrics|apps")}  Watch a server
+  ${cyan("pxxl servers restart|logs")} --app x Act on a server or one app
+  ${cyan("pxxl servers run")} <op>             Run an operation (pxxl servers ops)
 
 ${bold("Tunnels & Webhooks")}
   ${cyan("pxxl tunnel")} <port>                Share a local app at a public HTTPS URL (WebSockets too)
@@ -212,6 +223,7 @@ ${bold("Environment")}
 `;
 
 const commandHelps: Record<string, string> = {
+  servers: serversHelp,
   tunnel: toolsHelp.tunnel,
   webhook: toolsHelp.webhook,
   check: toolsHelp.check,
@@ -442,6 +454,9 @@ const helpAliases: Record<string, string> = {
   databases: "db",
   tunnel: "tunnel",
   tunnels: "tunnel",
+  servers: "servers",
+  server: "servers",
+  byos: "servers",
   webhook: "webhook",
   webhooks: "webhook",
   hooks: "webhook",
@@ -507,6 +522,8 @@ async function main() {
   if (command === "link") return linkCommand(client, platformCtx, args);
   if (command === "dev") return devCommand(client, platformCtx, args);
   if (command === "ls") return lsCommand(client, platformCtx, args);
+  if (command === "watch") return watchCommand(client, platformCtx, args);
+  if (command === "servers" || command === "server" || command === "byos") return serversCommand(client, platformCtx, args);
   if (command === "rm" || command === "remove") return removeCommand(client, platformCtx, args);
   if (command === "rollback" || command === "promote") return rollbackCommand(client, platformCtx, args);
   if (command === "cancel") return cancelCommand(client, platformCtx, args);
@@ -736,6 +753,7 @@ async function deployments(client: PxxlClient, args: string[]) {
   }
   if (command === "get" || command === "show") {
     const id = await resolveDeploymentId(client, args.shift(), args);
+    if (args.includes("--follow") || args.includes("-f") || args.includes("--logs")) return deploymentLogsCommand(client as Pxxl, platformCtx, args, id);
     const result = await spinner("Fetching deployment", () => client.getDeployment(id));
     if (wantsJSON(args)) return printJSON(result);
     return printDeploymentDetails(result);
@@ -1534,6 +1552,9 @@ async function logs(client: PxxlClient, args: string[]) {
   const since = flagValue(args, "--since");
   const projectId = flagValue(args, "--project") || flagValue(args, "--project-id") || config.projectId;
   const deploymentId = flagValue(args, "--deployment") || flagValue(args, "--deployment-id") || (!projectId ? config.deploymentId : undefined);
+  if (args.includes("--build") || flagValue(args, "--deployment") || flagValue(args, "--deployment-id")) {
+    return deploymentLogsCommand(client as Pxxl, platformCtx, args, flagValue(args, "--deployment") || flagValue(args, "--deployment-id"));
+  }
   const fetchLogs = async () => {
     if (deploymentId) return client.deploymentLogs(deploymentId, { build: true, since });
     if (projectId) return client.projectLogs(projectId, { lines, live: args.includes("--live") || args.includes("--follow"), since });
@@ -1935,19 +1956,25 @@ async function promptConfirm(label: string, defaultValue: boolean): Promise<bool
   return ["y", "yes", "true", "1"].includes(answer);
 }
 
-async function promptSelect<T extends string>(label: string, options: Array<{ label: string; value: T }>): Promise<T> {
+async function promptSelect<T extends string>(label: string, options: Array<{ label: string; value: T; name?: string; hidden?: boolean }>): Promise<T> {
   if (!options.length) throw new Error(`No options available for ${label}.`);
   if (!isInteractive()) throw new Error(`${label} is required. Pass a value as a CLI argument or run in an interactive terminal.`);
+  const visible = options.filter((option) => !option.hidden);
   print(`\n${bold(label)}`);
-  options.forEach((option, index) => print(`  ${cyan(String(index + 1).padStart(2, " "))}. ${option.label}`));
+  visible.forEach((option, index) => print(`  ${cyan(String(index + 1).padStart(2, " "))}. ${option.label}`));
   while (true) {
-    const answer = await promptText("Select", "1");
+    const answer = (await promptText("Select", "1")).trim();
     const index = Number(answer) - 1;
-    if (Number.isInteger(index) && options[index]) return options[index].value;
-    const match = options.find((option) => option.value === answer || option.label.toLowerCase() === answer.toLowerCase());
+    if (Number.isInteger(index) && visible[index]) return visible[index].value;
+    const lower = answer.toLowerCase();
+    const match = options.find((option) => option.value === answer || (option.name || "").toLowerCase() === lower || stripAnsiText(option.label).toLowerCase().startsWith(lower + " "));
     if (match) return match.value;
-    print(red("Invalid selection. Try again."));
+    print(red("No match. Type a number from the list, or a name."));
   }
+}
+
+function stripAnsiText(value: string): string {
+  return value.replace(/\u001b\[[0-9;]*m/g, "");
 }
 
 async function maybePromptSelect<T extends string>(label: string, values: T[], defaultValue: T): Promise<T> {

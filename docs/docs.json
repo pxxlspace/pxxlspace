@@ -162,6 +162,7 @@
               "integrations/cli/databases-cron",
               "integrations/cli/analytics-teams",
               "integrations/cli/tunnels-webhooks",
+              "integrations/cli/servers",
               "integrations/cli/mcp"
             ]
           },
