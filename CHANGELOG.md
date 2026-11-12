@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 - 2026-11-12
+
+- Same as 0.3.0, which npm staged but never published.
+
 ## 0.3.0 - 2026-11-12
 
 - Add tunnels: `pxxl tunnel 3000` shares a local app at a public HTTPS URL, with
