@@ -37,6 +37,8 @@ import {
 } from "./index.js";
 
 const run = promisify(execFile);
+// `pxxl ... | head` closes stdout early; that is not an error.
+process.stdout.on("error", (error: NodeJS.ErrnoException) => { if (error.code === "EPIPE") process.exit(0); throw error; });
 const cliVersion = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")).version as string;
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
