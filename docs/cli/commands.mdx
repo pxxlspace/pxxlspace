@@ -175,6 +175,19 @@ pxxl domains connect example.com www.example.com
 pxxl domains records add <domain-id> --type CNAME --name blog --value my-blog.pxxl.pro
 ```
 
+### Reselling
+
+```bash
+pxxl domains reseller login pxxl_rsl_...
+pxxl domains reseller quote example.cv
+pxxl domains reseller buy example.cv --customer-ref cust_42
+pxxl domains reseller dns set example.cv --type A --name @ --value 203.0.113.10
+pxxl domains reseller nameservers set example.cv ns1.example.net ns2.example.net
+pxxl domains reseller --help
+```
+
+Pro and up. Charged to your wallet. See [Domain reseller](/tools/domain-reseller).
+
 ## Databases
 
 | Command | What it does |
