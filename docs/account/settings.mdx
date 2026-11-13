@@ -1,0 +1,82 @@
+---
+title: "Teams, API keys and settings"
+description: "Invite your team, create API keys, and get notified about account events."
+---
+
+## Settings tabs
+
+| Tab | What's in it |
+| --- | --- |
+| **Account** | Profile, appearance, notifications, project transfers. |
+| **Security** | Sign-in, linked accounts, apps you've allowed. |
+| **Developer** | API keys, account webhooks, OAuth apps. |
+| **Billing** | Plan, [wallet](/account/wallet), payments, Pxxl Points, referrals. |
+| **Usage** | Compute, bandwidth, and build minutes this period. |
+| **Invoices** | Every invoice, paid and unpaid. |
+
+Use the search box to jump to any setting.
+
+## Teams
+
+A team (called a **spaceship**) shares projects, databases, domains, and servers between members. Open **Team** in the sidebar to create one and invite people. Plans set how many teams and members you can have.
+
+Switch the CLI to a team with `pxxl team use <team-id>`.
+
+## API keys
+
+Open **Settings > Developer > API keys** and create a key. It's shown once. Use it with the [CLI](/cli/overview), the [SDKs](/integrations/sdk/overview), and the [API](/integrations/api/overview).
+
+Give each key only the scope it needs. Some features need a specific scope:
+
+| Feature | Scope |
+| --- | --- |
+| Everything | `all` |
+| Tunnels and webhooks | `tools` |
+| Servers | `servers` |
+
+A key made for a team only sees that team's resources. Keep keys out of browser code and Git.
+
+## Account webhooks
+
+Pxxl can `POST` your account events to a URL you own. Set it in **Settings > Developer > Webhooks** and pick the projects to watch.
+
+Events: `project.created`, `project.updated`, `project.deleted`, `deployment.created`, `deployment.redeployed`, `deployment.github_webhook`, `deployment.status_changed`, `project.env.updated`, `user.updated`.
+
+Each request has a JSON body `{ "event", "actionType", "payload", "timestamp" }` and these headers:
+
+| Header | Value |
+| --- | --- |
+| `X-Pxxl-Event` | The event name. |
+| `X-Pxxl-Action-Type` | The action. |
+| `X-Pxxl-Timestamp` | Unix seconds. |
+| `X-Pxxl-Signature` | `sha256=<hex>` HMAC-SHA256 of `timestamp + "." + body` with your secret. |
+
+Check the signature:
+
+```js
+import crypto from "node:crypto";
+
+app.post("/pxxl-events", express.raw({ type: "application/json" }), (req, res) => {
+  const ts = req.get("x-pxxl-timestamp");
+  const expected = "sha256=" + crypto
+    .createHmac("sha256", process.env.PXXL_WEBHOOK_SECRET)
+    .update(`${ts}.${req.body}`)
+    .digest("hex");
+  const given = req.get("x-pxxl-signature") || "";
+  if (given.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))) {
+    return res.status(401).end();
+  }
+  const event = JSON.parse(req.body);
+  console.log(event.event, event.payload);
+  res.status(204).end();
+});
+```
+
+Each event is sent once with a 5 second timeout. There are no retries, so respond fast and do the work afterwards.
+
+For a URL that **receives** webhooks from other services, see [Webhooks](/tools/webhooks).
+
+## OAuth apps
+
+Let your own product sign people in with their Pxxl account. See [OAuth](/reference/oauth).

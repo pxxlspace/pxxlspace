@@ -1,0 +1,71 @@
+---
+title: "Migrate from Railway"
+description: "Move Railway services, variables, and databases, and translate railway.json."
+---
+
+Use the [importer](/migrate/overview#import-from-your-old-host) with a Railway account token. It imports a service with its repo, commands, and variables. Railway projects often hold several services; import the ones you need.
+
+Pxxl doesn't read `railway.json`, `railway.toml`, or `nixpacks.toml`. Use the mapping below.
+
+## Concepts
+
+| Railway | Pxxl |
+| --- | --- |
+| Project with services | One project per service, or one project with [multiple services](/deploy/monorepos) |
+| Service | Project or service |
+| Variables, shared variables | Secrets, [Vault](/deploy/environment-variables#vault) |
+| Reference variables `${{Postgres.DATABASE_URL}}` | Pick another service's value in **Secrets**, or paste the Pxxl database URL |
+| Private networking `*.railway.internal` | `*.pxxl.internal` ([private networking](/networking/private-networking)) |
+| Plugins / database templates | [Databases](/databases/overview) |
+| Volumes | [Volumes](/projects/overview#volumes) |
+| Cron schedule | [Cron jobs](/cron-jobs) |
+| Environments | Environments |
+
+## railway.json to pxxl.toml
+
+```json railway.json
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pnpm build"
+  },
+  "deploy": {
+    "startCommand": "node dist/index.js",
+    "healthcheckPath": "/health",
+    "numReplicas": 2
+  }
+}
+```
+
+```toml pxxl.toml
+[build]
+packageManager = "pnpm"
+buildCommand = "pnpm build"
+startCommand = "node dist/index.js"
+```
+
+Set the rest in the dashboard or CLI:
+
+```bash
+pxxl projects update --health-path /health
+```
+
+Replicas are in **Compute & Scaling**.
+
+## Private networking
+
+Railway's `api.railway.internal:8080` becomes `http://api.pxxl.internal` on Pxxl. Turn on private networking in both projects and redeploy. Pxxl uses HTTP on port 80 and routes to the right port for you.
+
+## Databases
+
+```bash
+pg_dump "$RAILWAY_DATABASE_URL" --no-owner --format=custom -f railway.dump
+pg_restore --no-owner -d "$PXXL_DATABASE_URL" railway.dump
+```
+
+## Checklist
+
+- [ ] Import or connect each service.
+- [ ] Replace reference variables and `*.railway.internal` hosts.
+- [ ] Move databases and volumes.
+- [ ] Test the Pxxl URL, then [move your domain](/migrate/overview#switch-dns-last).

@@ -1,0 +1,41 @@
+---
+title: "Server terminal"
+description: "Open a root shell on your server, or inside a project container, from the browser."
+---
+
+The **Terminal** tab gives you a shell without SSH. It runs over the agent's outbound tunnel, so no port is opened.
+
+## Turn it on
+
+The terminal is **off by default**. Only root on the server can turn it on. Pxxl can't turn it on remotely.
+
+```bash
+sudo pxxl-agent terminal enable
+```
+
+To turn it off again:
+
+```bash
+sudo pxxl-agent terminal disable
+```
+
+Open sessions close within a minute.
+
+## Open a session
+
+1. Open the server and select **Terminal**.
+2. In **Where**, pick **Server** for a root shell, or a **Project** to open a shell in its container.
+3. Choose **Connect**.
+
+Full-screen programs like `htop` and `vim` work, and so does Ctrl-C.
+
+## Rules
+
+- Workspace owners and admins can open a terminal.
+- The server must be online.
+- Up to 3 sessions per server at a time.
+- A session closes after 30 minutes idle, or after 8 hours.
+- Every open and close is recorded in **Events** with the person's name.
+- Project shells only work for containers the agent started.
+
+If the tab says the agent is too old, choose **Update now** in **Settings** first.

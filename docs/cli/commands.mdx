@@ -1,0 +1,331 @@
+---
+title: "CLI commands"
+description: "Every pxxl command and its flags."
+---
+
+Run `pxxl help <area>` for the same information in your terminal. Arguments in `[brackets]` are optional. When a project or resource id is optional and you're in a terminal, the CLI shows a picker.
+
+## Account
+
+| Command | What it does |
+| --- | --- |
+| `pxxl login --api-key <key>` | Check and save an API key. `-k` works too. |
+| `pxxl logout` | Delete the saved key and team. |
+| `pxxl whoami` | Show the signed-in account. Alias: `pxxl status`. |
+| `pxxl stats` | Platform stats for your account or `--team`. |
+| `pxxl usage` | Usage for your account or `--team`. |
+| `pxxl version` | Print the CLI version. Also `--version`, `-v`. |
+
+## Set up a project
+
+| Command | What it does |
+| --- | --- |
+| `pxxl init` | Write `pxxl.toml` and `.pxxlignore` in the current folder. |
+| `pxxl init --new [template]` | Copy a starter template. No template name opens a picker. |
+| `pxxl link [project-id]` | Link this folder to an existing project. Saved in `pxxl.toml`. |
+| `pxxl unlink` | Remove the link from `pxxl.toml`. |
+| `pxxl doctor` | Check auth, internet, git, config files, package manager, build and start commands, env files, and upload size. |
+| `pxxl inspect` | Show the detected framework, package manager, runtime, commands, env files, and upload size. |
+
+`pxxl init` flags: `--new [template]`, `--name <name>`, `--dir <path>`, `--domain <suffix>`, `--port <n>`, `--deploy`, `--no-deploy`.
+
+Templates: `astro-npm`, `dockerfile-node`, `express-bun`, `express-npm`, `express-pnpm`, `express-yarn`, `fastify-pnpm`, `go-http`, `hono-bun`, `microservices-node`, `nextjs-pnpm`, `node-typescript-npm`, `php-basic`, `python-django`, `python-fastapi`, `python-flask`, `rust-axum`, `static-cdn-gallery`, `sveltekit-pnpm`, `turbo-monorepo`, `vite-react-bun`, `vite-react-npm`, `vite-react-pnpm`, `vite-react-yarn`, `vue-vite-pnpm`.
+
+Project names are 3 to 63 characters: lowercase letters, numbers, and hyphens.
+
+## Deploy
+
+| Command | What it does |
+| --- | --- |
+| `pxxl deploy` | Zip this folder, upload it, follow the build, and print the live URL. |
+| `pxxl redeploy <project-id>` | Queue a new build of the project's source. Doesn't follow it. |
+| `pxxl watch` | Follow the current build, or wait for the next one (a git push, dashboard deploy, or redeploy). |
+| `pxxl ls` | This project's deployments. `--limit <n>` (default 20). |
+| `pxxl rollback [deployment-id]` | Make an earlier deployment live again. Alias: `promote`. |
+| `pxxl rebuild [deployment-id]` | Rebuild a deployment. Defaults to the latest. |
+| `pxxl cancel [deployment-id]` | Stop a running build. Defaults to the one in progress. |
+| `pxxl errors [deployment-id]` | Show what failed in a build, grouped, with hints. Defaults to the latest failure. |
+
+`pxxl deploy` flags:
+
+| Flag | Meaning |
+| --- | --- |
+| `--name <name>` | Project name (first deploy). |
+| `--domain <suffix>` | Pxxl domain suffix, such as `pxxl.pro`. |
+| `--port <n>` | Port your app listens on. |
+| `-m, --message <text>` | Deploy message. |
+| `--dir <path>` | Folder to deploy. |
+| `--yes` | Don't ask questions. |
+| `--no-wait` | Upload and exit without following the build. |
+| `--quiet` | Follow the build but hide log lines. |
+
+`pxxl redeploy` flags: `--commit <sha>` (or `--sha`), `-m, --message <text>`.
+
+`pxxl watch` flags: `--project <id>`, `--once` (stop after one build), `--quiet`.
+
+Uploads skip files in [`.pxxlignore`](/reference/pxxl-toml#pxxlignore), symlinks, and files that look like private keys (`*.pem`, `*.key`, `id_rsa`, `credentials.json`). The limit is 12,000 files and 220 MiB.
+
+## Projects
+
+| Command | What it does |
+| --- | --- |
+| `pxxl projects list` | List projects. `--page`, `--limit` (default 10). |
+| `pxxl projects get [id]` | Show one project. |
+| `pxxl projects update` | Change build settings (applied on the next deploy). |
+| `pxxl projects auto-deploy on\|off` | Turn deploy-on-push on or off. |
+| `pxxl projects history` | Rollback history. |
+| `pxxl projects usage` | Compute usage. |
+| `pxxl rm --project <id>` | Delete a project. Asks you to type the name unless `--yes`. |
+
+`pxxl projects update` flags: `--build-command`, `--start-command`, `--install-command`, `--root` (base directory), `--branch`, `--framework`, `--node-version`, `--health-path`, `--name`, `--port`.
+
+```bash
+pxxl projects update --start-command "node dist/server.js" --port 8080
+```
+
+## Deployments
+
+| Command | What it does |
+| --- | --- |
+| `pxxl deployments recent` | Recent deployments. `--project`, `--page`, `--limit`. |
+| `pxxl deployments get [id]` | One deployment. Add `-f` to follow its build log. |
+
+## Logs and health
+
+| Command | What it does |
+| --- | --- |
+| `pxxl logs` | Recent runtime logs for the linked project. |
+| `pxxl logs -f` | Follow runtime logs. |
+| `pxxl logs --build -f` | Follow the latest build log live. |
+| `pxxl logs --deployment <id>` | Build log of one deployment. |
+| `pxxl health` | State, URL, health check, and container status. |
+| `pxxl metrics` | CPU and memory. `--range 1h`. |
+
+`pxxl logs` flags: `--project <id>`, `--deployment <id>`, `-n, --lines <n>` (default 100), `--since 1h`, `-f, --follow`, `--build`.
+
+## Run and test
+
+| Command | What it does |
+| --- | --- |
+| `pxxl dev` | Run your dev server locally with the project's env vars. |
+| `pxxl dev --tunnel` | Same, and share it on a public URL. |
+| `pxxl curl [path]` | Send a request to your live app. |
+| `pxxl restart` | Restart the running app. |
+| `pxxl pause` / `pxxl resume` | Pause or resume the app. |
+| `pxxl cache purge` | Clear the CDN cache. `--wait` waits until done. |
+| `pxxl open` | Open the project in the dashboard. `--live` opens the site. |
+| `pxxl pull <project-id> [folder]` | Clone or update the project's Git repository. |
+
+`pxxl dev` picks `npm run dev` (or your package manager), `python manage.py runserver`, or `go run .`. Override with `pxxl dev -- <command>`. Flags: `--port <n>` (default 3000), `--no-env`, `--tunnel`. Your shell's variables win over Pxxl's. The process also gets `PXXL_DEV=1`.
+
+```bash
+pxxl dev -- bun run dev
+pxxl curl /api/health -i
+pxxl curl /api/users -X POST -d '{"name":"Ada"}'
+```
+
+`pxxl curl` flags: `-X, --method`, `-H, --header "Name: value"`, `-d, --data`, `-i, --include`, `--full`, `--url`.
+
+## Environment variables
+
+| Command | What it does |
+| --- | --- |
+| `pxxl env list [project-id]` | List variable names. |
+| `pxxl env add KEY [value]` | Add or update a variable. Reads the value from stdin or a prompt if you leave it out. `--plain` stores it as non-secret. |
+| `pxxl env get KEY` | Print one value. |
+| `pxxl env rm KEY` | Delete a variable. |
+| `pxxl env diff [project-id]` | Compare a local file with Pxxl. `--file` (default `.env`). |
+| `pxxl env push [project-id]` | Upload a local file. `--file` (default `.env`), `--replace` to replace all remote values. |
+| `pxxl env pull [file]` | Write all variables to a file (default `.env.local`) with mode 600. |
+
+Add `--global` to `list`, `diff`, or `push` for workspace-wide variables. Redeploy after changes.
+
+```bash
+echo "sk_live_123" | pxxl env add STRIPE_KEY
+pxxl env push --file .env.production
+```
+
+## Domains
+
+| Command | What it does |
+| --- | --- |
+| `pxxl domains list` | Your domains. |
+| `pxxl domains search <name>` | Check if a domain is available. |
+| `pxxl domains tlds` | Domain prices. |
+| `pxxl domains connect <domain...>` | Add domains to the linked project. |
+| `pxxl domains disconnect [domain]` | Remove a domain from the project. |
+| `pxxl domains check <domain>` | Check DNS and HTTPS from your machine and from Pxxl. |
+| `pxxl domains verify [domain]` | Check the project's DNS records. |
+| `pxxl domains status [id]` | DNS, SSL, and zone readiness. |
+| `pxxl domains resync [domain]` | Republish the proxy route and SSL. |
+| `pxxl domains stats [domain]` | Proxy traffic. `--timeframe 24h\|48h\|72h\|7d\|30d`. |
+| `pxxl domains cert [id]` | Download the public certificate. `--out <file>`. |
+| `pxxl domains switch-to-pxxl-dns [id]` | Move DNS to Pxxl. |
+| `pxxl domains nameservers verify\|set\|reset [id]` | Manage nameservers. `set --values ns1,ns2`. |
+| `pxxl domains records [list\|add\|update\|delete] [id]` | Manage DNS records. |
+| `pxxl domains purchase --data '<json>'` | Create a domain invoice. |
+| `pxxl domains orders` | Domain orders. |
+
+`domains connect` flags: `--project <id>`, `--service <id>` and `--port <n>` to route to one service in a monorepo.
+
+`domains records` flags: `--type` (default `A`), `--name` (default `@`), `--value`, `--ttl` (default 60), `--priority`, `--record-id`.
+
+```bash
+pxxl domains connect example.com www.example.com
+pxxl domains records add <domain-id> --type CNAME --name blog --value my-blog.pxxl.pro
+```
+
+## Databases
+
+| Command | What it does |
+| --- | --- |
+| `pxxl db list` | Your databases. |
+| `pxxl db create` | Create a database. |
+| `pxxl db get [id]` | Credentials and connection URLs. |
+| `pxxl db update <id>` | Rename or change the description. |
+| `pxxl db start\|stop\|restart [id]` | Control the database. |
+| `pxxl db stats [id]` | Usage stats. |
+| `pxxl db tables [id]` | List tables. |
+| `pxxl db delete [id]` | Delete. Asks first unless `--yes`. |
+
+`db create` flags: `-n, --name`, `-t, --type` (`postgres`, `mysql`, `mariadb`, `mongodb`, `redis`, `keydb`, `dragonfly`, `clickhouse`), `--description`, `--project <id>`, `--daily-backups`.
+
+```bash
+pxxl db create --name orders --type postgres --project <project-id> --daily-backups
+```
+
+## Cron jobs
+
+| Command | What it does |
+| --- | --- |
+| `pxxl cron list` | Your jobs. |
+| `pxxl cron create` | Create a job. |
+| `pxxl cron get\|update\|delete [id]` | Show, change, or delete a job. |
+| `pxxl cron start\|stop [id]` | Resume or pause. |
+| `pxxl cron trigger [id]` | Run now. |
+| `pxxl cron runs [id]` | Run history. `--page`, `--limit`. |
+| `pxxl cron validate-schedule "<expr>"` | Check a cron expression. |
+| `pxxl cron validate-url <url>` | Check Pxxl can reach a URL. |
+
+`cron create` and `update` flags: `--name`, `--schedule`, `--url`, `--method`, `--timeout <seconds>`, `--headers '<json>'`, `--project <id>`.
+
+```bash
+pxxl cron create --name nightly-report --schedule "0 2 * * *" \
+  --url https://api.example.com/jobs/report --method POST \
+  --headers '{"Authorization":"Bearer token"}'
+```
+
+## Storage and CDN
+
+| Command | What it does |
+| --- | --- |
+| `pxxl storage buckets` | List buckets. |
+| `pxxl storage create <name>` | Create a bucket. `--public`, `--region`, `--versioning`. |
+| `pxxl storage bucket <id>` | Show a bucket. |
+| `pxxl storage update <id>` | `--name`, `--public` or `--private`. |
+| `pxxl storage delete <id>` | Delete a bucket. |
+| `pxxl storage objects <bucket-id>` | List files. `--search`, `--page`, `--limit`. |
+| `pxxl storage object-upload <bucket-id> <file>` | Upload. `--path`, `--public`. |
+| `pxxl storage object-download <asset-id> <file>` | Download. |
+| `pxxl storage object-delete <asset-id>` | Delete a file. |
+| `pxxl storage keys <bucket-id>` | List S3 access keys. |
+| `pxxl storage key-create <bucket-id>` | Create a key. `--name`, `--read-only`. |
+| `pxxl storage key-delete <bucket-id> <key-id>` | Delete a key. |
+| `pxxl storage analytics <id>` | Bucket traffic. |
+| `pxxl cdn upload <file>` | Upload a file to the CDN. `--private`. |
+| `pxxl cdn list` / `summary` / `usage` | CDN files and usage. |
+| `pxxl cdn download <id> <file>` / `delete <id>` | Download or delete. |
+
+Put boolean flags such as `--public` after the file and bucket arguments.
+
+## Tunnels
+
+| Command | What it does |
+| --- | --- |
+| `pxxl tunnel <port\|url>` | Share a local port on a public URL. |
+| `pxxl tunnel list` | Your tunnels. |
+| `pxxl tunnel create <name>` | Create a named tunnel and get a token for the standalone binary. |
+| `pxxl tunnel connect <name>` | Connect a named tunnel. `--to <port>`. |
+| `pxxl tunnel rotate <name>` | New token for the standalone binary. |
+| `pxxl tunnel delete <name>` | Delete a tunnel. |
+
+Flags: `--name`, `--auth user:password`, `--header "N: v"`, `--response-header "N: v"`, `--host-header rewrite|preserve|<host>`, `--strict-tls`, `--quiet`. See [Tunnels](/tools/tunnels).
+
+## Webhooks
+
+| Command | What it does |
+| --- | --- |
+| `pxxl webhook list` | Your webhook endpoints. |
+| `pxxl webhook create <name>` | Create an endpoint. `--forward <url>`, `--status <code>`, `--header`. |
+| `pxxl webhook get [name]` | Show one endpoint. |
+| `pxxl webhook requests [name]` | Captured requests. `--limit`. |
+| `pxxl webhook show <name> <request-id>` | One request in full. |
+| `pxxl webhook replay <name> <request-id>` | Send a request again. `--to <url>`. |
+| `pxxl webhook listen [name]` | Stream new requests and forward them to localhost. `--forward <url>`. |
+| `pxxl webhook pause\|resume <name>` | Stop or start accepting requests. |
+| `pxxl webhook clear <name>` | Delete stored requests. |
+| `pxxl webhook delete <name>` | Delete the endpoint. |
+
+See [Webhooks](/tools/webhooks).
+
+## Checks
+
+| Command | What it does |
+| --- | --- |
+| `pxxl check http <url>` | Redirects, timings, and TLS from Pxxl's network. `--method`, `--header`. |
+| `pxxl check domain <host>` | DNS records and certificate. |
+| `pxxl tools limits` | Your tunnel and webhook limits and usage. |
+
+## Servers
+
+| Command | What it does |
+| --- | --- |
+| `pxxl servers list` | Your linked servers. |
+| `pxxl servers add <name>` | Create a server and print its one-time install command. |
+| `pxxl servers show [server]` | Server details. |
+| `pxxl servers health [server]` | Health and agent status. |
+| `pxxl servers metrics [server]` | CPU, memory, disk. |
+| `pxxl servers apps [server]` | Apps running on the server. |
+| `pxxl servers events [server]` | Recent events. `--limit`. |
+| `pxxl servers alerts [server]` | Open and resolved alerts. |
+| `pxxl servers ops` | List the [safe operations](/servers/operations). |
+| `pxxl servers run [server] <op>` | Run an operation. `--app`, `-n, --lines`, `--change` (needed for change ops), `--yes`. |
+| `pxxl servers restart\|start\|stop\|logs [server] --app <name>` | Control one app, or read its last 500 log lines. |
+| `pxxl servers update [server]` | Update the agent now. Asks first. |
+| `pxxl servers prune [server]` | Remove unused container images. Asks first. |
+| `pxxl servers settings [server] --set key=value` | Show or change `alertOffline`, `alertCrashes`, `alertResources`, `alertEmail`, `autoUpdate`. |
+| `pxxl servers rename [server] <name>` | Rename. |
+| `pxxl servers link [server]` | New install command (to reinstall the agent). |
+| `pxxl servers rm [server] --yes` | Remove the server from Pxxl. |
+
+`[server]` is an id, name, or hostname. Leave it out if you have one server. See [Servers](/servers/overview).
+
+## Billing and invoices
+
+| Command | What it does |
+| --- | --- |
+| `pxxl billing list` | Invoices. `--status`. |
+| `pxxl billing get <id>` | One invoice. |
+| `pxxl invoices list` | Domain invoices. |
+| `pxxl invoices payment-url <id>` | Get a payment link. `--currency`. |
+| `pxxl invoices purchased-domains` | Domains you've bought. |
+| `pxxl customers list\|get\|create\|update\|delete` | Registrant contacts for domains. |
+
+## Analytics
+
+```bash
+pxxl analytics project <project-id> --timeframe 7d
+pxxl analytics domain <domain-id>
+```
+
+## MCP
+
+Talk to the [Pxxl MCP server](/ai/mcp) from the terminal. Output is JSON.
+
+```bash
+pxxl mcp tools
+pxxl mcp call <tool> --data '{"projectId":"..."}'
+pxxl mcp resources
+pxxl mcp read <uri>
+pxxl mcp ping
+```

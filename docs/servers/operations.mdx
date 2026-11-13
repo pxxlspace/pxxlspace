@@ -1,0 +1,61 @@
+---
+title: "Safe operations"
+description: "A fixed list of maintenance tasks you, the CLI, and the AI agent can run on a server."
+---
+
+Safe operations are 53 ready-made tasks: 45 that only read, and 8 that change something. Each one is fixed code. Nothing you type is run as a shell command. That's what makes them safe to hand to the [AI agent](/ai/agent).
+
+- Inputs are limited to an app name and a line count (1 to 1000).
+- Each run has a 60 second limit and returns up to 64 KB of output.
+- Change operations are recorded in **Events**.
+
+## Run one
+
+```bash
+pxxl servers ops                                  # list them
+pxxl servers run system.summary
+pxxl servers run container.logs --app my-api -n 200
+pxxl servers run cleanup.unused_images --change   # change ops need --change
+```
+
+## With the AI agent
+
+Ask the agent things like "why is my server slow?" or "free up disk space". It can run every read operation on its own. It asks for your approval before any change: an app restart, stop or start, a disk clean-up, a change operation, or moving a project between servers.
+
+## Read operations
+
+| Area | Operations |
+| --- | --- |
+| **System** | `system.summary`, `system.uptime`, `system.load`, `system.cpu`, `system.memory`, `system.memory_detail`, `system.processes_cpu`, `system.processes_memory`, `system.process_count`, `system.os`, `system.kernel`, `system.time`, `system.users`, `system.services_failed`, `system.services_running`, `system.updates` (lists, never installs), `system.reboot_required` |
+| **Disk** | `disk.usage`, `disk.inodes`, `disk.mounts`, `disk.large_directories`, `disk.podman` |
+| **Logs** | `logs.errors`, `logs.kernel`, `logs.agent`, `logs.auth_failures` |
+| **Network** | `network.interfaces`, `network.routes`, `network.listening`, `network.connections`, `network.dns`, `network.check_pxxl`, `network.check_internet`, `network.firewall` |
+| **Security** | `security.ssh`, `security.admins` |
+| **Containers** | `containers.list`, `containers.all`, `containers.stats`, `container.details` (no env vars), `container.logs`, `container.processes`, `images.list`, `volumes.list` |
+| **Agent** | `agent.status` |
+
+## Change operations
+
+| Operation | What it does |
+| --- | --- |
+| `cleanup.unused_images` | Remove unused images. Running projects aren't touched. |
+| `cleanup.dangling_images` | Remove dangling images. |
+| `cleanup.stopped_containers` | Remove stopped containers Pxxl didn't start. |
+| `cleanup.package_cache` | Clear the apt, apk, or dnf cache. |
+| `cleanup.journal` | Shrink the systemd journal to 200 MB. |
+| `cleanup.rotated_logs` | Delete rotated logs in `/var/log`. |
+| `cleanup.old_temp_files` | Delete files in `/tmp` and `/var/tmp` unchanged for 7 days. |
+| `network.flush_dns` | Flush the systemd-resolved DNS cache. |
+
+## App actions
+
+For apps on the server, use the **Projects** tab or the CLI:
+
+```bash
+pxxl servers logs --app my-api       # last 500 lines
+pxxl servers restart --app my-api
+pxxl servers stop --app my-api       # stays stopped after a reboot
+pxxl servers start --app my-api
+pxxl servers prune                   # remove unused images
+pxxl servers update                  # update the agent now
+```

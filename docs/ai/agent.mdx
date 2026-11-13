@@ -1,0 +1,45 @@
+---
+title: "AI agents"
+description: "Ask an agent to inspect, fix, or deploy, and let it watch your projects."
+---
+
+Pxxl Agents work inside your dashboard. Ask in plain words and the agent reads your projects, logs, domains, databases, and servers, then acts for you.
+
+Agents are on Pro and Enterprise. Open **Agents** in the sidebar.
+
+## Ask
+
+Type a request in the chat, for example:
+
+- "Why did my last deploy of `api` fail?"
+- "Show errors from the last hour in `web`."
+- "Point `shop.example.com` at the `storefront` project."
+- "My server is slow. What's using the memory?"
+
+Type `@` to mention a project, domain, database, or server so the agent knows exactly what you mean. **Stop** ends a run at any time.
+
+## Approvals
+
+The agent reads freely, but asks before it changes anything. You see an approval card with what it wants to do, and nothing happens until you approve. Examples: redeploying, editing DNS, restarting an app, cleaning up disk space on a server, or moving a project.
+
+On [your servers](/servers/overview), the agent uses the fixed list of [safe operations](/servers/operations), never free-form shell commands.
+
+## Watches
+
+Ask an agent to keep an eye on something, and it checks on a schedule (every 5 or 15 minutes) and tells you when:
+
+- the site goes down,
+- a deploy fails,
+- new errors appear in live logs,
+- visitors pass a number,
+- network use crosses a limit (bandwidth, error rate, or response time).
+
+The dashboard shows what your agents are watching and anything that needs a look.
+
+## Agent profiles
+
+Create more than one agent, each with its own name, avatar, and instructions, for example one for deploys and one for monitoring.
+
+## Use your own AI client
+
+To use Claude, Cursor, Codex, or another AI tool with your Pxxl account instead, connect it through [MCP](/ai/mcp).

@@ -1,0 +1,111 @@
+---
+title: "Migrate from Netlify"
+description: "Move a Netlify site and translate netlify.toml and _redirects to pxxl.toml."
+---
+
+Use the [importer](/migrate/overview#import-from-your-old-host) with a Netlify personal access token. It brings over the repo, build command, and readable build environment variables.
+
+<Warning>
+  Pxxl doesn't read `netlify.toml`, `_redirects`, or `_headers`. Move those rules to `pxxl.toml` as shown below.
+</Warning>
+
+## Concepts
+
+| Netlify | Pxxl |
+| --- | --- |
+| Site | Project (Static App, or Web Service for SSR) |
+| `[build] command` | `[build] buildCommand` |
+| `[build] publish` | `[build] outputDirectory` |
+| `[build] base` | `[build] baseDirectory` |
+| `[build.environment]` | Secrets (or `[env]` for non-secret build values) |
+| `[[redirects]]`, `_redirects` | `[[redirects]]` / `[[rewrites]]` in `pxxl.toml` |
+| `[[headers]]`, `_headers` | `[[headers]]` in `pxxl.toml` |
+| Netlify Functions | [Functions](/deploy/functions) |
+| Scheduled functions | [Cron jobs](/cron-jobs) |
+| Deploy previews | Pull request previews |
+| Forms, Identity | Not built in. Use your own backend. |
+
+## netlify.toml to pxxl.toml
+
+```toml netlify.toml
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://api.example.com/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/old-blog/*"
+  to = "/blog/:splat"
+  status = 301
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+```
+
+```toml pxxl.toml
+version = 1
+
+[build]
+baseDirectory = "web"
+buildCommand = "npm run build"
+outputDirectory = "dist"
+nodeVersion = "22"
+
+[routing]
+spa = true
+
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://api.example.com/:path*"
+
+[[redirects]]
+source = "/old-blog/:path*"
+destination = "/blog/:path*"
+status = 301
+
+[[headers]]
+source = "/assets/:path*"
+[headers.headers]
+Cache-Control = "public, max-age=31536000"
+```
+
+The mapping:
+
+- A Netlify redirect with `status = 200` is a **rewrite** on Pxxl.
+- `/*` with `:splat` becomes `/:path*` with `:path*`.
+- The `/* /index.html 200` fallback becomes `[routing] spa = true`.
+
+## Netlify Functions
+
+Netlify handlers use `exports.handler = async (event) => ({ statusCode, body })`. Pxxl functions use Vercel-style `(req, res)` or Web `Request`/`Response`. Move each file into `api/` and rewrite the wrapper:
+
+```ts api/hello.ts
+export async function GET(request: Request) {
+  const name = new URL(request.url).searchParams.get("name") ?? "world";
+  return Response.json({ message: `Hello ${name}` });
+}
+```
+
+Then enable them with `[functions] enabled = true`. Calls to `/.netlify/functions/hello` should change to `/api/hello`.
+
+## Checklist
+
+- [ ] Import the site or connect the repo.
+- [ ] Write `pxxl.toml` from `netlify.toml`, `_redirects`, and `_headers`.
+- [ ] Port functions to `api/`.
+- [ ] Test the Pxxl URL, then [move your domain](/migrate/overview#switch-dns-last).

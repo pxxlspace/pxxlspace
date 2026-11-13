@@ -1,0 +1,82 @@
+---
+title: "Webhooks"
+description: "A URL that records every request. Inspect, forward, and replay webhooks, or stream them to localhost."
+---
+
+A webhook URL catches requests from Stripe, GitHub, Paystack, or any service. Pxxl stores the method, path, query, headers, body, source IP, and time, so you can see exactly what was sent.
+
+## Create one
+
+In the dashboard: **Tools > New Tool > Webhook**. Or:
+
+```bash
+pxxl webhook create stripe
+```
+
+You get a URL like:
+
+```text
+https://server.pxxl.app/api/v3/hooks/a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+Paste it into the service's webhook settings. Any method and any sub-path work: `/hooks/<token>/payments` is recorded with its path.
+
+Pxxl answers each request with the status you choose (default `200`) and `{"ok":true,"id":"whr_..."}`.
+
+## Receive webhooks on your laptop
+
+```bash
+pxxl webhook listen stripe --forward http://localhost:3000/webhooks
+```
+
+New requests are streamed to your terminal and sent to your local app with the same method, headers, and body. Signature headers such as `Stripe-Signature` pass through untouched, so your signature check still works.
+
+| Flag | What it does |
+| --- | --- |
+| `--forward <url>` | Where to send each request. |
+| `--exact-path` | Don't add the request's sub-path to the forward URL. |
+| `--header "Name: value"` | Add a header. |
+| `--all` | Also send requests captured before you started. |
+
+## Inspect and replay
+
+```bash
+pxxl webhook requests stripe --limit 20
+pxxl webhook show stripe whr_123
+pxxl webhook replay stripe whr_123 --to https://staging.example.com/webhooks
+```
+
+In the dashboard, each endpoint has a **Requests** tab and a **Settings** tab.
+
+## Forward automatically
+
+On Plus and above, set **Forward to** and every request is sent on to that URL. Each request gets one attempt with a 20 second timeout. There are no automatic retries; use replay.
+
+The forward URL must be public. To reach `localhost`, use `webhook listen` or a [tunnel](/tools/tunnels).
+
+Forwarded and replayed requests carry `X-Pxxl-Webhook-Request: <request id>`.
+
+## Other commands
+
+```bash
+pxxl webhook list
+pxxl webhook pause stripe     # sender gets 503
+pxxl webhook resume stripe
+pxxl webhook clear stripe     # delete stored requests
+pxxl webhook delete stripe
+```
+
+## Limits
+
+| Plan | Endpoints | Stored requests | Kept for | Max body | Auto-forward |
+| --- | --- | --- | --- | --- | --- |
+| Free | 1 | 50 | 24 hours | 256 KB | No |
+| Plus | 5 | 1,000 | 7 days | 1 MB | Yes |
+| Pro | 25 | 10,000 | 30 days | 5 MB | Yes |
+| Enterprise | 100 | 100,000 | 90 days | 10 MB | Yes |
+
+When you reach the stored-request limit, the oldest are removed. Cookies and proxy headers (`cf-*`, `x-forwarded-*`) aren't stored.
+
+<Note>
+  Looking for webhooks that Pxxl sends **to you** when a deploy finishes or a project changes? Those are [account webhooks](/account/settings#account-webhooks).
+</Note>

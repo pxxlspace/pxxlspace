@@ -1,0 +1,24 @@
+---
+title: "Regions"
+description: "Choose where your app runs."
+---
+
+Pick a region when you deploy. Choose the one closest to your users or to the services your app talks to.
+
+| Region | Slug | Location |
+| --- | --- | --- |
+| Europe Central | `eu-central` | Nuremberg, Germany (default) |
+| Europe West | `eu-west` | Paris, France |
+| Europe North | `eu-north` | Helsinki and Copenhagen |
+
+The deploy form suggests a region based on where you are. If you don't choose, Pxxl uses **Europe Central**.
+
+## Set the region
+
+In **Deploy > Build Configuration**, pick a region before you deploy. Use the slug when an API call, SDK method, or CLI flag asks for a region.
+
+Moving a project to another region needs a new deployment. If a region is unavailable, the form only shows the regions you can use.
+
+<Note>
+  Static sites are served from the Pxxl edge, so region matters mostly for web services and databases.
+</Note>

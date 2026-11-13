@@ -1,0 +1,91 @@
+---
+title: "Monorepos and multiple services"
+description: "Deploy several apps from one repository: a web app, an API, a worker."
+---
+
+## One app in a subfolder
+
+Set **Base directory** to the app's folder, such as `apps/web`. Pxxl builds only that folder. Or in `pxxl.toml`:
+
+```toml
+[build]
+baseDirectory = "apps/web"
+```
+
+Put `pxxl.toml` in the base directory or the repo root.
+
+## Several apps in one project
+
+Turn on **Multiple Services** in **Deploy > Build Configuration**. Each service gets its own folder, commands, port, and route, but they share one project, one repo, and one deploy history.
+
+| Setting | Example |
+| --- | --- |
+| **Alias** | `web`, `api`, `worker` |
+| **Base directory** | `apps/api` |
+| **Type** | `web`, `api`, or `worker` |
+| **Route** | Public or private. Workers usually don't need a route. |
+| **Port** | Each running service needs its own port. |
+| **Install / build / start** | Per-service commands. |
+
+### Example: Turborepo with web and API
+
+```text
+apps/
+  web/
+  api/
+packages/
+  ui/
+pnpm-workspace.yaml
+pxxl.toml
+```
+
+| Alias | Base directory | Route | Port |
+| --- | --- | --- | --- |
+| `web` | `apps/web` | Public | `3000` |
+| `api` | `apps/api` | Public | `3001` |
+
+Fine-tune each service in `pxxl.toml`. The alias must match the one in the dashboard:
+
+```toml pxxl.toml
+[services.web]
+baseDirectory = "apps/web"
+packageManager = "pnpm"
+installCommand = "cd ../.. && pnpm install --frozen-lockfile"
+buildCommand = "cd ../.. && pnpm --filter web build"
+startCommand = "pnpm start"
+port = 3000
+
+[services.api]
+baseDirectory = "apps/api"
+packageManager = "pnpm"
+installCommand = "cd ../.. && pnpm install --frozen-lockfile"
+startCommand = "pnpm start"
+port = 3001
+```
+
+`[services.*]` blocks only change services you've already added. They don't create new ones.
+
+### Example: API and worker
+
+| Alias | Base directory | Route | Port |
+| --- | --- | --- | --- |
+| `api` | `services/api` | Public | `3000` |
+| `worker` | `services/worker` | Private | `3001` |
+
+The worker builds and runs with the project but has no public URL.
+
+## Domains per service
+
+Attach a domain to the service that should get the traffic:
+
+```bash
+pxxl domains connect api.example.com --service <service-id> --port 3001
+```
+
+## Separate projects instead
+
+If the apps deploy on different schedules or belong to different teams, make them separate projects with their own base directory. They can still talk privately over [private networking](/networking/private-networking).
+
+<Tip>
+  If a service won't start, check its base directory, port, and start command first. A command that works from the repo root may fail inside the service folder.
+</Tip>

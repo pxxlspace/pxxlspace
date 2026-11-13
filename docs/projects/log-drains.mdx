@@ -1,0 +1,57 @@
+---
+title: "Log drains"
+description: "Send build, deploy, runtime and request logs to your own S3 bucket or HTTPS endpoint."
+---
+
+A log drain copies your project's logs to a place you control, for longer retention or your own search tools.
+
+Open the project, then **Settings > Log Drains**. An account can have up to 3 drains, and each drain can serve several projects.
+
+## Destinations
+
+| Destination | What Pxxl sends |
+| --- | --- |
+| **S3-compatible** (S3, R2, MinIO) | Gzipped NDJSON files at `PREFIX/dt=YYYY-MM-DD/<timestamp>.ndjson.gz` |
+| **HTTPS** | `POST` with `Content-Type: application/x-ndjson`, `Content-Encoding: gzip`, and your token as a Bearer header |
+
+Each line is one JSON event. Events can be build output, deployment events, runtime output, or HTTP requests.
+
+## Create a drain
+
+<Steps>
+  <Step title="Prepare the destination">
+    Create a bucket or prefix, or an HTTPS endpoint. The endpoint must be public HTTPS.
+  </Step>
+  <Step title="Add the drain">
+    In **Settings > Log Drains**, enter the endpoint, bucket, region, prefix, and keys (or the HTTPS URL and token). Pick the log sources to send.
+  </Step>
+  <Step title="Test it">
+    Use the test button. Pxxl sends a test event right away.
+  </Step>
+  <Step title="Attach it to the project">
+    Enable the drain for the project, then check that new files or requests arrive.
+  </Step>
+</Steps>
+
+For S3, the key only needs `s3:PutObject` on the prefix, plus `s3:ListBucket` and `s3:GetBucketLocation` on the bucket.
+
+## HTTPS receiver
+
+Your endpoint should check the token, accept a gzip body, store it, and return `2xx`:
+
+```js
+import zlib from "node:zlib";
+
+app.post("/pxxl-logs", express.raw({ type: "*/*", limit: "10mb" }), (req, res) => {
+  if (req.get("authorization") !== `Bearer ${process.env.DRAIN_TOKEN}`) {
+    return res.status(401).end();
+  }
+  const lines = zlib.gunzipSync(req.body).toString("utf8").trim().split("\n");
+  for (const line of lines) console.log(JSON.parse(line));
+  res.status(204).end();
+});
+```
+
+## Failures
+
+Pxxl retries failed deliveries with backoff. A drain that keeps failing for a long time is disabled. Fix the credentials or endpoint, then enable it again.

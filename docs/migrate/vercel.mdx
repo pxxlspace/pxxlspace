@@ -1,0 +1,100 @@
+---
+title: "Migrate from Vercel"
+description: "Move a Vercel project, its vercel.json, and its api/ functions to Pxxl."
+---
+
+Use the [importer](/migrate/overview#import-from-your-old-host) with a Vercel token to bring over the repo, commands, and decrypted environment variables (Production, Preview, Development).
+
+## Concepts
+
+| Vercel | Pxxl |
+| --- | --- |
+| Project | Project |
+| Framework preset | Detected automatically, or `[build] framework` |
+| Build & Output settings | `[build]` in `pxxl.toml` |
+| `vercel.json` rewrites, redirects, headers | Read as-is, or move to `pxxl.toml` |
+| `api/` serverless functions | [Functions](/deploy/functions) with `[functions] enabled = true` |
+| Environment variables | Secrets |
+| Preview deployments | Pull request previews |
+| Cron (`crons` in vercel.json) | [Cron jobs](/cron-jobs) in the dashboard |
+| Edge config, KV, Postgres | [Databases](/databases/overview) (Redis, Postgres) |
+
+## vercel.json
+
+Pxxl reads these keys from `vercel.json` when `pxxl.toml` has no routing: `rewrites`, `redirects`, `headers`, `cleanUrls`, and `has`/`missing` conditions. A catch-all rewrite to `/index.html` becomes SPA mode.
+
+Not read: `routes` (the legacy format), `builds`, `functions`, `crons`, `regions`, and build settings. Don't define routing in both files.
+
+### The same config in pxxl.toml
+
+```json vercel.json
+{
+  "buildCommand": "pnpm build",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://api.example.com/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "redirects": [
+    { "source": "/old", "destination": "/new", "permanent": true }
+  ],
+  "headers": [
+    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
+  ]
+}
+```
+
+```toml pxxl.toml
+version = 1
+
+[build]
+buildCommand = "pnpm build"
+outputDirectory = "dist"
+
+[routing]
+spa = true
+
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://api.example.com/:path*"
+
+[[redirects]]
+source = "/old"
+destination = "/new"
+status = 308
+
+[[headers]]
+source = "/assets/:path*"
+[headers.headers]
+Cache-Control = "public, max-age=31536000, immutable"
+```
+
+`permanent: true` becomes `status = 308`; `false` becomes `307`.
+
+## api/ functions
+
+Keep your `api/` folder. `@vercel/node` handlers and Web `Request`/`Response` handlers both work. Add:
+
+```toml
+[functions]
+enabled = true
+```
+
+Functions are for static frontends (Vite, React, plain HTML). A Next.js app runs as a web service instead, so its API routes keep working with no changes.
+
+## Next.js
+
+Pxxl runs Next.js as a web service with `next start`. Check that your start script binds to `$PORT`:
+
+```json package.json
+{ "scripts": { "start": "next start -p ${PORT:-3000}" } }
+```
+
+## Checklist
+
+- [ ] Import the project or connect the repo.
+- [ ] Add any env vars the import couldn't read.
+- [ ] Add `[functions]` if you use `api/` with a static frontend.
+- [ ] Recreate Vercel cron jobs in **Cron Jobs**.
+- [ ] Test the Pxxl URL, then [move your domain](/migrate/overview#switch-dns-last).

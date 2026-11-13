@@ -1,0 +1,80 @@
+---
+title: "Migrate from Render"
+description: "Move Render web services, workers, and databases, and translate render.yaml."
+---
+
+Use the [importer](/migrate/overview#import-from-your-old-host) with a Render API key. It imports a web service with its repo, commands, and service environment variables. Pick the service you want; import each one separately.
+
+Pxxl doesn't read `render.yaml`. Use the mapping below.
+
+## Concepts
+
+| Render | Pxxl |
+| --- | --- |
+| Web Service | Web Service project |
+| Static Site | Static App project |
+| Background Worker | A service with no public route |
+| Cron Job | [Cron job](/cron-jobs) calling an HTTP endpoint |
+| Private Service | [Private networking](/networking/private-networking) |
+| Postgres, Redis (Key Value) | [Databases](/databases/overview) |
+| Environment Groups | [Vault](/deploy/environment-variables#vault) |
+| `rootDir` | `[build] baseDirectory` |
+| `buildCommand`, `startCommand` | `[build] buildCommand`, `startCommand` |
+| `healthCheckPath` | Project settings (`pxxl projects update --health-path /healthz`) |
+| Disks | [Volumes](/projects/overview#volumes) |
+
+## render.yaml to pxxl.toml
+
+```yaml render.yaml
+services:
+  - type: web
+    name: api
+    runtime: node
+    rootDir: api
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+```
+
+```toml pxxl.toml
+[build]
+baseDirectory = "api"
+installCommand = "npm ci"
+buildCommand = "npm run build"
+startCommand = "node dist/server.js"
+port = 10000
+```
+
+Then set the health path and variables:
+
+```bash
+pxxl projects update --health-path /healthz
+pxxl env add NODE_ENV production
+```
+
+Render sets `PORT=10000` by default. Pxxl also sets `PORT`, so if your app reads it, nothing changes.
+
+## Cron jobs
+
+A Render cron job runs a command. A Pxxl cron job calls a URL. Add a protected endpoint to your app (for example `POST /jobs/cleanup`) that runs the same code, and schedule it in **Cron Jobs**.
+
+## Databases
+
+Create the database on Pxxl, then copy the data with the engine's tools:
+
+```bash
+pg_dump "$RENDER_DATABASE_URL" --no-owner --format=custom -f render.dump
+pg_restore --no-owner -d "$PXXL_DATABASE_URL" render.dump
+```
+
+Update `DATABASE_URL` in your project and redeploy.
+
+## Checklist
+
+- [ ] Import each service, or connect the repo.
+- [ ] Recreate workers as private services, and cron jobs as HTTP endpoints.
+- [ ] Move databases and update `DATABASE_URL`.
+- [ ] Test the Pxxl URL, then [move your domain](/migrate/overview#switch-dns-last).

@@ -1,72 +1,60 @@
 ---
-title: "Deploy your first project"
-sidebarTitle: "Quickstart"
-description: "Connect a source, review the detected settings, and deploy your first project on Pxxl."
+title: "Quickstart"
+description: "Sign up, connect a repository, and get a live URL in a few minutes."
 ---
 
-Deploy a project from the Pxxl dashboard. Choose where your code lives, review the settings Pxxl finds, and follow the deployment log until your URL is ready.
-
-<Note>
-  You need a Pxxl account. For GitHub, install the Pxxl GitHub App and give it access to the repositories you want to deploy. Some source options require a paid plan.
-</Note>
+This guide takes you from a new account to a live app. If you prefer the terminal, follow [Deploy with the CLI](/get-started/cli) instead.
 
 <Steps>
+  <Step title="Create an account">
+    Sign up at [pxxl.app/signup](https://pxxl.app/signup). You can sign in with GitHub.
+  </Step>
   <Step title="Open Deploy">
-    Sign in at [pxxl.app](https://pxxl.app), open the dashboard, and choose **Deploy**. The flow keeps source selection, configuration, and logs on one page.
+    In the dashboard, choose **Deploy**.
   </Step>
+  <Step title="Pick your code">
+    Choose **GitHub**, install the Pxxl GitHub App, and give it access to your repository. Then pick the repository and branch.
 
-  <Step title="Choose a source">
-    Select GitHub, GitLab, Pxxl Drop, a Docker source, a template, or an imported project. The next step changes to match the source you chose.
+    Other options: GitLab, a Docker image, a Dockerfile, a zip upload (Pxxl Drop), a template, or WordPress. See [Deployment sources](/deploy/sources).
   </Step>
-
-  <Step title="Select the project">
-    Choose a repository, upload the source, enter an image, or choose a template. For Git sources, select the branch and let Pxxl inspect the repository before you continue.
+  <Step title="Check the settings">
+    Pxxl detects your framework and fills in the install, build, and start commands, the port, and the output folder. Change anything that's wrong. Add your environment variables here too.
   </Step>
-
-  <Step title="Review the configuration">
-    Pxxl fills in the detected language, framework, package manager, base directory, and commands. Check the project name, environment, domain, port, environment variables, services, and optional resource settings. You can edit the detected values before deploying.
-  </Step>
-
-  <Step title="Deploy and follow the log">
-    Submit the deployment. Pxxl queues the work, shows the build output in the same flow, and finishes by publishing the project route. Open the URL when the status changes to deployed.
+  <Step title="Deploy">
+    Select **Deploy Project** and watch the build log. When it finishes, your app is live at `https://<name>.pxxl.pro` (or the suffix you picked).
   </Step>
 </Steps>
 
-## Deployment sources
+From now on, every push to the branch deploys again automatically.
 
-| Source | Use it for |
-|---|---|
-| **GitHub** | Connect a repository and deploy future commits. |
-| **GitLab** | Connect a GitLab project and select a branch. |
-| **Pxxl Drop** | Upload a local archive or static build from your device. |
-| **Docker image** | Run a prebuilt image from Docker Hub or another registry. |
-| **Dockerfile** | Build an image from your own container instructions. |
-| **WordPress** | Launch a managed WordPress installation. |
-| **Import projects** | Move an existing provider project into Pxxl. |
-| **Templates** | Start with a maintained Pxxl application template. |
+## Two things to check
 
-## What to check
+**Web apps and APIs** must listen on the `PORT` environment variable and bind to `0.0.0.0`:
 
-### Web services
+```js
+const port = process.env.PORT || 3000;
+app.listen(port, "0.0.0.0");
+```
 
-Your server should listen on <code>$PORT</code> and bind to <code>0.0.0.0</code>. Pxxl uses the port and start command from the review step to check the service before publishing its route.
+**Static sites** need no server. Pxxl publishes the build output folder (for example `dist`), or the folder with your `index.html`.
 
-### Static Apps
+## Add your domain
 
-Static Apps do not need a running server. A plain static repository needs an <code>index.html</code> or <code>index.htm</code> in the selected base directory. PHP projects use the PHP runtime instead. A built frontend needs to produce its static output during the build.
-
-Read [Project Types](/projects/project-types) for the difference between a Web Service and a Static App.
-
-### Monorepos
-
-Set the base directory to the folder that contains the service. For a repository with more than one deployable directory, follow [Multiple Services and Monorepos](/deploy/multiple-services) to configure separate aliases, ports, commands, and routes.
-
-## After you submit
-
-Pxxl records the deployment, chooses a build server, and streams the task log to the dashboard. A Web Service is checked for health before its route is published. A Static App is uploaded to Pxxl Edge and served without a runtime container.
+Open **Domains**, choose **Add Domain**, pick the project, and add the DNS records Pxxl shows. HTTPS is set up for you. Full steps: [Domains](/domains/overview).
 
 ## Next steps
 
-- [Supported Stacks](/projects/supported-stacks) shows what Pxxl detects and the defaults it can prepare.
-- [How Pxxl Builds](/projects/how-pxxl-builds) explains the path from source to a live route.
-- [Domains](/domains/overview) explains how to connect a custom domain.
+<CardGroup cols={2}>
+  <Card title="pxxl.toml" icon="file-code" href="/reference/pxxl-toml">
+    Keep build, run and routing settings in your repo.
+  </Card>
+  <Card title="Environment variables" icon="key" href="/deploy/environment-variables">
+    Add secrets and config to your app.
+  </Card>
+  <Card title="Add a database" icon="database" href="/databases/overview">
+    Create Postgres, MySQL, Redis and more.
+  </Card>
+  <Card title="Moving from another host?" icon="arrow-right-arrow-left" href="/migrate/overview">
+    Guides for Vercel, Netlify, Render, Railway, Heroku and Coolify.
+  </Card>
+</CardGroup>

@@ -1,0 +1,106 @@
+---
+title: "Redirects, rewrites and headers"
+description: "Common routing recipes for pxxl.toml."
+---
+
+Routing rules live in `pxxl.toml`, deploy with your code, and roll back with it. This page has ready-to-copy recipes. Every key and limit is in the [pxxl.toml reference](/reference/pxxl-toml#routing).
+
+All routing needs `version = 1` at the top of the file.
+
+## Single-page app
+
+Serve `index.html` for routes like `/dashboard/settings`:
+
+```toml
+version = 1
+
+[routing]
+spa = true
+```
+
+## Clean URLs
+
+Serve `/about` from `about.html` (static sites):
+
+```toml
+[routing]
+cleanUrls = true
+```
+
+## Redirect an old path
+
+```toml
+[[redirects]]
+source = "/blog/:slug"
+destination = "/posts/:slug"
+status = 308
+```
+
+`status` is required: `301`, `302`, `307`, or `308`.
+
+## Redirect to another domain
+
+```toml
+[[redirects]]
+source = "/docs/:path*"
+destination = "https://docs.example.com/:path*"
+status = 301
+```
+
+## Proxy an API
+
+Keep calls same-origin (no CORS) by proxying `/api` to your backend:
+
+```toml
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://api.example.com/api/:path*"
+```
+
+The URL in the browser doesn't change. The method, body, cookies, and `Authorization` header are passed on.
+
+## Cache static assets
+
+```toml
+[[headers]]
+source = "/assets/:path*"
+[headers.headers]
+Cache-Control = "public, max-age=31536000, immutable"
+```
+
+## Security headers
+
+```toml
+[[headers]]
+source = "/:path*"
+[headers.headers]
+X-Frame-Options = "DENY"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+```
+
+## Only for some visitors
+
+Send social media bots to an image function:
+
+```toml
+[[rewrites]]
+source = "/:slug"
+destination = "/api/og?username=:slug"
+has_header = { key = "user-agent", regex = "(?i).*(twitterbot|whatsapp|discordbot).*" }
+```
+
+## Already have vercel.json?
+
+If `pxxl.toml` has no routing, Pxxl reads `rewrites`, `redirects`, `headers`, `cleanUrls`, and `has`/`missing` from `vercel.json`. Don't define routing in both files: the deploy fails. The old `routes` key isn't supported.
+
+## Check your rules
+
+The deploy log says which file the rules came from: `pxxl.toml`, `vercel.json`, or platform defaults. If a rule is invalid, the deploy fails with a message such as:
+
+```text
+invalid redirect 2: status must be 301, 302, 307, or 308
+invalid redirects: redirect loop detected at /account
+```
+
+Your current deployment stays live. Fix the file and push again.

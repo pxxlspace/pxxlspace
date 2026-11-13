@@ -1,0 +1,64 @@
+---
+title: "Environment variables"
+description: "Add secrets and config to your app without putting them in your code."
+---
+
+Environment variables hold API keys, database URLs, and settings. Pxxl gives them to your build and to your running app.
+
+## Add a variable
+
+<Steps>
+  <Step title="Open Secrets">
+    Open the project and select **Secrets**.
+  </Step>
+  <Step title="Add it">
+    Choose **New Variable**, enter the name and value, and pick a scope.
+  </Step>
+  <Step title="Redeploy">
+    Running apps only read variables when they start. Redeploy to apply the change.
+  </Step>
+</Steps>
+
+Use **Bulk Edit** to paste a whole `.env` file. **History** shows past changes.
+
+## Scopes
+
+| Scope | Use it for |
+| --- | --- |
+| **Project** | Values only this project needs. Most variables. |
+| **Global** | Values shared by several projects in your workspace. |
+
+## Vault
+
+The workspace **Vault** stores a secret once for all your projects (paid plans). Open **Vault** in the sidebar and add a secret. Then reference it in any project variable:
+
+```bash
+STRIPE_KEY={{vault.STRIPE_KEY}}
+```
+
+Pxxl fills in the value at deploy time. Change it in the Vault and redeploy to update every project that uses it.
+
+The value field on **Secrets** also lets you pick a Vault secret, or a value from another service in the project, instead of typing a plain value.
+
+## From the CLI
+
+```bash
+pxxl env list
+pxxl env add API_KEY sk_live_123
+pxxl env push --file .env.production
+pxxl env pull
+```
+
+See [CLI commands](/cli/commands#environment-variables) for every `pxxl env` command.
+
+## Variables Pxxl sets
+
+| Name | Value |
+| --- | --- |
+| `PORT` | The port your app must listen on. |
+
+## Good habits
+
+- Never commit `.env` files. Add them to `.gitignore` and `.pxxlignore`.
+- Frontend frameworks put some variables into browser code (for example `VITE_*`, `NEXT_PUBLIC_*`). Only use those prefixes for values that are safe to show the public.
+- Don't put secrets in `pxxl.toml`. It's committed with your code.

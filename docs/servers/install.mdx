@@ -1,0 +1,88 @@
+---
+title: "Install the agent"
+description: "Requirements, the install command, pxxl-agent commands, updates, and removal."
+---
+
+## Requirements
+
+| | |
+| --- | --- |
+| **OS** | Linux with **systemd** or **OpenRC**. Tested on Ubuntu, Debian, Fedora, Rocky, and Alpine. |
+| **CPU** | x86_64 (amd64) or arm64. |
+| **Access** | Root (`sudo`). |
+| **Network** | Outbound HTTPS. No inbound ports. |
+| **Packages** | apt, dnf, yum, or apk to install `curl`, `openssl` (1.1.1+), and `podman` if missing. |
+
+It won't install inside a container. Use a VM or a real server.
+
+<Tip>
+  On **Alpine**, install the basics first: `apk add bash curl sudo`. The script also turns on the `cgroups` service so app limits work.
+</Tip>
+
+## The install command
+
+Get it from **Servers > Connect Server**, from **Settings > Install command** on an existing server, or with `pxxl servers add <name>`:
+
+```bash
+curl -fsSL https://server.pxxl.app/api/v3/byos/install.sh | sudo bash -s -- --token pxl_link_...
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--token <token>` | Required. One use, expires in 30 minutes. |
+| `-y`, `--yes` | Don't ask to confirm. Also skipped automatically with no terminal, as in cloud-init. |
+
+The script runs five steps: check requirements, create the linking key, link to your workspace, install `pxxl-agent`, start it.
+
+## What gets installed
+
+| Item | Location |
+| --- | --- |
+| Agent binary | `/usr/local/bin/pxxl-agent` (checksum verified) |
+| Config and key | `/etc/pxxl-agent/` (`agent.env`, `link.key`), root only |
+| Data | `/var/lib/pxxl-agent/` |
+| Service | `pxxl-agent` under systemd (`/etc/systemd/system/pxxl-agent.service`) or OpenRC (`/etc/init.d/pxxl-agent`). Restarts if it exits. |
+
+The private key never leaves the server. Every request from the agent is signed with it.
+
+## pxxl-agent commands
+
+Run these on the server:
+
+| Command | What it does |
+| --- | --- |
+| `sudo pxxl-agent status` | Server ID, agent version, service state, and a live connection check. |
+| `sudo pxxl-agent check` | Just the connection check. |
+| `sudo pxxl-agent terminal enable` | Allow the dashboard [terminal](/servers/terminal). |
+| `sudo pxxl-agent terminal disable` | Turn it off. Open sessions close within a minute. |
+| `sudo pxxl-agent terminal status` | Is the terminal on? |
+| `sudo pxxl-agent auto-update enable` | Allow the agent to update itself. |
+| `sudo pxxl-agent auto-update disable` | Block all updates, even from the dashboard. |
+| `sudo pxxl-agent auto-update status` | Are updates on? |
+| `sudo pxxl-agent uninstall` | Remove the agent. Your apps keep running. |
+| `pxxl-agent version` | Print the version. |
+
+Logs:
+
+```bash
+journalctl -u pxxl-agent -f                     # systemd
+tail -f /var/log/messages | grep pxxl-agent     # OpenRC / Alpine
+```
+
+## Auto-update
+
+On by default. The agent installs new versions itself within a minute of release. It checks the download's checksum, keeps the old binary as `pxxl-agent.prev`, and restarts. Your apps keep running.
+
+Turn it off in **Settings > Update automatically**, or on the server with `sudo pxxl-agent auto-update disable`. The server's setting wins. **Update now** in Settings updates on demand.
+
+## Reinstall or move to a new machine
+
+Get a new install command from **Settings > Install command** (or `pxxl servers link`) and run it on the machine. Linking again creates a new key. The old key stops working.
+
+## Remove a server
+
+1. Move or delete any projects on it.
+2. In the dashboard, open **Settings > Remove server** (or run `pxxl servers rm --yes`). The key stops working at once.
+3. On the server, run `sudo pxxl-agent uninstall`.
+
+Nothing else on the server is deleted.

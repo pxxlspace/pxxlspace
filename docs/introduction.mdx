@@ -1,38 +1,51 @@
 ---
 title: "Introduction"
-sidebarTitle: "Introduction"
-description: "Learn what Pxxl does and find the right place to start."
+description: "What Pxxl does and where to start."
 ---
 
-# Pxxl
+Pxxl is a cloud platform for shipping web apps, APIs, databases, and the services around them. You bring the code. Pxxl builds it, runs it, gives it a URL with HTTPS, and keeps it online.
 
-Pxxl is a cloud deployment platform for putting web applications, APIs, and supporting services online. It takes code from a connected source, builds it in the right environment, and gives you a live URL.
+## What you can run
 
-Pxxl handles the infrastructure around your project so you can focus on the application itself.
+| | |
+| --- | --- |
+| **Web services** | Node.js, Python, PHP, Go, Rust, Java, .NET, Ruby, Docker. Anything that listens on a port. |
+| **Static sites** | Vite, React, Vue, Astro, plain HTML. Served from the edge with no server. |
+| **Functions** | Small HTTP handlers next to a frontend, like Vercel functions. |
+| **Databases** | Postgres, MySQL, MongoDB, Redis and more. |
+| **Your own servers** | Link a Linux server and watch it from the dashboard. |
 
-## What you can do
+## Pick your path
 
 <CardGroup cols={2}>
-  <Card title="Deploy applications" href="/quickstart">
-    Connect a repository, configure the build, and publish a web service or static app.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Connect GitHub and deploy from the dashboard.
   </Card>
-  <Card title="Choose your stack" href="/projects/supported-stacks">
-    Use supported runtimes and frameworks for Node.js, Python, PHP, and more.
+  <Card title="Deploy with the CLI" icon="terminal" href="/get-started/cli">
+    Install `pxxl` and deploy a folder from your terminal.
   </Card>
-  <Card title="Manage projects" href="/projects/project-workspace">
-    Review deployments, logs, secrets, domains, analytics, monitoring, and runtime access in one place.
+  <Card title="Migrate to Pxxl" icon="arrow-right-arrow-left" href="/migrate/overview">
+    Move from Vercel, Netlify, Render, Railway, Heroku or Coolify.
   </Card>
-  <Card title="Control your resources" href="/projects/compute">
-    Adjust CPU, memory, replicas, persistent volumes, and autoscaling as your project grows.
-  </Card>
-  <Card title="Automate with the API" href="/api/overview">
-    Use the API and SDKs to manage deployments, domains, cron jobs, storage, and other Pxxl services.
-  </Card>
-  <Card title="Work from the terminal" href="/api/pxxl-cli">
-    Deploy and inspect projects from local development or CI with the Pxxl CLI.
+  <Card title="pxxl.toml reference" icon="file-code" href="/reference/pxxl-toml">
+    Every config key, with examples.
   </Card>
 </CardGroup>
 
-## Where to start
+## How a deploy works
 
-If you are deploying a project for the first time, begin with the [Quickstart](/quickstart). To understand the available source options, read [Deployment Sources](/deploy/sources). For day-to-day project management, open [Projects](/projects/project-workspace).
+1. You push code, run `pxxl deploy`, or upload a zip.
+2. Pxxl detects the stack and builds it in an isolated builder.
+3. A web service starts in a container and must pass a health check. A static site is published to the edge.
+4. Traffic moves to the new version only when it's healthy. The old one stays up until then.
+5. You get a URL. Add your own domain whenever you like.
+
+## Words we use
+
+| Term | Meaning |
+| --- | --- |
+| **Project** | One app. It has deployments, a URL, variables, logs, and settings. |
+| **Deployment** | One build of one commit. You can roll back to any earlier one. |
+| **Service** | One process in a project. A monorepo can have several. |
+| **Spaceship** | A team. Projects can belong to you or to a spaceship. |
+| **Environment** | A set of variables and deployments, such as production or staging. |

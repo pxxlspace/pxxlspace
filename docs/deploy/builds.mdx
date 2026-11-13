@@ -1,0 +1,70 @@
+---
+title: "Builds and deployments"
+description: "How Pxxl builds your code, the two project types, and what happens when a deploy fails."
+---
+
+## Two project types
+
+| Type | What it is | Needs |
+| --- | --- | --- |
+| **Web Service** | A process that keeps running and answers HTTP requests. APIs, SSR apps, Next.js, Django, Go. | A start command. Listen on `$PORT` and bind to `0.0.0.0`. |
+| **Static App** | Files only. Vite, React, Vue, Astro builds, plain HTML. | An output folder with `index.html`. No server. |
+
+Pxxl picks the type from your code. A server framework or a start command means Web Service. HTML or a static framework means Static App. Docker and WordPress sources are always Web Services.
+
+## Build settings
+
+Pxxl detects these and shows them before you deploy. Change any of them in the form or in [`pxxl.toml`](/reference/pxxl-toml).
+
+<Frame>
+  <img src="/images/deploy-build-configuration.jpeg" alt="Pxxl build configuration screen with project setup, services, Node version and environment variables." />
+</Frame>
+
+| Setting | Example |
+| --- | --- |
+| Base directory | `apps/web` |
+| Package manager | `pnpm` |
+| Runtime version | Node `22` |
+| Install command | `pnpm install --frozen-lockfile` |
+| Build command | `pnpm build` |
+| Start command | `node dist/server.js` |
+| Output directory | `dist` |
+| Port | `3000` |
+| Region | `eu-central` |
+
+## What happens on deploy
+
+<Steps>
+  <Step title="Source">
+    Pxxl clones the commit, or receives your upload or image.
+  </Step>
+  <Step title="Build">
+    It runs the install and build commands in an isolated builder and streams the log.
+  </Step>
+  <Step title="Publish">
+    A Static App is uploaded to the edge as a new release. A Web Service starts in a container.
+  </Step>
+  <Step title="Health check">
+    A Web Service must answer on its port before it gets traffic.
+  </Step>
+  <Step title="Live">
+    Traffic moves to the new version. The old one keeps running until then, so there's no downtime.
+  </Step>
+</Steps>
+
+## When a deploy fails
+
+Your current version stays online. Open the failed deployment and read the first error in the log. The usual causes:
+
+- A missing environment variable.
+- The wrong base directory.
+- The wrong package manager (check your lockfile).
+- A build command that fails.
+- A start command that exits right away.
+- The app listens on a different port, or on `127.0.0.1` instead of `0.0.0.0`.
+
+Fix it, push again or choose **Redeploy**. More fixes: [Deployment troubleshooting](/troubleshooting/deployments).
+
+## Ignore files
+
+Add a `.pxxlignore` file to keep files out of CLI uploads. It works like `.gitignore`. See [.pxxlignore](/reference/pxxl-toml#pxxlignore).

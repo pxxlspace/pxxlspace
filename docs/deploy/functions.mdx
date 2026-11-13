@@ -1,125 +1,112 @@
 ---
-title: "Pxxl Functions"
-description: "Run Node.js and TypeScript API handlers beside a frontend deployment."
+title: "Functions"
+description: "Add HTTP handlers to a static site, Vercel-style."
 ---
 
-Pxxl Functions lets a frontend repository expose lightweight HTTP handlers from a directory you declare in `pxxl.toml`. Pxxl bundles those handlers during the build and deploys the frontend and functions as one immutable runtime generation. Route activation happens only after the new runtime is healthy, so a deployment cannot combine old functions with new frontend files.
+Functions turn files in a folder, such as `api/`, into HTTP endpoints next to your static frontend. Pxxl builds them with your site and serves both as one deployment. Existing Vercel `api/` handlers usually work without changes.
 
-<Note>
-  Pxxl Functions is available on paid plans. Functions run as a warm, gVisor-isolated Node.js workload inside your project's compute pool. Requests are not billed a second time per invocation; CPU and memory count toward the project's normal compute usage.
-</Note>
+Functions are on paid plans. They run on your project's compute and are not billed per request.
 
-## Enable Functions in `pxxl.toml`
+## Turn them on
 
-Functions are opt-in. Add a `[functions]` section to the `pxxl.toml` used by your deployment:
+Functions are off until you enable them in `pxxl.toml`:
 
-```toml
+```toml pxxl.toml
 version = 1
 
 [functions]
 enabled = true
-root = "api"
-prefix = "/api"
+root = "api"      # folder with your handlers (default "api")
+prefix = "/api"   # URL prefix (default "/api")
 ```
 
-- `enabled = true` tells Pxxl to build this deployment as a Functions workload.
-- `root` is the project-relative directory that contains the handlers. It defaults to `api`.
-- `prefix` is the public URL prefix for the generated routes. It defaults to `/api`.
+Commit `pxxl.toml` and your handler files, then deploy. Having an `api/` folder alone does nothing.
 
-Pxxl does not enable Functions merely because a repository contains an `api/` directory or a rewrite points to `/api`. This avoids classifying client libraries and ordinary application folders as deployable functions. If `[functions].enabled` is missing or false, the project keeps its normal static or web-service deployment type.
+## File to URL
 
-<Warning>
-  Enabling Functions without at least one supported handler in `root` fails the deployment. The currently active deployment remains online.
-</Warning>
+Each file in `root` becomes a route under `prefix`:
 
-## Create a function
-
-Add a JavaScript or TypeScript file below the configured `root`. Each file becomes a route below the configured `prefix`.
-
-| File | Route |
+| File | URL |
 | --- | --- |
 | `api/index.ts` | `/api` |
-| `api/og.ts` | `/api/og` |
-| `api/users/[id].ts` | `/api/users/:id` |
-| `api/files/[...path].ts` | `/api/files/:path*` |
+| `api/hello.ts` | `/api/hello` |
+| `api/users/[id].ts` | `/api/users/123` |
 
-For example, with `root = "functions"` and `prefix = "/v1"`, `functions/users/[id].ts` becomes `/v1/users/:id`.
+- Extensions: `.js`, `.mjs`, `.cjs`, `.ts`, `.mts`, `.cts`.
+- Files and folders starting with `_` (like `api/_lib`), `*.d.ts`, `*.test.*`, and `*.spec.*` are skipped. Use `_lib` for shared code.
+- Up to 8 folder levels. Your plan sets the number of routes: 25 on Plus, 50 on Pro, 100 on Enterprise.
 
-Pxxl bundles up to 64 function files, with up to eight directory levels. Supported extensions are `.js`, `.mjs`, `.cjs`, `.ts`, `.mts`, and `.cts`. Declaration, test, and spec files are ignored.
+## Write a handler
 
-## Use a Vercel-style handler
+Vercel-style:
 
-Existing `@vercel/node` handlers can normally move without source changes. Type-only imports are removed by the TypeScript bundle.
-
-```ts
+```ts api/hello.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const username = req.query.username;
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.setHeader("Cache-Control", "public, s-maxage=300");
-  return res.status(200).send(`<h1>${username}</h1>`);
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  res.status(200).json({ hello: req.query.name ?? "world" });
 }
 ```
 
-The response supports `status()`, `send()`, `json()`, `redirect()`, `setHeader()`, `getHeader()`, `write()`, and `end()`. The request includes parsed `query`, `cookies`, and JSON `body` values.
+Web-standard:
 
-## Use a Web handler
-
-You can also export a Web API handler that returns a `Response`.
-
-```ts
+```ts api/users/[id].ts
 export async function GET(request: Request) {
-  const username = new URL(request.url).searchParams.get("username");
-  return Response.json({ username });
+  const id = new URL(request.url).pathname.split("/").pop();
+  return Response.json({ id });
 }
 ```
 
-Named HTTP method exports take precedence over the default export. A default export with two parameters is treated as a Vercel-style handler; a one-parameter export is treated as a Web handler.
+`req` has `query`, `cookies`, and a parsed JSON `body`. `res` has `status()`, `json()`, `send()`, `redirect()`, `setHeader()`, `getHeader()`, `write()`, and `end()`. Named exports like `GET` and `POST` win over the default export.
 
-## Route requests to a function
+Read secrets from `process.env`. Set them in [environment variables](/deploy/environment-variables).
 
-An internal rewrite can send a public page request to an enabled function. The browser keeps the original URL. A rewrite only changes routing; it does not enable Functions by itself.
+## Route a page to a function
+
+A rewrite can send page requests to a function. The browser keeps the original URL.
 
 ```toml
-version = 1
-
 [[rewrites]]
 source = "/:slug"
 destination = "/api/og?username=:slug"
-has_header = { key = "user-agent", regex = "(?i).*(twitterbot|whatsapp|discordbot|googlebot).*" }
-
-[[rewrites]]
-source = "/(.*)"
-destination = "/spa.html"
+has_header = { key = "user-agent", regex = "(?i).*(twitterbot|whatsapp|discordbot).*" }
 ```
 
-Pxxl applies rewrites to both static and function-enabled deployments. Real asset requests such as `/favicon.ico` and `/assets/app.js` win over parameter rewrites. `vercel.json` remains supported for compatible routing rules, but Functions must be enabled explicitly in `pxxl.toml`.
+A rewrite into `/api` must point at a function that exists, or the deploy fails.
 
-## Deploy and verify
+## Cache responses
 
-Commit `pxxl.toml` and the handler files together, then create a deployment. Pxxl validates the configuration, confirms that the declared handlers exist, bundles them, starts the candidate runtime, and moves traffic only after it passes health checks.
-
-After the deployment succeeds, the Functions tab shows the routes and effective limits from the last successful deployment. A failed deployment does not replace that inventory or disable the currently active Functions generation.
-
-## Cache function responses
-
-Return `Cache-Control` with `s-maxage` to cache a successful function response in the warm workload.
+Send `Cache-Control` with `s-maxage` and Pxxl caches the response (up to 1 hour):
 
 ```ts
 res.setHeader("Cache-Control", "public, s-maxage=300");
 ```
 
-The cache is bounded to 128 responses by default, caps `s-maxage` at one hour, and skips responses that are private, use `no-store`, set cookies, exceed 1 MiB, or return an error. Its key includes the deployment generation, method, rewritten path, and query string. A new deployment therefore starts with a fresh cache automatically.
+Private responses, `no-store`, responses that set cookies, errors, and bodies over 1 MiB aren't cached. A new deploy starts with an empty cache.
 
-## Limits and safety
+## Limits
 
-- Request bodies are limited to 4 MiB by default.
-- Functions must be enabled explicitly with `[functions].enabled = true` in `pxxl.toml`.
-- Function builds fail when a TypeScript or JavaScript bundle cannot be produced.
-- Invalid conditional or function rewrites fail the deployment instead of publishing a partially working release.
-- Function errors are written to project logs. Callers receive a generic error response without the internal exception message.
-- Secrets come from project environment variables. Do not store secrets in `pxxl.toml` or `vercel.json`.
+| | Plus | Pro | Enterprise |
+| --- | --- | --- | --- |
+| Routes | 25 | 50 | 100 |
+| Timeout | 10 s | 30 s | 60 s |
+| Concurrent requests | 10 | 50 | 200 |
+| Requests per minute | 300 | 1,500 | 6,000 |
 
-Function CPU and memory usage appears with the rest of the project runtime usage. Scaling replaces the active generation through the normal zero-downtime route cutover; it does not create a separate function invoice.
+Request bodies are limited to 4 MiB by default. Set lower limits, or per-route limits, in [`[functions]`](/reference/pxxl-toml#functions).
 
+## When the deploy fails
+
+| Error | Meaning |
+| --- | --- |
+| `FUNCTIONS_NO_HANDLERS` | `root` has no handler files. |
+| `FUNCTIONS_SERVER_CONFLICT` | The project is a server app (Express, Next.js, Dockerfile, multiple services...). Functions are for static sites. |
+| `FUNCTIONS_TYPE_LOCKED` | The project was already deployed as a web service. |
+| `FUNCTIONS_PLAN_REQUIRED` | Functions need a paid plan. |
+| `FUNCTION_REWRITE_TARGET_MISSING` | A rewrite points at a function that doesn't exist. |
+
+Your current deployment stays live. Errors inside a handler go to **Live Logs**; callers get a generic error. The **Functions** tab lists your routes and their limits.
+
+## Coming from Vercel
+
+Keep your `api/` folder and handlers. Add the `[functions]` block above. Move routing from `vercel.json` to `pxxl.toml`, or keep `vercel.json` for routing only. See [Migrate from Vercel](/migrate/vercel).

@@ -1,0 +1,69 @@
+---
+title: "Projects"
+description: "Everything about a running app lives on its project page."
+---
+
+A project is one app. Open it from **Projects** in the dashboard.
+
+<Frame>
+  <img src="/images/project-overview.jpeg" alt="Pxxl project overview showing a deployed app and its connected services." />
+</Frame>
+
+## Project tabs
+
+| Tab | What it does |
+| --- | --- |
+| **Overview** | Map of the app, its current deployment, variables, and domains. |
+| **Deployments** | Every build with its commit, status, and time. Redeploy or roll back from here. |
+| **Live Logs** | What your app prints right now. Static sites show edge request logs. |
+| **Secrets** | [Environment variables](/deploy/environment-variables). |
+| **Networking** | Domains, the internal hostname for [private networking](/networking/private-networking), and ports. |
+| **Web Analytics** | Visitors, requests, bandwidth, latency, top paths. |
+| **Functions** | Routes and limits of your [functions](/deploy/functions), when enabled. |
+| **Monitoring** | CPU and memory over time. |
+| **Terminal** | A shell inside the running container. |
+| **Compute & Scaling** | CPU, memory, replicas, volumes, autoscaling. |
+| **Settings** | Build settings, [log drains](/projects/log-drains), [password protection](/projects/password-protection), and removal. |
+
+After each deploy, check **Overview**, then **Deployments**, then **Live Logs**. In a minute you know the new version is up, which commit it is, and that it started cleanly.
+
+## Logs, analytics, monitoring
+
+- **Live Logs** shows what your app prints.
+- **Web Analytics** shows what visitors and requests do.
+- **Monitoring** shows CPU and memory use. Pick **24h**, **48h**, **72h**, **7d**, or **30d**, and one replica or all of them.
+
+Use all three when an app is slow or failing. To keep logs longer, add a [log drain](/projects/log-drains).
+
+From the CLI:
+
+```bash
+pxxl logs
+```
+
+## Terminal
+
+The **Terminal** tab opens a shell in the running container. Pick the replica if there's more than one. Use it to look around: list files, check a build, run a quick command.
+
+Changes made in the terminal are lost on the next deploy. Put lasting changes in your code, your variables, or a [volume](#volumes).
+
+## Compute & Scaling
+
+**Scale Up Server** changes CPU, memory, and the number of replicas. The form shows your current values and your plan's limit.
+
+### Volumes
+
+Add a volume when files must survive a redeploy or restart. A volume has a name and a mount path, such as `/app/uploads`. **Clear** deletes everything in it.
+
+### Autoscaling
+
+Enterprise workspaces can turn on autoscaling. Pxxl adds replicas when CPU or memory stays high and removes them when load drops.
+
+## Redeploy and roll back
+
+Open **Deployments**. Choose **Redeploy** to build again, or pick an older deployment to roll back to it. A rollback also restores that deployment's routing rules.
+
+```bash
+pxxl rollback          # pick an earlier deployment
+pxxl redeploy <project-id>
+```

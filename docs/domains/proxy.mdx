@@ -1,0 +1,50 @@
+---
+title: "Proxy, SSL and security"
+description: "Control HTTPS, redirects, WebSockets, rate limits and firewall rules at the Pxxl edge."
+---
+
+Every request to your domain passes through the Pxxl edge proxy before it reaches your app. The edge handles TLS and applies the rules you set on the domain.
+
+Open the domain, then **Routing** or **Settings > Proxy**.
+
+## Proxy controls
+
+| Control | What it does |
+| --- | --- |
+| **Require HTTPS** | Redirects or rejects plain HTTP. |
+| **Canonical host** | Picks `example.com` or `www.example.com` as the main address and redirects the other. |
+| **WebSockets** | Allows upgrade requests for real-time connections. |
+| **Security headers** | Adds baseline browser security headers. |
+| **Maintenance mode** | Returns a maintenance page instead of your app. |
+| **Method and network rules** | Allows or blocks HTTP methods, IP ranges, or countries. |
+| **Request and response headers** | Adds headers at the edge. |
+| **Rate limiting** | Limits requests per IP, host, or route. |
+| **WAF rules** | Blocks common path traversal, SQL injection, and XSS patterns. |
+| **Circuit breaker** | Pauses upstream traffic after repeated failures. |
+| **In-flight limit** | Caps concurrent requests to a route. |
+| **Upstream retries** | Retries `502`, `503`, and `504` responses. |
+
+Save, then select **Resync Proxy** to publish the change.
+
+<Tip>
+  Redirects, rewrites, and headers that belong to your app should live in [`pxxl.toml`](/reference/pxxl-toml#routing). They deploy with your code and roll back with it. Domain proxy rules stay with the domain.
+</Tip>
+
+## SSL certificates
+
+Pxxl issues and renews certificates for you once DNS points at Pxxl. The **Monitoring** tab shows the certificate status.
+
+If HTTPS doesn't work:
+
+1. Check that DNS or nameservers are verified.
+2. Check the connected project and its port.
+3. Select **Resync Proxy**.
+4. Reopen the domain and check SSL again.
+
+## Monitoring
+
+The **Monitoring** tab shows requests, visitors, bandwidth, latency, status codes, and recent edge requests for the domain. Use it after a DNS change or a deploy to confirm traffic arrives.
+
+## Subdomains
+
+For domains bought on Pxxl, the **Subdomains** section creates subdomains and attaches them to projects. For an external domain, add the subdomain in the project's domain settings and create the record at your DNS provider.

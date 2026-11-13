@@ -1,0 +1,76 @@
+---
+title: "Migrate from Heroku"
+description: "Move a Heroku app: Procfile, config vars, add-ons, and Scheduler."
+---
+
+There's no Heroku importer. Connect your GitHub repo in **Deploy** and copy your config vars.
+
+Pxxl doesn't read `Procfile` or `app.json`. Use the mapping below.
+
+## Concepts
+
+| Heroku | Pxxl |
+| --- | --- |
+| App | Project |
+| `web:` process in Procfile | `[build] startCommand` |
+| `worker:` process | A second service with no public route |
+| `release:` process | Part of your build or start command |
+| Buildpacks | Detected automatically |
+| Config vars | Secrets |
+| Heroku Postgres, Redis | [Databases](/databases/overview) |
+| Scheduler | [Cron jobs](/cron-jobs) |
+| Dynos | **Compute & Scaling** (CPU, memory, replicas) |
+| Review apps | Pull request previews |
+| Pipelines | Environments |
+
+## Procfile to pxxl.toml
+
+```text Procfile
+web: gunicorn app:app --bind 0.0.0.0:$PORT
+worker: python worker.py
+release: python manage.py migrate
+```
+
+```toml pxxl.toml
+[build]
+language = "python"
+pythonVersion = "3.12"
+startCommand = "python manage.py migrate && gunicorn app:app --bind 0.0.0.0:$PORT"
+```
+
+For the worker, turn on [Multiple Services](/deploy/monorepos), add a `worker` service with no route, and set its start command:
+
+```toml
+[services.worker]
+startCommand = "python worker.py"
+```
+
+## Copy config vars
+
+```bash
+heroku config --shell -a my-app > .env.heroku
+pxxl env push --file .env.heroku
+rm .env.heroku
+```
+
+Remove Heroku-only values such as `DATABASE_URL` from old add-ons before you push, then add the new Pxxl database URL.
+
+## Database
+
+```bash
+heroku pg:backups:capture -a my-app
+curl -o heroku.dump "$(heroku pg:backups:url -a my-app)"
+pg_restore --no-owner -d "$PXXL_DATABASE_URL" heroku.dump
+```
+
+## Scheduler
+
+Heroku Scheduler runs commands. Pxxl cron jobs call URLs. Add a protected endpoint that runs the task and schedule it in **Cron Jobs**.
+
+## Checklist
+
+- [ ] Connect the repo and set the start command.
+- [ ] Push config vars with `pxxl env push`.
+- [ ] Move the database and update `DATABASE_URL`.
+- [ ] Recreate workers and scheduled jobs.
+- [ ] Test the Pxxl URL, then [move your domain](/migrate/overview#switch-dns-last).
