@@ -1,0 +1,207 @@
+---
+title: "Domain reseller"
+description: "Sell domains to your own users through the API, SDK, or CLI. Pxxl charges the wholesale price to your wallet; you add your markup."
+---
+
+The domain reseller lets you buy, renew, transfer, and manage domains for your own customers. Each purchase is charged to your [wallet](/account/wallet) at the wholesale price. What you charge your customer is up to you.
+
+Domain reselling is on the **Pro** and **Enterprise** plans.
+
+## Prices
+
+| Domain | You pay | Renewal |
+| --- | --- | --- |
+| `.cv` | ₦6,000 a year, VAT included | ₦6,000 a year |
+| Everything else | The regular Pxxl price plus 8% VAT | The regular renewal price plus 8% VAT |
+
+Your wallet holds US dollars. A `.cv` purchase is converted at the day's naira rate, so ₦6,000 is charged as its dollar value at that moment. Every quote shows the exact charge in US cents (`chargeMinor`) before you buy.
+
+Promotional prices for normal buyers don't apply to reseller purchases.
+
+## Set up
+
+1. Open **Tools > Domain reseller** in the dashboard.
+2. Open the **Keys** tab and create a reseller key. It starts with `pxxl_rsl_` and is shown once.
+3. [Top up your wallet](/account/wallet).
+4. Optional: set your markup and defaults in the **Settings** tab.
+
+Reseller keys only open the reseller API. A general API key can't buy reseller domains, and a reseller key can't reach your projects. They're kept in **Tools > Domain reseller**, not in **Settings > Developer > API keys**. A key with **Buy and manage** access spends your wallet balance, so keep it on your server.
+
+## Buy a domain
+
+<CodeGroup>
+
+```bash CLI
+export PXXL_RESELLER_KEY=pxxl_rsl_...
+pxxl domains reseller quote example.cv
+pxxl domains reseller buy example.cv --years 1 \
+  --customer-ref cust_42 --customer-email ada@example.com
+```
+
+```ts JavaScript
+import { Pxxl } from "@pxxlapp/pxxl";
+
+const pxxl = new Pxxl({ resellerKey: process.env.PXXL_RESELLER_KEY });
+const quote = await pxxl.reseller.quote("example.cv");
+if (quote.available) {
+  const order = await pxxl.reseller.register({
+    domain: "example.cv",
+    years: 1,
+    customer: { reference: "cust_42", email: "ada@example.com" },
+    maxChargeMinor: quote.chargeMinor,
+    idempotencyKey: "order-1001",
+  });
+  console.log(order.message, order.balanceMinor);
+}
+```
+
+```python Python
+from pxxl import PxxlClient
+
+client = PxxlClient(api_key=os.environ["PXXL_RESELLER_KEY"])
+quote = client.reseller.quote("example.cv")
+client.reseller.register("example.cv", customer={"reference": "cust_42"},
+                         max_charge_minor=quote["chargeMinor"], idempotency_key="order-1001")
+```
+
+```go Go
+client, _ := pxxl.NewClient(os.Getenv("PXXL_RESELLER_KEY"))
+quote, _ := client.Reseller().Quote(ctx, "example.cv", 1)
+order, err := client.Reseller().Register(ctx, pxxl.ResellerRegisterInput{
+	Domain: "example.cv", Years: 1,
+	Customer:       &pxxl.ResellerCustomer{Reference: "cust_42"},
+	MaxChargeMinor: quote.ChargeMinor,
+	IdempotencyKey: "order-1001",
+})
+```
+
+```rust Rust
+let client = pxxl::PxxlClient::new(std::env::var("PXXL_RESELLER_KEY")?)?;
+let quote = client.reseller().quote("example.cv", 1).await?;
+client.reseller().register(pxxl::ResellerRegisterInput {
+    domain: "example.cv".into(),
+    customer: Some(serde_json::json!({ "reference": "cust_42" })),
+    max_charge_minor: quote["chargeMinor"].as_i64(),
+    idempotency_key: Some("order-1001".into()),
+    ..Default::default()
+}).await?;
+```
+
+</CodeGroup>
+
+What happens:
+
+1. Pxxl checks the domain with the registrar and prices it.
+2. If your wallet is short, the request fails with `402` and code `INSUFFICIENT_FUNDS`. Nothing is charged.
+3. Your wallet is charged and the registration starts. The domain's status is `registering`, then `active` once the registrar confirms.
+
+The registrant is the contact you send (`contact` and `address`), a saved contact (`contactId`), or your default contact from **Settings**. Nameservers are the ones you send, then your default ones, then Pxxl's.
+
+Two safety options:
+
+- `maxChargeMinor`: the purchase fails with `PRICE_CHANGED` if the charge would be higher. Use the `chargeMinor` from the quote you showed your customer.
+- `Idempotency-Key` header (`idempotencyKey` in the SDKs): a retry with the same key returns the first result and never buys twice.
+
+## Your markup
+
+Set it in **Tools > Domain reseller > Settings**, with `pxxl domains reseller settings`, or with `updateSettings`:
+
+| Setting | What it does |
+| --- | --- |
+| `markupPercent` | Percent added to the wholesale price. |
+| `markupFixedNgn`, `markupFixedUsd` | Fixed amount added per year. |
+| `roundCustomerPrices` | Round up to the next ₦100 and the next whole dollar. |
+| `brandName`, `supportEmail` | Your brand, for your own checkout. Pxxl never emails your customers. |
+| `defaultNameservers`, `defaultContactId`, `defaultYears` | Used when a purchase leaves them out. |
+| `autoRenew` | Renew resold domains from your wallet when they come due. |
+
+Every quote and price list returns `customerPriceNgn` and `customerPriceUsd`: the wholesale price with your markup. You charge your customer yourself. Pxxl only charges the wholesale price.
+
+Example: with a 20% markup and ₦500 fixed, a `.cv` domain is ₦6,000 to you and ₦7,700 to your customer.
+
+## Manage domains
+
+Everything a domain owner can do works on domains you resold:
+
+```bash
+pxxl domains reseller list --customer-ref cust_42
+pxxl domains reseller status example.cv
+pxxl domains reseller dns example.cv
+pxxl domains reseller dns set example.cv --type A --name @ --value 203.0.113.10
+pxxl domains reseller dns set example.cv --type CNAME --name www --value example.cv
+pxxl domains reseller dns delete example.cv --id <record-id> --zone-id <zone-id>
+pxxl domains reseller nameservers set example.cv ns1.example.net ns2.example.net
+pxxl domains reseller nameservers reset example.cv     # back to Pxxl DNS
+pxxl domains reseller renew example.cv --years 1
+pxxl domains reseller lock example.cv
+pxxl domains reseller transfer-code example.cv          # move it to another registrar
+pxxl domains reseller customer example.cv --customer-email new@example.com
+```
+
+To delete a `.cv` record, pass its `id` and `zoneId` (both are in the record list).
+
+DNS records are editable while the domain uses Pxxl's nameservers. After you point it at other nameservers, manage records there.
+
+A nameserver change is confirmed with the registry before the domain takes other changes. A `.cv` domain bought minutes ago may not be in the registry yet. Until it is, changes answer `409` with code `domain_processing`, and Pxxl keeps retrying on its own.
+
+### Transfers
+
+Transfer a domain in from another registrar with its EPP code:
+
+```bash
+pxxl domains reseller transfer example.com --auth-code 'EPP-CODE' --customer-ref cust_42
+```
+
+It costs the regular transfer price plus 8% VAT, which includes a year of renewal. `.cv` domains can't be transferred in yet.
+
+To move a domain away, get its code with `transfer-code`. That also unlocks it at the registrar.
+
+### Renewals
+
+Renew any time with `renew`. When a resold `.cv` domain comes due, its renewal invoice is ₦6,000 a year. Turn on `autoRenew` and Pxxl pays due renewals from your wallet. Keep enough balance: a renewal that can't be paid is left for you to pay.
+
+## API
+
+Base URL: `https://server.pxxl.app/api/v3/domain-reseller`. Send the key as `Authorization: Bearer pxxl_rsl_...`.
+
+| Method | Path | What it does |
+| --- | --- | --- |
+| `GET` | `/account` | Plan, wallet balance, settings, terms. |
+| `PATCH` | `/account` | Save markup and defaults. |
+| `GET` | `/prices?tld=.cv,.com` | Wholesale and customer prices. |
+| `GET` | `/availability?domain=&years=` | Quote one domain. |
+| `POST` | `/domains` | Buy a domain. |
+| `GET` | `/domains?customerRef=&status=&search=` | List resold domains. |
+| `GET` | `/domains/{domain}` | Status and registrar details. |
+| `PATCH` | `/domains/{domain}` | Change the customer details. |
+| `POST` | `/domains/{domain}/renew` | Renew. |
+| `POST` | `/transfers` | Transfer a domain in. |
+| `GET`, `POST`, `PUT`, `DELETE` | `/domains/{domain}/dns-records` | List, add, replace, delete records. |
+| `POST` | `/domains/{domain}/nameservers` | Set nameservers (`{"nameservers": [...]}`). |
+| `POST` | `/domains/{domain}/nameservers/reset` | Back to Pxxl DNS. |
+| `POST` | `/domains/{domain}/nameservers/verify` | Check live nameservers. |
+| `GET` | `/domains/{domain}/zone-status` | DNS zone status. |
+| `POST` | `/domains/{domain}/registrar-lock` | Lock or unlock (`{"locked": true}`). |
+| `POST` | `/domains/{domain}/transfer-code` | Get the EPP code. |
+| `GET` | `/charges` | Wallet charges for reseller purchases. |
+
+```bash
+curl -X POST https://server.pxxl.app/api/v3/domain-reseller/domains \
+  -H "Authorization: Bearer $PXXL_RESELLER_KEY" \
+  -H "Idempotency-Key: order-1001" \
+  -H "Content-Type: application/json" \
+  -d '{"domain":"example.cv","years":1,"contactId":12,"customer":{"reference":"cust_42"}}'
+```
+
+### Errors
+
+| Status | Code | Meaning |
+| --- | --- | --- |
+| `402` | `PLAN_UPGRADE_REQUIRED` | Your plan is below Pro. |
+| `402` | `INSUFFICIENT_FUNDS` | Top up your wallet. Nothing was charged. |
+| `403` | | The key isn't a reseller key, or is read only. |
+| `404` | `NOT_FOUND` | The domain isn't one you resold. |
+| `409` | `NOT_AVAILABLE` | The domain is taken. |
+| `409` | `PRICE_CHANGED` | The charge is above `maxChargeMinor`. |
+| `409` | `NOT_REGISTERED` | Registration hasn't finished yet. Try again shortly. |
+| `502` | `AVAILABILITY_FAILED` | The registrar didn't answer. Nothing was charged. |
