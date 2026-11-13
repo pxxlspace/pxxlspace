@@ -129,7 +129,7 @@ pxxl domains reseller status example.cv
 pxxl domains reseller dns example.cv
 pxxl domains reseller dns set example.cv --type A --name @ --value 203.0.113.10
 pxxl domains reseller dns set example.cv --type CNAME --name www --value example.cv
-pxxl domains reseller dns delete example.cv --id <record-id>
+pxxl domains reseller dns delete example.cv --id <record-id> --zone-id <zone-id>
 pxxl domains reseller nameservers set example.cv ns1.example.net ns2.example.net
 pxxl domains reseller nameservers reset example.cv     # back to Pxxl DNS
 pxxl domains reseller renew example.cv --years 1
@@ -138,7 +138,11 @@ pxxl domains reseller transfer-code example.cv          # move it to another reg
 pxxl domains reseller customer example.cv --customer-email new@example.com
 ```
 
+To delete a `.cv` record, pass its `id` and `zoneId` (both are in the record list).
+
 DNS records are editable while the domain uses Pxxl's nameservers. After you point it at other nameservers, manage records there.
+
+A nameserver change is confirmed with the registry before the domain takes other changes. A `.cv` domain bought minutes ago may not be in the registry yet. Until it is, changes answer `409` with code `domain_processing`, and Pxxl keeps retrying on its own.
 
 ### Transfers
 
