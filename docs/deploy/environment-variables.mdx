@@ -38,7 +38,29 @@ STRIPE_KEY={{vault.STRIPE_KEY}}
 
 Pxxl fills in the value at deploy time. Change it in the Vault and redeploy to update every project that uses it.
 
-The value field on **Secrets** also lets you pick a Vault secret, or a value from another service in the project, instead of typing a plain value.
+You can put a reference inside a longer value, such as `postgres://app:{{vault.DB_PASSWORD}}@host/db`. Pxxl first looks for the secret in the project's environment, then in **All environments**. If the secret doesn't exist, the deploy fails and names it.
+
+Vault names use capital letters, numbers, and `_`, up to 128 characters. Values can be up to 32 KB.
+
+## Use another project's value
+
+Reference a variable from another project in the same group (the main project and its services):
+
+```bash
+API_TOKEN=${api.API_TOKEN}
+DATABASE_URL=${backend.DATABASE_URL}
+```
+
+The form is `${<project name or id>.<KEY>}`. Pxxl copies the value at deploy time. A reference it can't resolve stays as plain text, so check the spelling. A plain `${KEY}` with no dot is not expanded.
+
+The value field on **Secrets** has a picker for Vault secrets and other services' values, so you don't have to type these.
+
+## Names and limits
+
+- Names start with a letter or `_`, then letters, numbers, and `_`. Up to 256 characters.
+- Values can be up to 32,768 characters.
+- **Bulk Edit** strips one pair of quotes around a value.
+- No names are reserved. You can override `PORT` and most variables Pxxl sets (see below).
 
 ## From the CLI
 
@@ -51,11 +73,106 @@ pxxl env pull
 
 See [CLI commands](/cli/commands#environment-variables) for every `pxxl env` command.
 
+## Build and runtime
+
+| | Gets your variables? |
+| --- | --- |
+| **Build** (install and build commands) | Yes. They're exported and also written to a temporary `.env` in your app folder. Your own `.env` is put back afterwards. |
+| **Running app** | Yes. |
+| **Dockerfile build** | No. Variables reach the running container only. Don't rely on them in `RUN` steps. |
+| **Static sites** | At build time only. There's no server at runtime. |
+| **Pull request previews** | The main project's variables (or its preview variables), then the preview's own on top. |
+
+## Which value wins
+
+From lowest to highest:
+
+1. `[env]` in `pxxl.toml` (build only).
+2. **Global** variables.
+3. **Project** variables.
+4. References are filled in: `${service.KEY}`, then `{{vault.KEY}}`.
+
+At runtime your variables always beat the defaults built into the image.
+
 ## Variables Pxxl sets
+
+### Every project
+
+These are saved as normal variables when the project is created. You can see and edit them in **Secrets**.
+
+| Name | Example | Meaning |
+| --- | --- | --- |
+| `PORT` | `3000` | The port your app must listen on. |
+| `EXPOSE_PORT` | `3000` | Same as `PORT`. |
+| `PXXL_ENV` | `production` | The environment name. |
+
+### Defaults in the running app
+
+Set only if you haven't set them yourself:
+
+| Name | Example | Meaning |
+| --- | --- | --- |
+| `HOST`, `LISTEN_HOST`, `SERVER_HOST` | `0.0.0.0` | Listen on all interfaces. |
+| `LISTEN_PORT`, `SERVER_PORT` | `3000` | Same as `PORT`, for frameworks that read these. |
+| `ASPNETCORE_URLS`, `DOTNET_URLS` | `http://0.0.0.0:3000` | .NET listen address. |
+| `QUARKUS_HTTP_HOST`, `QUARKUS_HTTP_PORT` | `0.0.0.0`, `3000` | Quarkus. |
+| `MICRONAUT_SERVER_HOST`, `MICRONAUT_SERVER_PORT` | `0.0.0.0`, `3000` | Micronaut. |
+| `ROCKET_ADDRESS`, `ROCKET_PORT` | `0.0.0.0`, `3000` | Rust Rocket. |
+| `PXXL_PLAN_LANGUAGE`, `PXXL_PLAN_FRAMEWORK`, `PXXL_PLAN_PACKAGE_MANAGER`, `PXXL_PLAN_RUNTIME` | `nextjs` | What Pxxl detected. |
+| `PYTHONUNBUFFERED`, `PYTHONDONTWRITEBYTECODE` | `1` | Python apps. Logs show up straight away. |
+
+### Framework defaults at build time
+
+| Name | When | Meaning |
+| --- | --- | --- |
+| `NEXT_TELEMETRY_DISABLED=1` | Next.js | Turns off the telemetry notice. |
+| `NITRO_PRESET=node-server`, `NITRO_HOST=0.0.0.0` | TanStack Start | Builds a Node server. |
+| `SESSION_DRIVER=file`, `CACHE_STORE=file`, `QUEUE_CONNECTION=sync` | Laravel, if unset | Safe defaults. |
+| `APP_KEY` | Laravel, if unset | A generated key. Set your own to keep it stable. |
+
+### When you attach a database
+
+Choosing **Add DATABASE_URL** saves `DATABASE_URL` as a secret **global** variable, for example `postgresql://user:pass@host:5432/db`. A project-level `DATABASE_URL` overrides it.
+
+### Functions
+
+[Functions](/deploy/functions) deploys get these. They always replace a variable with the same name.
+
+| Name | Example | Meaning |
+| --- | --- | --- |
+| `PXXL_FUNCTION_TIMEOUT_SECONDS` | `10` | Time limit per request. |
+| `PXXL_FUNCTION_CONCURRENCY` | `10` | Requests at once. |
+| `PXXL_FUNCTION_MAX_BODY_BYTES` | `4194304` | Largest request body. |
+| `PXXL_FUNCTION_POLICY_JSON` | `{"timeoutSeconds":10,...}` | All limits as JSON. |
+| `PXXL_DEPLOYMENT_ID` | `cm3x...` | The deployment id. |
+
+### Multiple services in one container
+
+Each service process gets its own `PORT`, `EXPOSE_PORT`, `LISTEN_PORT`, `SERVER_PORT`, and `HOST=0.0.0.0`. These can't be overridden for that process.
+
+### WordPress
+
+WordPress projects get `WORDPRESS_DB_HOST`, `WORDPRESS_DB_NAME`, `WORDPRESS_DB_USER`, `WORDPRESS_DB_PASSWORD`, and `WORDPRESS_CONFIG_EXTRA` set for you. Your own values for these, and `MYSQL_*` or `MARIADB_*`, are ignored.
+
+### pxxl dev
+
+`pxxl dev` runs your app with the project's variables, plus:
 
 | Name | Value |
 | --- | --- |
-| `PORT` | The port your app must listen on. |
+| `PXXL_DEV` | `1`, so your code can tell it's running locally. |
+| `PORT` | Your shell's `PORT`, else `--port`, else `3000`. The project's `PORT` isn't used. |
+
+Your shell's variables beat the project's.
+
+### What Pxxl doesn't set
+
+There's no `NODE_ENV`, `CI`, commit SHA, branch name, project id, region, or public URL variable. Set the ones you need yourself, for example:
+
+```bash
+NODE_ENV=production
+PUBLIC_URL=https://example.com
+```
 
 ## Good habits
 
