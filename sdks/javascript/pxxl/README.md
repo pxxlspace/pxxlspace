@@ -115,6 +115,20 @@ const invoices = await pxxl.billing.list({ status: "pending" });
 const details = await pxxl.billing.get("invoice_123");
 ```
 
+## Domain reselling
+
+Sell domains to your own users (Pro plan and up). Use a reseller key from Tools > Domain reseller; purchases are charged to your Pxxl wallet. `.cv` costs ₦6,000 a year.
+
+```ts
+const pxxl = new Pxxl({ resellerKey: process.env.PXXL_RESELLER_KEY });
+const quote = await pxxl.reseller.quote("example.cv"); // quote.chargeMinor: what your wallet pays, in US cents
+await pxxl.reseller.register({ domain: "example.cv", customer: { reference: "cust_42" }, maxChargeMinor: quote.chargeMinor, idempotencyKey: "order-1001" });
+await pxxl.reseller.setDNSRecord("example.cv", { type: "A", name: "@", value: "203.0.113.10" });
+await pxxl.reseller.setNameservers("example.cv", ["ns1.example.net", "ns2.example.net"]);
+```
+
+From the CLI: `pxxl domains reseller --help`.
+
 ## Cron jobs
 
 ```ts

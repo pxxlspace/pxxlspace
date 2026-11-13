@@ -52,6 +52,23 @@ client.resync_domain_proxy("example.com", None).await?;
 client.disconnect_domain("old.example.com", Some("proj_123"), None).await?;
 ```
 
+## Domain reselling
+
+Sell domains to your own users (Pro plan and up). Use a reseller key from Tools > Domain reseller; purchases are charged to your Pxxl wallet. `.cv` costs ₦6,000 a year.
+
+```rust
+let client = pxxl::PxxlClient::new(std::env::var("PXXL_RESELLER_KEY")?)?;
+let quote = client.reseller().quote("example.cv", 1).await?;
+client.reseller().register(pxxl::ResellerRegisterInput {
+    domain: "example.cv".into(),
+    customer: Some(serde_json::json!({ "reference": "cust_42" })),
+    max_charge_minor: quote["chargeMinor"].as_i64(),
+    idempotency_key: Some("order-1001".into()),
+    ..Default::default()
+}).await?;
+client.reseller().set_dns_record("example.cv", serde_json::json!({ "type": "A", "name": "@", "value": "203.0.113.10" })).await?;
+```
+
 ## Cron Jobs
 
 ```rust

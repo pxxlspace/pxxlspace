@@ -10,6 +10,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { checkCommand, toolsCommand, toolsHelp, tunnelCommand, webhookCommand } from "./cli-tools.js";
+import { resellerCommand, resellerHelp } from "./cli-reseller.js";
 import { serversCommand, serversHelp } from "./cli-servers.js";
 import {
   cacheCommand, cancelCommand, curlCommand, devCommand, envCommand, errorsCommand, healthCommand, lifecycleCommand, linkCommand, logLines,
@@ -124,6 +125,7 @@ ${bold("Domain Reseller")}
   ${cyan("pxxl domains verify-registration")} <domain>
                                              Verify a final registration check
   ${cyan("pxxl domains purchase")} --data '<json>'
+  ${cyan("pxxl domains reseller")} --help       Sell domains to your users, charged to your wallet (Pro)
                                              Create a domain invoice
   ${cyan("pxxl customers create")} --data '<json>'
                                              Save a registrant contact
@@ -154,6 +156,7 @@ ${bold("Databases")}
 
 ${bold("Domains")}
   ${cyan("pxxl domains list")}                List domains available for stats
+  ${cyan("pxxl domains reseller")} --help    Sell domains to your users, charged to your wallet (Pro)
   ${cyan("pxxl domains check")} <domain>      Check DNS, ownership, SSL, and proxy route
   ${cyan("pxxl domains connect")} <domain>    Add a custom domain to a project
   ${cyan("pxxl domains connect")} <domain> --service <id>
@@ -481,6 +484,11 @@ async function main() {
   if (command === "version" || command === "--version" || command === "-v") return print(cliVersion);
   if (command === "help" && args[0]) return print(commandHelp(args[0]));
   if (!command || command === "help" || command === "--help" || command === "-h") return print(usage);
+  if (((command === "domains" || command === "domain") && args[0] === "reseller") || command === "reseller") {
+    if (command !== "reseller") args.shift();
+    if (isHelpRequest(args)) return print(resellerHelp);
+    return resellerCommand(args);
+  }
   if (isHelpRequest(args)) return print(commandHelp(command));
 
   if (command === "login") return login(args);
