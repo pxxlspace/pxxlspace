@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import { access, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { resolve4, resolve6, resolveCname, resolveNs } from "node:dns/promises";
@@ -7,8 +8,15 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
-import { PXXL_API_BASE_URL, PxxlAPIError, PxxlClient, clearAuthConfig, configPath, copyBoilerplate, createProjectZip, readPxxlToml, readBoilerplateManifest, readAuthConfig, saveAuthConfig, saveTeamSelection, sha256Hex, writeDefaultPxxlFiles, } from "./index.js";
+import { checkCommand, toolsCommand, toolsHelp, tunnelCommand, webhookCommand } from "./cli-tools.js";
+import { resellerCommand, resellerHelp } from "./cli-reseller.js";
+import { serversCommand, serversHelp } from "./cli-servers.js";
+import { cacheCommand, cancelCommand, curlCommand, devCommand, envCommand, errorsCommand, healthCommand, lifecycleCommand, linkCommand, logLines, lsCommand, metricsCommand, projectSettingsCommand, rebuildCommand, removeCommand, reportDeployment, rollbackCommand, unlinkCommand, deploymentLogsCommand, watchCommand, } from "./cli-platform.js";
+import { resolvePxxlAPIBaseURL, Pxxl, PxxlAPIError, PxxlClient, clearAuthConfig, configPath, copyBoilerplate, createProjectZip, readPxxlToml, readBoilerplateManifest, readAuthConfig, saveAuthConfig, saveTeamSelection, sha256Hex, writeDefaultPxxlFiles, } from "./index.js";
 const run = promisify(execFile);
+// `pxxl ... | head` closes stdout early; that is not an error.
+process.stdout.on("error", (error) => { if (error.code === "EPIPE")
+    process.exit(0); throw error; });
 const cliVersion = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")).version;
 const databaseTypes = ["postgres", "clickhouse", "dragonfly", "redis", "keydb", "mariadb", "mysql", "mongodb"];
 const timeframes = ["24h", "48h", "72h", "7d", "30d"];
@@ -86,6 +94,7 @@ ${bold("Domain Reseller")}
   ${cyan("pxxl domains verify-registration")} <domain>
                                              Verify a final registration check
   ${cyan("pxxl domains purchase")} --data '<json>'
+  ${cyan("pxxl domains reseller")} --help       Sell domains to your users, charged to your wallet (Pro)
                                              Create a domain invoice
   ${cyan("pxxl customers create")} --data '<json>'
                                              Save a registrant contact
@@ -116,6 +125,7 @@ ${bold("Databases")}
 
 ${bold("Domains")}
   ${cyan("pxxl domains list")}                List domains available for stats
+  ${cyan("pxxl domains reseller")} --help    Sell domains to your users, charged to your wallet (Pro)
   ${cyan("pxxl domains check")} <domain>      Check DNS, ownership, SSL, and proxy route
   ${cyan("pxxl domains connect")} <domain>    Add a custom domain to a project
   ${cyan("pxxl domains connect")} <domain> --service <id>
@@ -139,12 +149,56 @@ ${bold("Cron Jobs")}
   ${cyan("pxxl cron validate-schedule")} "*/5 * * * *"
   ${cyan("pxxl cron validate-url")} <url>
 
+${bold("Develop & Ship")}
+  ${cyan("pxxl link")} [project]               Link this folder to a project (saved in pxxl.toml)
+  ${cyan("pxxl dev")} [--tunnel] [-- <cmd>]    Run your dev server with the project's env vars
+  ${cyan("pxxl deploy")}                       Deploy, stream the build, and print the live URL
+  ${cyan("pxxl ls")}                           This project's deployments
+  ${cyan("pxxl rollback")} [deployment]        Make an earlier deployment live again
+  ${cyan("pxxl rebuild|cancel")} [deployment]  Rebuild or stop a deployment
+  ${cyan("pxxl errors")} [deployment]          What failed in a build, grouped
+  ${cyan("pxxl logs")} -f                      Follow runtime logs
+  ${cyan("pxxl logs")} --build -f              Follow the latest deployment's build live
+  ${cyan("pxxl watch")}                        Follow builds as they happen (git pushes too)
+  ${cyan("pxxl health")}                       Is it up: status, URL, health check
+  ${cyan("pxxl metrics")} [--range 1h]         CPU, memory and requests
+  ${cyan("pxxl curl")} [path] [-X POST -d ...] Request your live app
+  ${cyan("pxxl restart|pause|resume")}         Control the running app
+  ${cyan("pxxl cache purge")} [--wait]         Clear the CDN cache
+  ${cyan("pxxl env pull|add|rm|get|ls")}       Environment variables (pull writes .env.local)
+  ${cyan("pxxl project update")} --start-command "node server.js" --port 8080 …
+  ${cyan("pxxl project auto-deploy")} on|off   Deploy on git push
+  ${cyan("pxxl rm")} [project] --yes           Delete a project
+  ${cyan("pxxl unlink")}                       Forget the linked project
+
+${bold("Servers")}
+  ${cyan("pxxl servers")}                      Your own servers linked to Pxxl
+  ${cyan("pxxl servers add")} <name>           Link one (prints the install command)
+  ${cyan("pxxl servers health|metrics|apps")}  Watch a server
+  ${cyan("pxxl servers restart|logs")} --app x Act on a server or one app
+  ${cyan("pxxl servers run")} <op>             Run an operation (pxxl servers ops)
+
+${bold("Tunnels & Webhooks")}
+  ${cyan("pxxl tunnel")} <port>                Share a local app at a public HTTPS URL (WebSockets too)
+  ${cyan("pxxl tunnel list|create|connect|rotate|delete")}
+  ${cyan("pxxl webhook create")} <name>        A URL that records every request
+  ${cyan("pxxl webhook listen")} <name> --forward http://localhost:3000/webhooks
+  ${cyan("pxxl webhook requests|show|replay")} Inspect and replay what arrived
+  ${cyan("pxxl check http")} <url>             Redirects, timings and TLS from Pxxl's network
+  ${cyan("pxxl check domain")} <host>          DNS records and certificate
+  ${cyan("pxxl tools")}                        What your plan includes
+
 ${bold("Environment")}
   ${dim("PXXL_API_KEY")} overrides stored credentials.
   ${dim("PXXL_TEAM_ID")} overrides the selected spaceship/team for scoped commands.
   Pass ${dim("--json")} to print raw API responses for scripting.
 `;
 const commandHelps = {
+    servers: serversHelp,
+    tunnel: toolsHelp.tunnel,
+    webhook: toolsHelp.webhook,
+    check: toolsHelp.check,
+    tools: toolsHelp.tools,
     account: `${logo}
 
 ${bold("Account Commands")}
@@ -368,6 +422,16 @@ const helpAliases = {
     db: "db",
     database: "db",
     databases: "db",
+    tunnel: "tunnel",
+    tunnels: "tunnel",
+    servers: "servers",
+    server: "servers",
+    byos: "servers",
+    webhook: "webhook",
+    webhooks: "webhook",
+    hooks: "webhook",
+    check: "check",
+    tools: "tools",
     logs: "logs",
     log: "logs",
     open: "deploy",
@@ -387,6 +451,13 @@ async function main() {
         return print(commandHelp(args[0]));
     if (!command || command === "help" || command === "--help" || command === "-h")
         return print(usage);
+    if (((command === "domains" || command === "domain") && args[0] === "reseller") || command === "reseller") {
+        if (command !== "reseller")
+            args.shift();
+        if (isHelpRequest(args))
+            return print(resellerHelp);
+        return resellerCommand(args);
+    }
     if (isHelpRequest(args))
         return print(commandHelp(command));
     if (command === "login")
@@ -397,6 +468,8 @@ async function main() {
     }
     if (command === "init")
         return initProject(args);
+    if (command === "unlink")
+        return unlinkCommand(args);
     if (command === "doctor")
         return doctor(args);
     if (command === "inspect")
@@ -449,6 +522,44 @@ async function main() {
         return teams(client, args);
     if (command === "db" || command === "database" || command === "databases")
         return databases(client, args);
+    if (command === "link")
+        return linkCommand(client, platformCtx, args);
+    if (command === "dev")
+        return devCommand(client, platformCtx, args);
+    if (command === "ls")
+        return lsCommand(client, platformCtx, args);
+    if (command === "watch")
+        return watchCommand(client, platformCtx, args);
+    if (command === "servers" || command === "server" || command === "byos")
+        return serversCommand(client, platformCtx, args);
+    if (command === "rm" || command === "remove")
+        return removeCommand(client, platformCtx, args);
+    if (command === "rollback" || command === "promote")
+        return rollbackCommand(client, platformCtx, args);
+    if (command === "cancel")
+        return cancelCommand(client, platformCtx, args);
+    if (command === "rebuild")
+        return rebuildCommand(client, platformCtx, args);
+    if (command === "errors")
+        return errorsCommand(client, platformCtx, args);
+    if (command === "restart" || command === "pause" || command === "resume")
+        return lifecycleCommand(client, platformCtx, command, args);
+    if (command === "health")
+        return healthCommand(client, platformCtx, args);
+    if (command === "metrics")
+        return metricsCommand(client, platformCtx, args);
+    if (command === "cache")
+        return cacheCommand(client, platformCtx, args);
+    if (command === "curl")
+        return curlCommand(client, platformCtx, args);
+    if (command === "tunnel" || command === "tunnels")
+        return tunnelCommand(client, args);
+    if (command === "webhook" || command === "webhooks" || command === "hooks")
+        return webhookCommand(client, args);
+    if (command === "check")
+        return checkCommand(client, args);
+    if (command === "tools")
+        return toolsCommand(client, args);
     throw new Error(`Unknown command: ${command}`);
 }
 async function login(args) {
@@ -505,7 +616,7 @@ async function doctor(args) {
         add("auth", false, "Run pxxl login --api-key <key> or set PXXL_API_KEY", true);
     }
     try {
-        const response = await fetch(`${PXXL_API_BASE_URL}/cli/whoami`, { method: "GET" });
+        const response = await fetch(`${resolvePxxlAPIBaseURL()}/cli/whoami`, { method: "GET" });
         const reachable = response.status < 500;
         add("internet", reachable, reachable ? `Pxxl Gateway is reachable (HTTP ${response.status})` : `Gateway returned HTTP ${response.status}`, !reachable);
     }
@@ -513,7 +624,7 @@ async function doctor(args) {
         add("internet", false, "Could not reach Pxxl Gateway. Check your internet connection.");
     }
     const git = await gitState(cwd);
-    add("git", git.inside && git.clean, git.detail, git.inside && !git.clean);
+    add("git", git.inside && git.clean, git.inside ? git.detail : "Not a git repository (fine: pxxl deploy uploads this folder)", !git.inside || !git.clean);
     add("pxxl.toml", await exists(resolve(cwd, "pxxl.toml")), (await exists(resolve(cwd, "pxxl.toml"))) ? "Found project config" : "Missing pxxl.toml; run pxxl init", true);
     add(".pxxlignore", await exists(resolve(cwd, ".pxxlignore")), (await exists(resolve(cwd, ".pxxlignore"))) ? "Found deploy ignore file" : "Missing .pxxlignore; run pxxl init", true);
     const inspection = await analyzeLocalProject(cwd);
@@ -618,11 +729,25 @@ async function deploy(client, args) {
     if (flagValue(args, "--message") || flagValue(args, "-m"))
         config.commitMessage = flagValue(args, "--message") || flagValue(args, "-m");
     const cwd = resolve(flagValue(args, "--dir") || ".");
+    const saved = await readPxxlToml(cwd);
+    if (!config.domainChoice && !saved.domainChoice && !saved.projectId) {
+        // Like a first `vercel` run: pick the account's first Pxxl domain instead of failing.
+        const options = extractDomainOptions(await client.deployDomainOptions().catch(() => ({})));
+        config.domainChoice = isInteractive() && options.length > 1 && !args.includes("--yes")
+            ? await promptSelect("Domain", options.map((value) => ({ label: value, value })))
+            : options[0] || "pxxl.pro";
+        print(dim(`Using ${config.domainChoice} (change with --domain)`));
+    }
     const archive = await createProjectZip(cwd);
     print(`Created Pxxl deploy archive (${archive.length} bytes, sha256 ${sha256Hex(archive).slice(0, 16)}...)`);
     const result = await spinner("Uploading deploy archive", () => client.deploy({ ...config, cwd }));
     await persistDeploymentResult(cwd, result);
     printDeployResult(result, "Deployment started");
+    const root = asRecord(result);
+    const deploymentId = stringValue(root.deploymentId || asRecord(root.deployment).id);
+    const url = stringValue(root.domainName || asRecord(root.deployment).domain || asRecord(root.project).domain);
+    if (deploymentId && !args.includes("--no-wait") && !wantsJSON(args))
+        await reportDeployment(client, deploymentId, args, url && !url.startsWith("http") ? `https://${url}` : url);
 }
 async function redeploy(client, args) {
     const id = required(args.shift(), "project id");
@@ -646,6 +771,8 @@ async function projects(client, args) {
             return printJSON(result);
         return printProjectDetails(result);
     }
+    if (["update", "set", "auto-deploy", "history", "rollbacks", "usage"].includes(command))
+        return projectSettingsCommand(client, platformCtx, command, args);
     throw new Error(`Unknown projects command: ${command}`);
 }
 async function deployments(client, args) {
@@ -655,6 +782,8 @@ async function deployments(client, args) {
     }
     if (command === "get" || command === "show") {
         const id = await resolveDeploymentId(client, args.shift(), args);
+        if (args.includes("--follow") || args.includes("-f") || args.includes("--logs"))
+            return deploymentLogsCommand(client, platformCtx, args, id);
         const result = await spinner("Fetching deployment", () => client.getDeployment(id));
         if (wantsJSON(args))
             return printJSON(result);
@@ -696,7 +825,11 @@ async function pullProject(client, args) {
 }
 async function envs(client, args) {
     const command = args.shift();
-    if (command === "list") {
+    if (["add", "set", "rm", "remove", "delete", "get", "pull"].includes(command || ""))
+        return envCommand(client, platformCtx, command, args);
+    if (command === "list" || command === "ls" || !command) {
+        if (!command || !firstValueArg(args))
+            args.unshift(await resolveProjectIdFromArgsOrConfig(client, undefined, args));
         const id = await resolveProjectId(client, args.shift(), args);
         const result = await spinner("Fetching environment variables", () => client.listProjectEnv(id, { global: args.includes("--global") }));
         if (wantsJSON(args))
@@ -941,7 +1074,71 @@ async function analytics(client, args) {
     }
     if (wantsJSON(args))
         return printJSON(result);
-    return printNestedObject("Analytics", result);
+    return printTraffic(result, timeframe);
+}
+function printInvoiceList(title, value) {
+    const root = asRecord(value);
+    const rows = arrayValue(root.invoices || root.data || value).map(asRecord).map((invoice) => {
+        const currency = stringValue(invoice.currency || "USD");
+        const amount = Number(invoice.grandTotal ?? invoice.total ?? invoice.amount ?? 0);
+        return {
+            id: stringValue(invoice.id || invoice.invoiceId),
+            type: stringValue(invoice.type || invoice.source) || "-",
+            status: stringValue(invoice.status) || "-",
+            amount: `${currency} ${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+            due: shortDate(invoice.dueDate || invoice.expiresAt),
+            created: shortDate(invoice.createdAt || invoice.created_at),
+        };
+    });
+    printHeader(title);
+    if (!rows.length)
+        return print(dim("No invoices."));
+    printTable("", rows, ["id", "type", "status", "amount", "due", "created"]);
+    print(dim(`${rows.length} invoice${rows.length === 1 ? "" : "s"} · details: pxxl invoices get <id>`));
+}
+function formatBytesShort(bytes) {
+    if (!Number.isFinite(bytes))
+        return "-";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+}
+function printTraffic(value, timeframe) {
+    const root = asRecord(value);
+    const summary = asRecord(root.summary);
+    printHeader(`Traffic · last ${stringValue(root.timeframe) || timeframe}`);
+    if (Object.keys(summary).length) {
+        const security = asRecord(summary.security);
+        printKV([
+            ["Requests", Number(summary.totalRequests ?? summary.total_requests ?? 0).toLocaleString()],
+            ["Unique IPs", Number(summary.uniqueIPs ?? 0).toLocaleString()],
+            ["Live users", String(summary.liveUsers ?? summary.onlineUsers ?? 0)],
+            ["Bandwidth", formatBytesShort(Number(summary.bandwidthBytes ?? 0))],
+            ["Latency", summary.p50LatencyMs !== undefined ? `p50 ${Math.round(Number(summary.p50LatencyMs))}ms · p95 ${Math.round(Number(summary.p95LatencyMs))}ms · p99 ${Math.round(Number(summary.p99LatencyMs))}ms` : "-"],
+            ["Firewall", Object.keys(security).length ? `${Number(security.allowed ?? 0).toLocaleString()} allowed · ${Number(security.blocked ?? 0).toLocaleString()} blocked` : "-"],
+        ]);
+    }
+    const domains = Object.entries(asRecord(root.domains)).map(([domain, raw]) => {
+        const data = asRecord(raw);
+        const visits = asRecord(data.analytics);
+        return {
+            domain,
+            requests: Number(data.totalRequests ?? data.total_requests ?? 0).toLocaleString(),
+            visitors: String(visits.visitors ?? "-"),
+            views: String(visits.pageViews ?? "-"),
+            bandwidth: formatBytesShort(Number(data.bandwidthBytes ?? 0)),
+            top: arrayValue(data.top_uris).slice(0, 1).map((item) => stringValue(asRecord(item).uri || asRecord(item).path || item)).join(""),
+        };
+    });
+    if (domains.length)
+        printTable("Domains", domains, ["domain", "requests", "visitors", "views", "bandwidth", "top"]);
+    if (!Object.keys(summary).length && !domains.length)
+        print(dim("No traffic yet."));
 }
 async function customers(client, args) {
     const command = args.shift() || "list";
@@ -986,7 +1183,7 @@ async function invoices(client, args) {
         const result = await spinner("Fetching invoices", () => client.listDomainInvoices(teamId));
         if (wantsJSON(args))
             return printJSON(result);
-        return printNestedObject("Invoices", result);
+        return printInvoiceList("Invoices", result);
     }
     if (command === "get" || command === "show") {
         const id = required(firstValueArg(args), "invoice id");
@@ -1045,7 +1242,7 @@ async function billing(client, args) {
         const result = await spinner("Fetching all invoices", () => client.listInvoices({ status: flagValue(args, "--status"), teamId }));
         if (wantsJSON(args))
             return printJSON(result);
-        return printNestedObject("Billing invoices", result);
+        return printInvoiceList("Billing invoices", result);
     }
     if (command === "get" || command === "show") {
         const id = required(firstValueArg(args), "invoice id");
@@ -1466,6 +1663,9 @@ async function logs(client, args) {
     const since = flagValue(args, "--since");
     const projectId = flagValue(args, "--project") || flagValue(args, "--project-id") || config.projectId;
     const deploymentId = flagValue(args, "--deployment") || flagValue(args, "--deployment-id") || (!projectId ? config.deploymentId : undefined);
+    if (args.includes("--build") || flagValue(args, "--deployment") || flagValue(args, "--deployment-id")) {
+        return deploymentLogsCommand(client, platformCtx, args, flagValue(args, "--deployment") || flagValue(args, "--deployment-id"));
+    }
     const fetchLogs = async () => {
         if (deploymentId)
             return client.deploymentLogs(deploymentId, { build: true, since });
@@ -1473,14 +1673,40 @@ async function logs(client, args) {
             return client.projectLogs(projectId, { lines, live: args.includes("--live") || args.includes("--follow"), since });
         throw new Error("No project or deployment found. Pass --project <id>, --deployment <id>, or run inside a folder with pxxl.toml.");
     };
-    if (args.includes("--follow")) {
+    if (args.includes("--follow") || args.includes("-f")) {
+        // Each poll returns the recent window; print only lines not seen yet.
+        const seen = new Set();
+        let first = true;
         while (true) {
-            const result = await fetchLogs();
-            printLogs(result, since);
-            await new Promise((resolveTimer) => setTimeout(resolveTimer, 3000));
+            try {
+                const rows = logLines(await fetchLogs());
+                for (const row of first ? rows.slice(-lines) : rows) {
+                    const key = `${row.timestamp}|${row.content}`;
+                    if (seen.has(key))
+                        continue;
+                    seen.add(key);
+                    print(`${dim(row.time || "        ")} ${row.content}`);
+                }
+                if (seen.size > 20000)
+                    seen.clear();
+                first = false;
+            }
+            catch (error) {
+                print(red(`Could not fetch logs: ${error instanceof Error ? error.message : String(error)} (retrying)`));
+            }
+            await new Promise((resolveTimer) => setTimeout(resolveTimer, 2000));
         }
     }
-    const result = await spinner("Fetching logs", fetchLogs);
+    let result;
+    try {
+        result = await spinner("Fetching logs", fetchLogs);
+    }
+    catch (error) {
+        if (projectId && !deploymentId) {
+            throw new Error(`${error instanceof Error ? error.message : String(error)}. Runtime logs need a running app; for build logs run pxxl logs --deployment <id> or pxxl errors.`);
+        }
+        throw error;
+    }
     if (wantsJSON(args))
         return printJSON(result);
     printLogs(result, since);
@@ -1731,7 +1957,7 @@ function detectFramework(deps, cwd) {
 function detectRuntime(framework, deps, cwd) {
     if (framework === "php" || cwd.endsWith(".php"))
         return "php";
-    if (framework || Object.keys(deps).length)
+    if (framework || Object.keys(deps).length || existsSync(resolve(cwd, "package.json")))
         return "node";
     return "static";
 }
@@ -1812,8 +2038,15 @@ async function authedClient() {
     const config = await readAuthConfig();
     if (!config.apiKey)
         throw new Error("Run `pxxl login --api-key <key>` or set PXXL_API_KEY.");
-    return new PxxlClient({ apiKey: config.apiKey, teamId: config.selectedTeamId });
+    return new Pxxl({ apiKey: config.apiKey, teamId: config.selectedTeamId });
 }
+const platformCtx = {
+    resolveProject: async (args) => resolveProjectIdFromArgsOrConfig(await authedClient(), flagValue(args, "--project"), args),
+    promptSelect: (label, options) => promptSelect(label, options),
+    promptConfirm: (label, defaultValue) => promptConfirm(label, defaultValue),
+    promptText: (label, defaultValue = "") => promptText(label, defaultValue),
+    interactive: () => isInteractive(),
+};
 function flagValue(args, name) {
     const index = args.indexOf(name);
     if (index === -1)
@@ -1882,18 +2115,23 @@ async function promptSelect(label, options) {
         throw new Error(`No options available for ${label}.`);
     if (!isInteractive())
         throw new Error(`${label} is required. Pass a value as a CLI argument or run in an interactive terminal.`);
+    const visible = options.filter((option) => !option.hidden);
     print(`\n${bold(label)}`);
-    options.forEach((option, index) => print(`  ${cyan(String(index + 1).padStart(2, " "))}. ${option.label}`));
+    visible.forEach((option, index) => print(`  ${cyan(String(index + 1).padStart(2, " "))}. ${option.label}`));
     while (true) {
-        const answer = await promptText("Select", "1");
+        const answer = (await promptText("Select", "1")).trim();
         const index = Number(answer) - 1;
-        if (Number.isInteger(index) && options[index])
-            return options[index].value;
-        const match = options.find((option) => option.value === answer || option.label.toLowerCase() === answer.toLowerCase());
+        if (Number.isInteger(index) && visible[index])
+            return visible[index].value;
+        const lower = answer.toLowerCase();
+        const match = options.find((option) => option.value === answer || (option.name || "").toLowerCase() === lower || stripAnsiText(option.label).toLowerCase().startsWith(lower + " "));
         if (match)
             return match.value;
-        print(red("Invalid selection. Try again."));
+        print(red("No match. Type a number from the list, or a name."));
     }
+}
+function stripAnsiText(value) {
+    return value.replace(/\u001b\[[0-9;]*m/g, "");
 }
 async function maybePromptSelect(label, values, defaultValue) {
     if (!isInteractive())
@@ -2419,7 +2657,10 @@ function printDomains(value) {
     printHeader("Domains");
     if (!rows.length)
         return print(dim("No domains found."));
-    printTable("", rows, ["domain", "status", "type", "id"]);
+    // The list endpoint returns names only; show the other columns only when it sends them.
+    const columns = ["domain", ...["status", "type", "id"].filter((column) => rows.some((row) => row[column] && row[column] !== "-"))];
+    printTable("", rows, columns);
+    print(dim(`${rows.length} domain${rows.length === 1 ? "" : "s"} · details: pxxl domains check <domain>`));
 }
 function printCronJobs(value) {
     const rows = normalizeCronRows(value);
@@ -2490,17 +2731,21 @@ function printProjectDetails(value) {
     const root = asRecord(value);
     const project = asRecord(root.project || root.data || root);
     printHeader("Project");
-    printKV([
+    const latest = asRecord(arrayValue(project.deployments)[0]);
+    const rows = [
         ["ID", stringValue(project.id)],
         ["Name", stringValue(project.name)],
-        ["Status", stringValue(project.status)],
+        ["Status", stringValue(project.status || latest.deploymentStatus)],
         ["Framework", stringValue(project.framework)],
         ["Language", stringValue(project.language)],
-        ["Domain", stringValue(project.domain || project.domainName)],
+        ["Domain", stringValue(project.domain || project.domainName || firstDomain(project.domains) || latest.domain)],
         ["Source", stringValue(project.source || project.repositoryProvider)],
         ["Branch", stringValue(project.githubBranch || project.branch)],
-        ["Created", shortDate(project.createdAt)],
-    ]);
+        ["Start", stringValue(project.startCommand)],
+        ["Port", stringValue(project.port)],
+        ["Created", project.createdAt ? shortDate(project.createdAt) : ""],
+    ];
+    printKV(rows.filter(([, value]) => stringValue(value) !== "" && stringValue(value) !== "-"));
 }
 function printDeployments(value) {
     const deployments = normalizeDeploymentRows(value);
@@ -2807,13 +3052,20 @@ function printPageInfo(value) {
         print(dim(`Page ${info.page}/${info.totalPages} · ${info.total} total · ${info.limit} per page`));
     }
 }
+function firstDomain(value) {
+    const first = arrayValue(value)[0];
+    if (typeof first === "string")
+        return first;
+    const domain = asRecord(first);
+    return stringValue(domain.domain || domain.name || domain.hostname);
+}
 function projectRow(value) {
     const project = asRecord(value);
     return {
         name: stringValue(project.name || project.id),
         framework: stringValue(project.framework || project.language) || "-",
         status: stringValue(project.status) || "-",
-        domain: stringValue(project.domain || project.domainName || project.url) || "-",
+        domain: stringValue(project.domain || project.domainName || project.url || firstDomain(project.domains)) || "-",
         id: stringValue(project.id),
     };
 }

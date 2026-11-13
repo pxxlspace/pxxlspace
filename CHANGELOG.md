@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 - 2026-11-13
+
+Go, Python and Rust SDKs: 0.3.0.
+
+- Domain reselling (Pro and Enterprise): sell domains to your own customers, paid from your Pxxl
+  wallet at wholesale. Use a reseller key (`pxxl_rsl_…`) from Tools > Domain reseller.
+- CLI: `pxxl domains reseller` with `account`, `prices`, `check`, `quote`, `buy`, `transfer`, `list`,
+  `status`, `renew`, `lock`/`unlock`, `transfer-code`, `charges`, `dns` and `nameservers`.
+- SDK: `pxxl.reseller.*` (JS), `client.Reseller()` (Go), `client.reseller` (Python), `client.reseller()` (Rust).
+- Deleting a `.cv` DNS record takes the record id and its zone id (`zoneId`, `--zone-id`).
+
 ## 0.4.0 - 2026-11-12
 
 - `pxxl deploy` streams the build and ends with the live URL; picks a Pxxl domain on the first deploy.

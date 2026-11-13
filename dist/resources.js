@@ -244,6 +244,19 @@ export class PxxlProjects {
     deployments(input = {}) { return this.client.listDeployments(input); }
     logs(id, input) { return this.client.projectLogs(id, input); }
     liveLogs(id, input) { return this.client.projectLogs(id, { ...input, live: true }); }
+    status(id) { return this.client.projectLiveStatus(id); }
+    metrics(id, input) { return this.client.projectMetrics(id, input); }
+    usage(id) { return this.client.projectComputeUsage(id); }
+    diagnostics(id) { return this.client.projectDiagnostics(id); }
+    rollbacks(id) { return this.client.projectRollbacks(id); }
+    update(id, settings) { return this.client.updateProject(id, settings); }
+    delete(id) { return this.client.deleteProject(id); }
+    restart(id) { return this.client.restartProject(id); }
+    pause(id) { return this.client.pauseProject(id); }
+    /** Resume a paused project (starts it again). */
+    resume(id) { return this.client.restartProject(id); }
+    autoDeploy(id, enabled) { return this.client.setAutoDeploy(id, enabled); }
+    purgeCache(id, input) { return this.client.purgeProjectCache(id, input); }
 }
 export class PxxlEnvironmentVariables {
     client;
@@ -253,6 +266,11 @@ export class PxxlEnvironmentVariables {
     list(projectId, options) { return this.client.listProjectEnv(projectId, options); }
     diff(projectId, vars, options) { return this.client.diffProjectEnv(projectId, vars, options); }
     push(projectId, vars, options) { return this.client.pushProjectEnv(projectId, vars, options); }
+    add(projectId, input) { return this.client.addProjectEnv(projectId, input); }
+    update(projectId, input) { return this.client.updateProjectEnv(projectId, input); }
+    remove(projectId, key) { return this.client.deleteProjectEnv(projectId, key); }
+    reveal(projectId, key) { return this.client.revealProjectEnv(projectId, key); }
+    history(projectId) { return this.client.projectEnvHistory(projectId); }
 }
 export class PxxlDeployments {
     client;
@@ -264,6 +282,11 @@ export class PxxlDeployments {
     logs(id, input) { return this.client.deploymentLogs(id, input); }
     buildLogs(id, since) { return this.client.deploymentLogs(id, { build: true, since }); }
     redeploy(id, input) { return this.client.redeployProject(id, input); }
+    rollback(id) { return this.client.rollbackDeployment(id); }
+    cancel(id) { return this.client.cancelDeployment(id); }
+    rebuild(id) { return this.client.rebuildDeployment(id); }
+    buildErrors(id) { return this.client.deploymentBuildErrors(id); }
+    active() { return this.client.activeDeployments(); }
     deploy(input) { return this.client.deploy(input); }
 }
 export class PxxlTeams {
