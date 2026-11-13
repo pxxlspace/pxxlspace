@@ -101,7 +101,8 @@
             "group": "Tools",
             "pages": [
               "tools/tunnels",
-              "tools/webhooks"
+              "tools/webhooks",
+              "tools/domain-reseller"
             ]
           },
           {
