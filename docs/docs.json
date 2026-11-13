@@ -172,6 +172,7 @@
               "integrations/sdk/databases",
               "integrations/sdk/cron-jobs",
               "integrations/sdk/analytics-teams",
+              "integrations/sdk/servers-tools",
               "integrations/sdk/mcp",
               "integrations/sdk/errors-raw-requests",
               "integrations/sdk/publishing"
@@ -190,6 +191,7 @@
               "integrations/api/databases",
               "integrations/api/cron-jobs",
               "integrations/api/analytics-teams",
+              "integrations/api/servers-tools",
               "integrations/api/mcp"
             ]
           },

@@ -5,7 +5,7 @@ description: "Understand resources, collections, actions, downloads, and API err
 
 ## Resources
 
-Single-resource endpoints commonly return the resource under a named field.
+Most single-resource endpoints return the resource under a named field.
 
 ```json
 {
@@ -18,7 +18,7 @@ Single-resource endpoints commonly return the resource under a named field.
 }
 ```
 
-Some automation routes return the resource directly when no extra metadata is needed.
+Some routes return the resource directly. Cron job create, get, and update work this way.
 
 ```json
 {
@@ -28,32 +28,57 @@ Some automation routes return the resource directly when no extra metadata is ne
 }
 ```
 
+Older domain and billing routes add `"error": false` on success and `"error": true` on failure instead of `success`.
+
 ## Collections
 
-Collection keys describe the returned resource. Count and pagination fields can appear beside the array.
-
-```json
-{
-  "assets": [],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 0,
-    "totalPages": 0
-  }
-}
-```
-
-## Actions
-
-Start, stop, trigger, resync, and delete endpoints return the accepted state or an empty successful response.
+The collection key names the resource. Counts and pagination fields sit beside the array, and their names vary by module.
 
 ```json
 {
   "success": true,
-  "message": "Action accepted",
-  "status": "starting"
+  "assets": [],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total": 0,
+    "pages": 0
+  }
 }
+```
+
+| Module | Shape |
+| --- | --- |
+| Projects, deployments | `total`, `page`, `limit`, `totalPages` |
+| CDN assets | `pagination.page`, `pagination.limit`, `pagination.total`, `pagination.pages` |
+| Storage objects | `total`, `prefix`, `nextOffset` when more remain |
+| Cron runs | `total`, `page`, `limit`, `totalPages` |
+| Databases, teams, contacts, invoices | `total` or `count` |
+
+## Actions
+
+Start, stop, restart, trigger, and delete endpoints return a short result. Some also return the updated resource.
+
+```json
+{
+  "success": true,
+  "message": "Project restarted successfully",
+  "status": "active"
+}
+```
+
+Queued work returns `201` or `202`. Deploys, redeploys, rollbacks, and rebuilds return a `deploymentId`. Cron triggers return a `runId`. Server actions return an `action` you can poll.
+
+## Idempotent creation
+
+Database, storage bucket, storage access key, and cron job creation accept an `Idempotency-Key` header of 8 to 180 characters. Retrying with the same key and body does not create a duplicate. Reusing a key with a different body returns `409` with code `idempotency_key_reused`.
+
+```bash
+curl --request POST https://server.pxxl.app/api/v3/storage/buckets \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Idempotency-Key: create-uploads-bucket-001" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"uploads"}'
 ```
 
 ## Downloads
@@ -68,15 +93,15 @@ curl --output asset.bin \
 
 ## Errors
 
-Errors use the HTTP status code and a JSON body. Validation and plan-limit responses can include structured details.
+Errors use the HTTP status code and a JSON body with a `message`. Some add a `code`, `reason`, or plan details.
 
 ```json
 {
+  "error": true,
   "code": "DOMAIN_LIMIT_EXCEEDED",
-  "message": "Your current plan domain limit has been reached.",
-  "limit": 5,
-  "used": 5,
-  "requestId": "req_123"
+  "message": "Your current plan allows 0 custom domains. Upgrade your plan to add a domain to a project.",
+  "limit": 0,
+  "used": 0
 }
 ```
 
@@ -84,15 +109,15 @@ Errors use the HTTP status code and a JSON body. Validation and plan-limit respo
 | --- | --- |
 | `400` | Invalid parameters or body |
 | `401` | Missing or invalid API key |
-| `403` | Missing scope, write permission, or plan access |
-| `404` | Resource not found in the selected user or team scope |
-| `409` | Requested state conflicts with the current state |
-| `413` | Upload exceeds the accepted limit |
+| `402` | Paid plan required, or a plan limit was reached |
+| `403` | Missing scope, write permission, team access, or plan access |
+| `404` | Resource not found in your account or team |
+| `409` | Conflicts with the current state, such as a name in use or an action already running |
+| `413` | Upload or content exceeds the accepted size |
 | `422` | Valid JSON with unsupported values |
 | `429` | Rate limit reached |
 | `500` | Unexpected server failure |
-
-Use `requestId` when contacting Pxxl support.
+| `503` | A creation lock or dependency is busy. Retry shortly. |
 
 <Note>
   Examples show stable fields used by clients. Pxxl can add response fields without breaking existing integrations.

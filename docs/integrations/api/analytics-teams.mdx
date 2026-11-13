@@ -7,8 +7,10 @@ description: "Read traffic analytics and work within team scopes."
 
 `GET /projects/{projectId}/analytics/traffic`
 
+Analytics routes need a key scoped to `all`, `analytics`, `project`, or `domain`, and a paid plan.
+
 <ParamField query="timeframe" type="24h | 48h | 72h | 7d | 30d" default="24h">
-  Analytics period.
+  Analytics period. Other values fall back to `24h`.
 </ParamField>
 
 <ParamField query="domain" type="string">
@@ -22,38 +24,46 @@ curl "https://server.pxxl.app/api/v3/projects/proj_123/analytics/traffic?timefra
 
 ```json
 {
+  "success": true,
   "projectId": "proj_123",
   "timeframe": "7d",
-  "analytics": {
-    "requests": 12540,
-    "visitors": 3210,
-    "pageViews": 9820,
+  "domains": {
+    "api.example.com": {}
+  },
+  "summary": {
+    "totalRequests": 12540,
+    "uniqueIPs": 3210,
+    "bandwidthBytes": 440948430,
     "responseBytes": 428901220,
     "requestBytes": 12047210,
-    "errors": 31,
+    "onlineUsers": 4,
+    "avgLatencyMs": 24,
     "p50LatencyMs": 18,
     "p95LatencyMs": 76,
     "p99LatencyMs": 140,
-    "topDomains": [],
-    "countries": [],
-    "timeline": []
+    "security": { "allowed": 12509, "blocked": 31 }
   }
 }
 ```
+
+`domains` holds one entry per hostname with its own summary and timeline. When some data is unavailable the response adds `analyticsStatus: "degraded"` and `warnings`.
 
 ## Analytics endpoints
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/projects/{projectId}/analytics/traffic` | `timeframe?`, `domain?` | Project traffic summary and timeline |
-| `GET` | `/domains/my/{domainId}/analytics` | `timeframe?`, `teamId?` | Owned domain traffic |
-| `GET` | `/user/analytics` | `domain`, `timeframe?` | Traffic for an owned hostname |
+| `GET` | `/projects/{projectId}/analytics/traffic` | `timeframe?`, `domain?` | `{ success, projectId, timeframe, domains, summary }` |
+| `GET` | `/domains/my/{domainId}/analytics` | `timeframe?`, `teamId?` | `{ success, summary, timeframe, domain }` |
+| `GET` | `/user/analytics` | `domain`, `timeframe?` | `{ success, summary, timeframe, domain }` |
+| `GET` | `/cli/domains/{hostname}/stats` | `timeframe?` (default `30d`), `teamId?` | `{ success, domain, data }` |
 
-Analytics responses can include requests, unique visitors, page views, request and response transfer, errors, latency percentiles, countries, devices, referrers, paths, and timeline buckets.
+`/user/analytics` returns `403` if the hostname is not yours. A domain with no project returns an empty summary. `/cli/domains/{hostname}/stats` uses the domain key scopes (`all`, `domain`, or `reselling`).
 
 ## List teams
 
 `GET /teams`
+
+Team routes need a key scoped to `all`, `team`, or `database`.
 
 ```bash
 curl https://server.pxxl.app/api/v3/teams \
@@ -62,28 +72,31 @@ curl https://server.pxxl.app/api/v3/teams \
 
 ```json
 {
+  "success": true,
   "teams": [
     {
       "id": "team_123",
       "name": "Production",
+      "ownerId": "user_123",
       "myRole": "owner",
       "status": "active",
-      "totalMembers": 4,
-      "totalProjects": 8,
-      "totalDatabases": 2,
-      "totalDomains": 5
+      "planName": "Pro",
+      "totalMembers": 4
     }
   ],
   "total": 1
 }
 ```
 
+A team-scoped key sees only its own team. `/teams/{teamId}/databases` needs a key scoped to `all` or `database`.
+
 ## Team endpoints
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/teams` | None | `{ teams, total }` |
-| `GET` | `/teams/{teamId}` | Team ID | `{ team, success? }` |
-| `GET` | `/teams/{teamId}/databases` | Team ID | Team database collection |
+| `GET` | `/teams` | None | `{ success, teams, total }` |
+| `GET` | `/teams/{teamId}` | None | `{ success, team }` |
+| `GET` | `/teams/{teamId}/activity` | `limit?`, `cursor?` | `{ events, nextCursor }` |
+| `GET` | `/teams/{teamId}/databases` | None | `{ success, databases, total, role }` |
 
-Pass `teamId` to supported project, domain, database, cron, invoice, and usage endpoints when working outside your personal scope.
+Pass `teamId` to project, domain, database, cron, invoice, server, and usage endpoints when you work outside your personal scope.

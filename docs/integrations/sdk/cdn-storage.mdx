@@ -3,7 +3,7 @@ title: "CDN and Storage"
 description: "Upload CDN assets and manage S3-compatible buckets, objects, keys, usage, and analytics."
 ---
 
-Use CDN for directly served files. Use Storage for buckets, private objects, access keys, and S3-compatible tools.
+Use CDN for directly served files. Use Storage for buckets, private objects, access keys, and S3-compatible tools. See [Storage](/storage/overview) for limits and pricing.
 
 ## Storage buckets
 
@@ -13,8 +13,8 @@ Use CDN for directly served files. Use Storage for buckets, private objects, acc
   Unique display name for the bucket.
 </ParamField>
 
-<ParamField body="visibility" type="private | public" default="private">
-  Controls whether objects can be opened without authentication.
+<ParamField body="visibility" type="private | public" default="public">
+  Controls whether objects can be opened without authentication. Any value other than `private` is treated as `public`.
 </ParamField>
 
 <ParamField body="region" type="string">
@@ -91,8 +91,8 @@ Use CDN for directly served files. Use Storage for buckets, private objects, acc
 | Get | `storage.getBucket(id)` | `id` | `{ bucket, access? }` |
 | Update | `storage.updateBucket(id, input)` | `name?`, `visibility?` | `{ bucket, access? }` |
 | Delete | `storage.deleteBucket(id)` | `id` | No value |
-| Analytics | `storage.analytics(id, timeframe)` | `id`, `timeframe?` | Storage metrics object |
-| Billing | `storage.billing(input)` | `bucketId?`, `limit?` | `{ billing, entries, usageMonths?, invoices? }` |
+| Analytics | `storage.analytics(id, timeframe?)` | `id`, `timeframe?` (default `30d`) | Storage metrics object |
+| Billing | `storage.billing(input?)` | `bucketId?`, `limit?` | `{ billing, entries, usageMonths?, invoices? }` |
 
 ## Objects
 
@@ -111,20 +111,23 @@ Use CDN for directly served files. Use Storage for buckets, private objects, acc
 </ParamField>
 
 <ParamField body="path" type="string">
-  Optional path inside the bucket.
+  Optional folder inside the bucket.
 </ParamField>
 
 <ParamField body="visibility" type="private | public" default="public">
-  Per-object visibility.
+  Per-object visibility. The SDK sends `public` unless you pass `private`.
 </ParamField>
 
 ```ts
 const object = await pxxl.storage.uploadObject("bucket_123", {
-  file,
-  fileName: "avatars/robin.png",
+  file: new Blob([bytes], { type: "image/png" }),
+  fileName: "robin.png",
+  path: "avatars",
   visibility: "private",
 });
 ```
+
+In Node.js, `file` is a `Blob`. Rust can upload into a bucket with `upload_asset` and `bucket_id`. The Go and Python upload methods have no bucket field, so use the [raw request method](/integrations/sdk/errors-raw-requests) or S3 there.
 
 **Returns**
 
@@ -143,7 +146,7 @@ const object = await pxxl.storage.uploadObject("bucket_123", {
 
 | Operation | Node.js | Parameters | Returns |
 | --- | --- | --- | --- |
-| List | `storage.listObjects(bucketId, input)` | `page?`, `limit?`, `search?`, `kind?` | `{ assets, pagination }` |
+| List | `storage.listObjects(bucketId, input?)` | `page?`, `limit?`, `search?`, `kind?` | `{ assets, pagination }` |
 | Upload | `storage.uploadObject(bucketId, input)` | File fields above | Asset object |
 | Download | `storage.downloadObject(id)` | Object ID | Binary file |
 | Delete | `storage.deleteObject(id)` | Object ID | No value |
@@ -154,8 +157,8 @@ const object = await pxxl.storage.uploadObject("bucket_123", {
   Label that identifies the integration using the key.
 </ParamField>
 
-<ParamField body="permission" type="read | read_write" default="read">
-  Allowed S3 operations.
+<ParamField body="permission" type="read | read_write" default="read_write">
+  Allowed S3 operations. `read` allows only `GET` and `HEAD`.
 </ParamField>
 
 ```ts
@@ -192,7 +195,7 @@ const result = await pxxl.storage.createAccessKey("bucket_123", {
 | Operation | Node.js | Parameters | Returns |
 | --- | --- | --- | --- |
 | List | `storage.listAccessKeys(bucketId)` | Bucket ID | `{ keys }` without secrets |
-| Create | `storage.createAccessKey(bucketId, input)` | `name?`, `permission?` | `{ key, notice? }` |
+| Create | `storage.createAccessKey(bucketId, input?)` | `name?`, `permission?` | `{ key, notice? }` |
 | Delete | `storage.deleteAccessKey(bucketId, keyId)` | Bucket ID and key ID | No value |
 
 ## S3-compatible data access
@@ -227,7 +230,20 @@ const downloadUrl = await s3.signedGetUrl("invoices/inv_123.pdf", 900);
 await s3.delete("invoices/inv_123.pdf");
 ```
 
-`PxxlS3` supports `list`, `get`, `head`, `put`, `delete`, `copy`, `signedGetUrl`, and `signedPutUrl`.
+`createS3Client()` creates a key and returns a `PxxlS3` client built from it. It throws if Pxxl did not return the secret.
+
+| Method | What it does |
+| --- | --- |
+| `list(input?)` | Lists objects, with optional `Prefix`, `MaxKeys`, and other `ListObjectsV2` fields |
+| `get(key)` | Reads an object |
+| `head(key)` | Reads object metadata |
+| `put(key, body, input?)` | Writes an object, with optional `ContentType` and other `PutObject` fields |
+| `delete(key)` | Deletes an object |
+| `copy(sourceKey, destinationKey)` | Copies an object inside the bucket |
+| `signedGetUrl(key, expiresIn?)` | Presigned download URL, default 900 seconds |
+| `signedPutUrl(key, expiresIn?)` | Presigned upload URL, default 900 seconds |
+
+The underlying AWS `S3Client` is available as `s3.client`. `pxxl.storage.s3(credentials)` builds a `PxxlS3` from credentials you already have.
 
 ### Use stored credentials without a Pxxl API key
 
@@ -236,13 +252,14 @@ import { PxxlS3 } from "@pxxlapp/pxxl";
 
 const s3 = new PxxlS3({
   endpoint: process.env.PXXL_S3_ENDPOINT!,
-  region: process.env.PXXL_S3_REGION || "auto",
+  region: process.env.PXXL_S3_REGION, // defaults to "auto"
   bucket: process.env.PXXL_S3_BUCKET!,
   accessKeyId: process.env.PXXL_S3_ACCESS_KEY_ID!,
   secretAccessKey: process.env.PXXL_S3_SECRET_ACCESS_KEY!,
-  pathStyle: true,
 });
 ```
+
+`pathStyle` defaults to `true`. The environment variable names here are only an example.
 
 For Go, Python, and Rust, pass the returned `endpoint`, `region`, `bucket`, `accessKeyId`, `secretAccessKey`, and `pathStyle` fields to the standard AWS S3 client for that language. This works with AWS SDK for Go v2, `boto3`, and `aws-sdk-s3`.
 
@@ -279,19 +296,19 @@ const analytics = await pxxl.storage.analytics("bucket_123", "30d");
 
 ### Upload an asset
 
-<ParamField body="file" type="file | bytes" required>
-  Asset contents.
+<ParamField body="file" type="Blob | reader | bytes" required>
+  Asset contents. Node.js takes a `Blob`, Go an `io.Reader`, Python bytes, a file object, or `file_path`, and Rust `bytes`.
 </ParamField>
 
 <ParamField body="fileName" type="string" required>
-  File name sent to Pxxl.
+  File name sent to Pxxl. Python uses the file's own name when you pass `file_path`.
 </ParamField>
 
 <ParamField body="visibility" type="private | public" default="public">
   Public assets receive a `publicUrl`.
 </ParamField>
 
-<ParamField body="kind" type="file | artifact" default="file">
+<ParamField body="kind" type="file | artifact">
   Classifies the uploaded asset.
 </ParamField>
 
@@ -307,7 +324,7 @@ const analytics = await pxxl.storage.analytics("bucket_123", "30d");
   <Tab title="Node.js">
     ```ts
     const asset = await pxxl.cdn.upload({
-      file,
+      file: new Blob([logoBytes], { type: "image/png" }),
       fileName: "logo.png",
       visibility: "public",
       projectId: "proj_123",
@@ -316,6 +333,12 @@ const analytics = await pxxl.storage.analytics("bucket_123", "30d");
   </Tab>
   <Tab title="Go">
     ```go
+    file, err := os.Open("logo.png")
+    if err != nil {
+      log.Fatal(err)
+    }
+    defer file.Close()
+
     asset, err := client.UploadAsset(ctx, pxxl.UploadAssetInput{
       Reader: file, FileName: "logo.png", Visibility: "public",
       ProjectID: "proj_123",
@@ -347,14 +370,29 @@ The returned asset uses the same object shape shown above and includes `publicUr
 
 | Operation | Node.js | Parameters | Returns |
 | --- | --- | --- | --- |
-| Summary | `cdn.summary()` | None | `{ totalFiles, storageBytes, uploadsLast24h, recentAssets, configured }` |
-| List | `cdn.list(input)` | `page?`, `limit?`, `search?`, `kind?`, `bucketId?` | `{ assets, pagination }` |
+| Summary | `cdn.summary()` | None | `{ totalFiles, storageBytes, uploadedBytes, downloadedBytes, uploadsLast24h, recentAssets, configured, storageName }` |
+| List | `cdn.list(input?)` | `page?`, `limit?`, `search?`, `kind?`, `bucketId?` | `{ assets, pagination }` |
 | Upload | `cdn.upload(input)` | Asset fields above | Asset object |
 | Download | `cdn.download(id)` | Asset ID | Binary file |
 | Delete | `cdn.delete(id)` | Asset ID | No value |
-| Usage | `cdn.usage(limit)` | `limit?` | Usage event array |
+| Usage | `cdn.usage(limit?)` | `limit?` (default 100) | Usage event array |
 | Space | `cdn.space()` | None | `{ space, storageName? }` |
-| Create space | `cdn.createSpace(input)` | `name?` | `{ space, storageName? }` |
-| Proxy logs | `cdn.proxyLogs(input)` | `limit?`, `projectId?` | Proxy log collection |
-| Edge functions | `cdn.edgeFunctions(input)` | `projectId?`, `status?`, `limit?` | Edge function collection |
-| Create edge function | `cdn.createEdgeFunction(input)` | `name`, route/runtime/source fields | Created edge function |
+| Create space | `cdn.createSpace(input?)` | `name?` | `{ space, storageName? }` |
+| Proxy logs | `cdn.proxyLogs(input?)` | `limit?`, `projectId?` | Proxy log collection |
+| Edge functions | `cdn.edgeFunctions(input?)` | `projectId?`, `status?`, `limit?` | Edge function collection |
+| Create edge function | `cdn.createEdgeFunction(input)` | `name`, `projectId?`, `route?`, `runtime?`, `source?`, `status?`, `metadata?` | Created edge function |
+
+`pxxl.assets` is the same object as `pxxl.cdn`.
+
+## Other languages
+
+| Operation | Go | Python | Rust |
+| --- | --- | --- | --- |
+| Buckets | `ListStorageBuckets`, `GetStorageBucket`, `CreateStorageBucket`, `UpdateStorageBucket`, `DeleteStorageBucket` | `list_storage_buckets`, `get_storage_bucket`, `create_storage_bucket`, `update_storage_bucket`, `delete_storage_bucket` | `list_storage_buckets`, `get_storage_bucket`, `create_storage_bucket`, `update_storage_bucket`, `delete_storage_bucket` |
+| Analytics and billing | `StorageAnalytics(ctx, id, timeframe)`, `StorageBilling(ctx, values)` | `storage_analytics(id, timeframe="30d")`, `storage_billing(**params)` | `storage_analytics(id, timeframe)`, `storage_billing(query)` |
+| Access keys | `ListStorageAccessKeys`, `CreateStorageAccessKey`, `DeleteStorageAccessKey` | `list_storage_access_keys`, `create_storage_access_key`, `delete_storage_access_key` | `list_storage_access_keys`, `create_storage_access_key`, `delete_storage_access_key` |
+| CDN assets | `Summary`, `ListAssets`, `UploadAsset`, `DownloadAsset`, `DeleteAsset` | `summary`, `list_assets`, `upload_asset`, `download_asset`, `delete_asset` | `summary`, `list_assets`, `upload_asset`, `download_asset`, `delete_asset` |
+| CDN space and usage | `GetCDNSpace`, `CreateCDNSpace`, `CDNUsage`, `CDNProxyLogs` | `get_cdn_space`, `create_cdn_space`, `cdn_usage`, `cdn_proxy_logs` | `get_cdn_space`, `create_cdn_space`, `cdn_usage`, `cdn_proxy_logs` |
+| Edge functions | `ListEdgeFunctions`, `CreateEdgeFunction` | `list_edge_functions`, `create_edge_function` | `list_edge_functions`, `create_edge_function` |
+
+The `PxxlS3` helper is in Node.js only.

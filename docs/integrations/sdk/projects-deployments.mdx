@@ -1,24 +1,32 @@
 ---
 title: "Projects and deployments"
-description: "Deploy source code, inspect projects, redeploy, and read logs."
+description: "Deploy source code, inspect and control projects, roll back, and read logs."
 ---
 
 ## Deploy a directory
 
+The SDK zips a directory and uploads it, like `pxxl deploy`. It leaves out `.git`, `node_modules`, `.env` files, logs, and build folders such as `dist` and `build`. Files that look like private keys or credentials stop the deploy with an error in Node.js and Go; Python and Rust leave them out. The archive can hold up to 12,000 files and 220 MiB of source.
+
+In Node.js, settings in [`pxxl.toml`](/reference/pxxl-toml) are read from the directory first, and the values you pass override them. Node.js also applies your `.pxxlignore` file.
+
 <ParamField body="cwd" type="path" default="current directory">
-  Directory packaged and uploaded by the SDK.
+  Directory to package. Go calls it `Directory`; Python and Rust call it `directory`.
 </ParamField>
 
-<ParamField body="name" type="string" required>
-  Project name for a new deployment.
+<ParamField body="archivePath" type="path">
+  Upload an existing zip file instead of packaging a directory. Go: `ArchivePath`; Python and Rust: `archive_path`.
 </ParamField>
 
-<ParamField body="domainChoice" type="string" required>
-  Pxxl domain suffix for a new project, such as `pxxl.pro`.
+<ParamField body="name" type="string">
+  Project name. Required when you create a new project.
+</ParamField>
+
+<ParamField body="domainChoice" type="string">
+  Pxxl domain suffix for a new project, such as `pxxl.pro`. Required when you create a new project.
 </ParamField>
 
 <ParamField body="projectId" type="string">
-  Deploys to an existing project instead of creating one.
+  Deploy to an existing project instead of creating one.
 </ParamField>
 
 <ParamField body="environment" type="string" default="production">
@@ -26,7 +34,7 @@ description: "Deploy source code, inspect projects, redeploy, and read logs."
 </ParamField>
 
 <ParamField body="port" type="number">
-  Port exposed by a web service.
+  Port your web service listens on.
 </ParamField>
 
 <ParamField body="baseDirectory" type="string">
@@ -44,6 +52,8 @@ description: "Deploy source code, inspect projects, redeploy, and read logs."
 <ParamField body="startCommand" type="string">
   Overrides the detected start command.
 </ParamField>
+
+You can also pass `language`, `framework`, `packageManager`, `entryFile`, and `commitMessage`. The Rust `DeployInput` has no `port`, `base_directory`, or `entry_file` fields.
 
 <Tabs>
   <Tab title="Node.js">
@@ -91,21 +101,40 @@ description: "Deploy source code, inspect projects, redeploy, and read logs."
   "success": true,
   "projectId": "proj_123",
   "deploymentId": "dep_123",
-  "projectUrl": "https://api.pxxl.pro",
-  "status": "queued",
-  "taskId": "task_123"
+  "url": "https://api.pxxl.pro"
 }
 ```
+
+Go returns a `*pxxl.DeployResult` with `Success`, `Message`, `ProjectID`, `DeploymentID`, `URL`, `DeploymentURL`, and the full body in `Raw`.
 
 ## Project operations
 
 | Operation | Node.js | Parameters | Returns |
 | --- | --- | --- | --- |
 | List | `projects.list(input?)` | `teamId?`, `page?`, `limit?` | Project list and pagination |
-| Get | `projects.get(id)` | Project ID | `{ project }` or project data wrapper |
+| Get | `projects.get(id)` | Project ID | Project detail |
 | Deployments | `projects.deployments(input?)` | `projectId?`, `page?`, `limit?`, `teamId?` | Deployment list and pagination |
-| Logs | `projects.logs(id, input?)` | `lines?`, `since?` | Runtime log collection |
+| Logs | `projects.logs(id, input?)` | `lines?`, `since?`, `live?` | Runtime logs |
 | Live logs | `projects.liveLogs(id, input?)` | `lines?`, `since?` | Recent live runtime logs |
+| Status | `projects.status(id)` | Project ID | Containers, health, and the live URL |
+| Metrics | `projects.metrics(id, input?)` | `range?` | CPU, memory, network, and request metrics |
+| Compute usage | `projects.usage(id)` | Project ID | Compute usage |
+| Diagnostics | `projects.diagnostics(id)` | Project ID | Runtime diagnostics |
+| Rollbacks | `projects.rollbacks(id)` | Project ID | Rollback history and options |
+| Update settings | `projects.update(id, settings)` | Settings such as `buildCommand`, `startCommand`, `port`, `branch` | Updated project |
+| Restart | `projects.restart(id)` | Project ID | Action result |
+| Pause | `projects.pause(id)` | Project ID | Action result |
+| Resume | `projects.resume(id)` | Project ID | Starts a paused project again |
+| Auto-deploy | `projects.autoDeploy(id, enabled)` | `true` or `false` | Action result |
+| Purge cache | `projects.purgeCache(id, input?)` | `id?`, `deploymentId?` | Purge result |
+| Delete | `projects.delete(id)` | Project ID | Action result |
+
+`purgeCache()` uses `id` to make a retry safe. The SDK generates one if you leave it out.
+
+```ts
+await pxxl.projects.update("proj_123", { startCommand: "node server.js", port: 8080 });
+await pxxl.projects.restart("proj_123");
+```
 
 ```json
 {
@@ -129,12 +158,19 @@ description: "Deploy source code, inspect projects, redeploy, and read logs."
 
 | Operation | Node.js | Parameters | Returns |
 | --- | --- | --- | --- |
-| Deploy | `deployments.deploy(input)` | Deployment fields above | Deployment accepted result |
+| Deploy | `deployments.deploy(input)` | Deploy fields above | Deployment result |
 | List | `deployments.list(input?)` | `projectId?`, `page?`, `limit?`, `teamId?` | Deployment list and pagination |
 | Get | `deployments.get(id)` | Deployment ID | Deployment detail |
-| Runtime logs | `deployments.logs(id, input?)` | `build: false`, `since?` | Runtime logs |
-| Build logs | `deployments.buildLogs(id, since?)` | Deployment ID, `since?` | Build phase logs |
+| Logs | `deployments.logs(id, input?)` | `build?`, `since?` | Build logs, or runtime logs with `build: false` |
+| Build logs | `deployments.buildLogs(id, since?)` | Deployment ID, `since?` | Build logs |
+| Build errors | `deployments.buildErrors(id)` | Deployment ID | Build errors for that deployment |
 | Redeploy | `deployments.redeploy(projectId, input?)` | `commitSha?`, `commitMessage?` | New deployment result |
+| Roll back | `deployments.rollback(id)` | Deployment ID | Makes that deployment live again |
+| Cancel | `deployments.cancel(id)` | Deployment ID | Action result |
+| Rebuild | `deployments.rebuild(id)` | Deployment ID | Action result |
+| Active | `deployments.active()` | None | Your active deployments |
+
+`deployments.logs(id)` returns build logs unless you pass `build: false`.
 
 ```json
 {
@@ -152,14 +188,18 @@ description: "Deploy source code, inspect projects, redeploy, and read logs."
 }
 ```
 
-Build logs return phase-aware entries when available.
+## Other languages
 
-```json
-{
-  "deploymentId": "dep_123",
-  "status": "building",
-  "logs": [
-    { "phase": "install", "message": "Installing dependencies", "timestamp": "2026-08-17T08:01:00Z" }
-  ]
-}
-```
+Go, Python, and Rust have the read calls and `deploy`. Project control (status, restart, rollback, settings) is in Node.js only. Use the [raw request method](/integrations/sdk/errors-raw-requests) for it in other languages.
+
+| Operation | Go | Python | Rust |
+| --- | --- | --- | --- |
+| List projects | `ListProjects(ctx, values)` | `list_projects(**params)` | `list_projects(query)` |
+| Get project | `GetProject(ctx, id)` | `get_project(id)` | `get_project(id)` |
+| Project deployments | `ProjectDeployments(ctx, id, values)` | `project_deployments(id, **params)` | `project_deployments(id, query)` |
+| Project logs | `ProjectLogs(ctx, id, live, values)` | `project_logs(id, live=False, **params)` | `project_logs(id, live, query)` |
+| List deployments | `ListDeployments(ctx, values)` | `list_deployments(**params)` | `list_deployments(query)` |
+| Get deployment | `GetDeployment(ctx, id)` | `get_deployment(id)` | `get_deployment(id)` |
+| Deployment logs | `DeploymentLogs(ctx, id, build, values)` | `deployment_logs(id, build=False, **params)` | `deployment_logs(id, build)` |
+
+In Go, Python, and Rust, set `build` to true for build logs. Python defaults it to `False`, so you get runtime logs.

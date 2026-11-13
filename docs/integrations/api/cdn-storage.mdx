@@ -3,14 +3,14 @@ title: "CDN and Storage API"
 description: "Deliver files globally and manage S3-compatible object storage."
 ---
 
-Use CDN endpoints for directly served assets. Use Storage endpoints for buckets, access keys, billing, and analytics. Bucket objects use the CDN asset endpoints with `bucketId`.
+Use CDN endpoints for directly served assets. Use Storage endpoints for buckets, objects, access keys, billing, and analytics. Both need a key scoped to `all` or `cdn`, and a paid plan. Storage buckets and access keys need Pro or Enterprise.
 
 ## Create a bucket
 
 `POST /storage/buckets`
 
 <ParamField body="name" type="string" required>
-  Unique display name.
+  Display name, 3 to 120 characters. Must be unique in your account.
 </ParamField>
 
 <ParamField body="visibility" type="private | public" default="private">
@@ -33,12 +33,16 @@ Use CDN endpoints for directly served assets. Use Storage endpoints for buckets,
 curl --request POST \
   https://server.pxxl.app/api/v3/storage/buckets \
   --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Idempotency-Key: create-uploads-001" \
   --header "Content-Type: application/json" \
   --data '{"name":"uploads","visibility":"private","versioning":true}'
 ```
 
+**Response** `201`
+
 ```json
 {
+  "success": true,
   "bucket": {
     "id": "bucket_123",
     "name": "uploads",
@@ -49,43 +53,93 @@ curl --request POST \
     "bandwidthBytes": 0,
     "objectCount": 0,
     "createdAt": "2026-08-17T08:00:00Z"
-  },
-  "access": { "canRead": true, "canWrite": true }
+  }
 }
 ```
+
+A duplicate name returns `409`. A plan without Storage returns `403` with `requiredPlan`.
 
 ## Bucket endpoints
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/storage/buckets` | None | `{ buckets, total, access? }` |
-| `POST` | `/storage/buckets` | Bucket body above | `{ bucket, access? }` |
-| `GET` | `/storage/buckets/{bucketId}` | Bucket ID | `{ bucket, access? }` |
-| `PATCH` | `/storage/buckets/{bucketId}` | `name?`, `visibility?` | `{ bucket, access? }` |
-| `DELETE` | `/storage/buckets/{bucketId}` | Bucket ID | Empty response or action result |
-| `GET` | `/storage/buckets/{bucketId}/analytics` | `timeframe?` | `{ analytics }` |
+| `GET` | `/storage/buckets` | None | `{ success, buckets, access }` |
+| `POST` | `/storage/buckets` | Bucket body above | `201` with `{ success, bucket }` |
+| `GET` | `/storage/buckets/{bucketId}` | None | `{ success, bucket }` |
+| `PATCH` | `/storage/buckets/{bucketId}` | `name?`, `visibility?` | `{ success, bucket }` |
+| `DELETE` | `/storage/buckets/{bucketId}` | None | `{ success }` |
+| `GET` | `/storage/buckets/{bucketId}/analytics` | `timeframe?` (`24h` or `1d` to `90d`, default `30d`) | `{ success, bucket, analytics, summary, timeline }` |
+| `GET` | `/storage/buckets/{bucketId}/multipart-uploads` | None | `{ success, uploads }` |
 | `GET` | `/storage/billing` | `bucketId?`, `limit?` | Billing ledger and usage months |
 
-## Upload an object
+## Objects
+
+Read and write bucket objects by key with these routes. For large files and bulk transfers, use the S3 API with a bucket access key.
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/storage/buckets/{bucketId}/objects` | `prefix?`, `search?`, `sort?`, `limit?` (1 to 200, default 50), `offset?`, `olderThanDays?` | `{ success, objects, total, prefix, nextOffset? }` |
+| `GET` | `/storage/buckets/{bucketId}/objects/stats` | `prefix?` | `{ success, prefix, stats, duplicates }` |
+| `GET` | `/storage/buckets/{bucketId}/object` | `key`, `content?` | `{ success, object, content? }` |
+| `PUT` | `/storage/buckets/{bucketId}/object` | `{ key, content, contentType? }` | `{ success, replaced, object }` |
+| `DELETE` | `/storage/buckets/{bucketId}/object` | `key` | `{ success, deleted }` |
+| `POST` | `/storage/buckets/{bucketId}/object/copy` | `{ from, to, overwrite? }` | Copy result |
+| `POST` | `/storage/buckets/{bucketId}/object/move` | `{ from, to, overwrite? }` | Move result |
+| `POST` | `/storage/buckets/{bucketId}/objects/delete-prefix` | `{ prefix, dryRun? }` | Deleted count, or a preview when `dryRun` is true |
+
+`sort` is `key`, `newest`, `oldest`, `largest`, or `smallest`. With `content=true`, text objects up to 256 KB include their `content`. `PUT` accepts text content up to 1 MB and returns `413` above that.
+
+```bash
+curl --request PUT \
+  https://server.pxxl.app/api/v3/storage/buckets/bucket_123/object \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"key":"config/settings.json","content":"{\"theme\":\"dark\"}","contentType":"application/json"}'
+```
+
+```json
+{
+  "success": true,
+  "replaced": false,
+  "object": {
+    "key": "config/settings.json",
+    "size": 16,
+    "contentType": "application/json",
+    "etag": "9b2cf535f27731c974343645a3985328",
+    "updatedAt": "2026-08-17T08:05:00Z",
+    "createdAt": "2026-08-17T08:05:00Z"
+  }
+}
+```
+
+## Upload a file
 
 `POST /cdn/assets`
 
-This endpoint uses `multipart/form-data`.
+This endpoint uses `multipart/form-data`. Without `bucketId` the file goes to your CDN space. With `bucketId` it goes into that bucket.
 
 <ParamField body="file" type="file" required>
-  Object contents.
+  File contents.
 </ParamField>
 
-<ParamField body="bucketId" type="string" required>
+<ParamField body="bucketId" type="string">
   Destination bucket ID.
 </ParamField>
 
-<ParamField body="visibility" type="private | public" default="public">
-  Per-object visibility.
+<ParamField body="path" type="string">
+  Object path inside the bucket.
 </ParamField>
 
-<ParamField body="path" type="string">
-  Optional object path.
+<ParamField body="visibility" type="private | public" default="public">
+  Per-file visibility.
+</ParamField>
+
+<ParamField body="kind" type="string" default="file">
+  Asset kind.
+</ParamField>
+
+<ParamField body="projectId" type="string">
+  Project to link the asset to.
 </ParamField>
 
 ```bash
@@ -93,33 +147,29 @@ curl https://server.pxxl.app/api/v3/cdn/assets \
   --header "Authorization: Bearer $PXXL_API_KEY" \
   --form "file=@avatar.png" \
   --form "bucketId=bucket_123" \
-  --form "path=avatars/robin.png" \
+  --form "path=avatars/ada.png" \
   --form "visibility=private"
 ```
 
+**Response** `201`
+
 ```json
 {
+  "success": true,
   "asset": {
     "id": "asset_123",
     "fileName": "avatar.png",
-    "key": "storage/bucket_123/avatars/robin.png",
+    "key": "storage/bucket_123/avatars/ada.png",
     "contentType": "image/png",
     "size": 48120,
+    "publicUrl": "",
     "visibility": "private",
     "kind": "file",
+    "storageBucketId": "bucket_123",
     "createdAt": "2026-08-17T08:05:00Z"
   }
 }
 ```
-
-## Object endpoints
-
-| Method | Path | Parameters | Returns |
-| --- | --- | --- | --- |
-| `GET` | `/cdn/assets` | `bucketId`, `page?`, `limit?`, `search?`, `kind?` | `{ assets, pagination }` |
-| `POST` | `/cdn/assets` | Multipart fields above | `{ asset }` |
-| `GET` | `/cdn/assets/{assetId}/download` | Asset ID | Binary file |
-| `DELETE` | `/cdn/assets/{assetId}` | Asset ID | Empty successful response |
 
 ## Create an S3 access key
 
@@ -141,21 +191,25 @@ curl --request POST \
   --data '{"name":"media-worker","permission":"read_write"}'
 ```
 
+**Response** `201`
+
 ```json
 {
+  "success": true,
   "key": {
     "id": "key_123",
     "name": "media-worker",
     "accessKeyId": "pxxl_access_123",
     "secretAccessKey": "shown-only-once",
     "permission": "read_write",
+    "status": "active",
     "endpoint": "https://storage.pxxl.app/s3",
     "region": "auto",
     "bucket": "uploads",
     "pathStyle": true,
-    "status": "active"
+    "createdAt": "2026-08-17T08:00:00Z"
   },
-  "notice": "Save the secret access key now."
+  "notice": "Save the secret access key now. Pxxl will not show it again."
 }
 ```
 
@@ -163,13 +217,14 @@ curl --request POST \
   `secretAccessKey` is returned once. Store it securely and never include it in logs.
 </Warning>
 
-Use the Pxxl API key only for bucket and key management. Send object requests to the returned S3 endpoint with the bucket-scoped `accessKeyId` and `secretAccessKey`; do not send `PXXL_API_KEY` to `https://storage.pxxl.app/s3`.
+Use the Pxxl API key only for bucket and key management. Send S3 requests to the returned endpoint with the bucket-scoped `accessKeyId` and `secretAccessKey`. Do not send `PXXL_API_KEY` to `https://storage.pxxl.app/s3`.
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/storage/buckets/{bucketId}/access-keys` | Bucket ID | Key collection without secrets |
-| `POST` | `/storage/buckets/{bucketId}/access-keys` | `name?`, `permission?` | Created key and one-time secret |
-| `DELETE` | `/storage/buckets/{bucketId}/access-keys/{keyId}` | Bucket ID and key ID | Empty successful response |
+| `GET` | `/storage/buckets/{bucketId}/access-keys` | None | `{ success, keys }` without secrets |
+| `GET` | `/storage/buckets/{bucketId}/access-key-names` | None | `{ success, keys, connection }` |
+| `POST` | `/storage/buckets/{bucketId}/access-keys` | `name?`, `permission?` | `201` with key and one-time secret |
+| `DELETE` | `/storage/buckets/{bucketId}/access-keys/{keyId}` | None | `{ success }` |
 
 ## Storage analytics
 
@@ -180,9 +235,12 @@ curl "https://server.pxxl.app/api/v3/storage/buckets/bucket_123/analytics?timefr
 
 ```json
 {
+  "success": true,
   "analytics": {
     "requests": 2140,
     "bandwidthBytes": 83047210,
+    "monthRequests": 2140,
+    "monthBandwidthBytes": 83047210,
     "uploadedBytes": 12000000,
     "downloadedBytes": 71047210,
     "uploadCount": 32,
@@ -193,6 +251,12 @@ curl "https://server.pxxl.app/api/v3/storage/buckets/bucket_123/analytics?timefr
     "contentTypes": { "image/png": 42 },
     "recentActivity": [],
     "timeline": []
+  },
+  "summary": {
+    "storageBytes": 104857600,
+    "bandwidthBytes": 83047210,
+    "requestCount": 2140,
+    "objectCount": 84
   }
 }
 ```
@@ -201,14 +265,14 @@ curl "https://server.pxxl.app/api/v3/storage/buckets/bucket_123/analytics?timefr
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/cdn/summary` | None | Summary totals and recent assets |
-| `GET` | `/cdn/space` | None | Current CDN space |
-| `POST` | `/cdn/space` | `name?` | Created CDN space |
-| `GET` | `/cdn/assets` | Asset filters and pagination | Asset collection |
-| `POST` | `/cdn/assets` | Multipart asset fields | Created asset |
-| `GET` | `/cdn/assets/{assetId}/download` | Asset ID | Binary file |
-| `DELETE` | `/cdn/assets/{assetId}` | Asset ID | Empty successful response |
-| `GET` | `/cdn/usage` | `limit?` | Usage events |
-| `GET` | `/cdn/proxy-logs` | `limit?`, `projectId?` | Proxy logs |
-| `GET` | `/cdn/edge-functions` | `projectId?`, `status?`, `limit?` | Edge function collection |
-| `POST` | `/cdn/edge-functions` | Edge function metadata | Created edge function |
+| `GET` | `/cdn/summary` | None | `{ success, data }` with totals and recent assets |
+| `GET` | `/cdn/space` | None | `{ success, space, storageName }` |
+| `POST` | `/cdn/space` | `name?` | `201` with `{ success, space, storageName }` |
+| `GET` | `/cdn/assets` | `bucketId?`, `kind?`, `search?`, `page?`, `limit?` (default 50) | `{ success, assets, pagination }` |
+| `POST` | `/cdn/assets` | Multipart fields above | `201` with `{ success, asset }` |
+| `GET` | `/cdn/assets/{assetId}/download` | None | Binary file |
+| `DELETE` | `/cdn/assets/{assetId}` | None | `{ success, message }` |
+| `GET` | `/cdn/usage` | `limit?` (default 100) | `{ success, events, creditLedger, credits }` |
+| `GET` | `/cdn/proxy-logs` | `limit?` (default 200), `projectId?` | `{ success, events, summary }` |
+| `GET` | `/cdn/edge-functions` | `projectId?`, `status?`, `limit?` | `{ success, functions }` |
+| `POST` | `/cdn/edge-functions` | Edge function metadata | `201` with `{ success, function }` |

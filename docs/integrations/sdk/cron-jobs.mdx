@@ -3,6 +3,8 @@ title: "Cron jobs"
 description: "Schedule HTTP requests, control jobs, trigger runs, and inspect run history."
 ---
 
+For schedules, limits, and retries, see [cron jobs](/cron-jobs).
+
 ## Create a cron job
 
 <ParamField body="name" type="string" required>
@@ -14,19 +16,19 @@ description: "Schedule HTTP requests, control jobs, trigger runs, and inspect ru
 </ParamField>
 
 <ParamField body="url" type="string" required>
-  HTTPS endpoint called by the job.
+  Public HTTP or HTTPS endpoint called by the job.
 </ParamField>
 
-<ParamField body="method" type="GET | POST | PUT | PATCH | DELETE" default="GET">
-  HTTP method used for the request.
+<ParamField body="method" type="GET | POST | PUT | PATCH | DELETE">
+  HTTP method used for the request. Python sends `GET` unless you pass another method.
 </ParamField>
 
 <ParamField body="headers" type="object">
-  Request headers sent to the endpoint.
+  Request headers sent to the endpoint. Not available in Rust.
 </ParamField>
 
 <ParamField body="timeoutSeconds" type="number">
-  Maximum execution time.
+  Maximum time to wait for a response, in seconds.
 </ParamField>
 
 <ParamField body="projectId" type="string">
@@ -55,6 +57,7 @@ description: "Schedule HTTP requests, control jobs, trigger runs, and inspect ru
     job, err := client.CreateCronJob(ctx, pxxl.CreateCronJobInput{
       Name: "cache warmer", Schedule: "*/5 * * * *",
       URL: "https://example.com/jobs/warm", Method: "POST",
+      Headers: map[string]string{"Authorization": "Bearer " + os.Getenv("JOB_TOKEN")},
       TimeoutSeconds: 30,
     })
     ```
@@ -64,7 +67,8 @@ description: "Schedule HTTP requests, control jobs, trigger runs, and inspect ru
     job = client.create_cron_job(
         name="cache warmer", schedule="*/5 * * * *",
         url="https://example.com/jobs/warm", method="POST",
-        timeout_seconds=30,
+        headers={"Authorization": f"Bearer {os.environ['JOB_TOKEN']}"},
+        timeoutSeconds=30,
     )
     ```
   </Tab>
@@ -104,14 +108,14 @@ description: "Schedule HTTP requests, control jobs, trigger runs, and inspect ru
 | List | `cron.list(input?)` | `teamId?` | `{ cronJobs }` |
 | Get | `cron.get(id, teamId?)` | Job ID, `teamId?` | Cron job |
 | Create | `cron.create(input)` | Fields above | Cron job |
-| Update | `cron.update(id, input)` | Any editable create field, `status?` | Updated cron job |
+| Update | `cron.update(id, input)` | Any create field, `status?` | Updated cron job |
 | Delete | `cron.delete(id, teamId?)` | Job ID, `teamId?` | Action result |
 | Start | `cron.start(id, teamId?)` | Job ID, `teamId?` | Action result |
 | Stop | `cron.stop(id, teamId?)` | Job ID, `teamId?` | Action result |
 | Trigger | `cron.trigger(id, teamId?)` | Job ID, `teamId?` | Accepted run result |
 | Runs | `cron.runs(id, input?)` | `page?`, `limit?`, `teamId?` | `{ runs, total?, page?, limit?, totalPages? }` |
 | Validate schedule | `cron.validateSchedule(schedule)` | Cron expression | Validation result |
-| Validate URL | `cron.validateURL(url)` | HTTPS URL | Validation result |
+| Validate URL | `cron.validateURL(url)` | URL | Validation result |
 
 ## Trigger and read a run
 
@@ -145,6 +149,21 @@ const history = await pxxl.cron.runs("cron_123", { page: 1, limit: 20 });
 <Note>
   Job headers can contain secrets. Keep cron management in trusted server code.
 </Note>
+
+## Other languages
+
+| Operation | Go | Python | Rust |
+| --- | --- | --- | --- |
+| List | `ListCronJobs(ctx, teamID)` | `list_cron_jobs(team_id=None)` | `list_cron_jobs(team_id)` |
+| Get | `GetCronJob(ctx, id, teamID)` | `get_cron_job(id, team_id=None)` | `get_cron_job(id, team_id)` |
+| Create | `CreateCronJob(ctx, input)` | `create_cron_job(name=, schedule=, url=, ...)` | `create_cron_job(input)` |
+| Update | `UpdateCronJob(ctx, id, input)` | `update_cron_job(id, values, team_id=None)` | Not available |
+| Delete | `DeleteCronJob(ctx, id, teamID)` | `delete_cron_job(id, team_id=None)` | Not available |
+| Start, stop, trigger | `StartCronJob`, `StopCronJob`, `TriggerCronJob` | `start_cron_job`, `stop_cron_job`, `trigger_cron_job` | `start_cron_job`, `stop_cron_job`, `trigger_cron_job` |
+| Runs | `ListCronJobRuns(ctx, id, values)` | `list_cron_job_runs(id, **params)` | `list_cron_job_runs(id, query)` |
+| Validate | `ValidateCronSchedule`, `ValidateCronURL` | `validate_cron_schedule`, `validate_cron_url` | `validate_cron_schedule`, `validate_cron_url` |
+
+Python sends extra keyword arguments to the API as they are, so use the API's field names: `timeoutSeconds`, `projectId`, and `headers`. Pass the team as `team_id`. In Go and Rust, set the team with the input's `TeamID` or `team_id` field.
 
 ## Handle plan limits
 

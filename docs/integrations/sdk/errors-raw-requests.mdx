@@ -3,11 +3,13 @@ title: "Errors and raw requests"
 description: "Handle API errors and call new endpoints before a convenience method ships."
 ---
 
-Every SDK includes a low-level request method. It uses the same authentication, base URL, and error handling as the convenience methods.
+Every SDK has a low-level request method. It uses the same authentication, base URL, and error handling as the other methods. Use it to call any route in the [API reference](/integrations/api/overview) that has no SDK method yet. Paths are relative to `https://server.pxxl.app/api/v3`.
 
 <Tabs>
   <Tab title="Node.js">
     ```ts
+    import { PxxlAPIError } from "@pxxlapp/pxxl";
+
     try {
       const result = await pxxl.api.request("/cli/whoami");
     } catch (error) {
@@ -25,6 +27,8 @@ Every SDK includes a low-level request method. It uses the same authentication, 
   </Tab>
   <Tab title="Python">
     ```python
+    from pxxl import PxxlAPIError
+
     try:
         result = client.request("GET", "/cli/whoami")
     except PxxlAPIError as error:
@@ -42,6 +46,25 @@ Every SDK includes a low-level request method. It uses the same authentication, 
   </Tab>
 </Tabs>
 
+## Request methods
+
+| SDK | Method | Notes |
+| --- | --- | --- |
+| Node.js | `pxxl.api.request(path, init?)` | `init` is a `fetch` `RequestInit`. Pass `body` as a JSON string; the SDK sets `Content-Type: application/json`. Returns parsed JSON |
+| Node.js | `pxxl.api.raw(path, init?)` | Returns the `Response`, for files and streams |
+| Go | `client.Request(ctx, method, path, input, output)` | `input` is encoded as JSON; `output` is decoded from the response |
+| Python | `client.request(method, path, params=None, json_body=None)` | `params` becomes the query string. Returns a dictionary |
+| Rust | `client.request_json(method, path, body)` | `body` is an optional `serde_json::Value`. Returns a `Value` |
+
+```ts
+const purge = await pxxl.api.request("/cli/projects/proj_123/cache/purges", {
+  method: "POST",
+  body: JSON.stringify({ id: "purge_001" }),
+});
+```
+
+In Node.js, `pxxl.request()` and `pxxl.rawRequest()` are the same calls. See [response patterns](/integrations/sdk/response-patterns) for the error fields each SDK exposes.
+
 <Warning>
-  Raw request paths must begin with `/` and stay inside the official Pxxl API base URL.
+  Raw request paths must begin with `/`. The SDK adds the client's API base URL in front, so pass a path, not a full URL.
 </Warning>

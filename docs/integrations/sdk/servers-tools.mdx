@@ -1,0 +1,247 @@
+---
+title: "Servers, tunnels, and webhooks"
+description: "Manage linked servers, share local apps through tunnels, and capture webhooks from the Node.js SDK."
+---
+
+These resources are in the Node.js SDK only. In Go, Python, and Rust, call the same routes with the [raw request method](/integrations/sdk/errors-raw-requests).
+
+## Servers
+
+Link a machine you run to Pxxl, watch it, and run actions on it. See [bring your own server](/servers/overview) for what linking does and which plans include it.
+
+`pxxl.servers` uses the client's `teamId` by default. `list()` and `create()` also accept their own `teamId`.
+
+```ts
+const linked = await pxxl.servers.create({ name: "hetzner-1" });
+// linked has the install command to run on the machine
+
+const health = await pxxl.servers.health("srv_123");
+const result = await pxxl.servers.runAction("srv_123", "restart", { app: "api" });
+```
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `servers.list(input?)` | `teamId?` | Your servers and plan allowance |
+| Link | `servers.create(input)` | `name`, `teamId?` | The new server and the install command |
+| Get | `servers.get(id)` | Server ID | Server detail |
+| Rename | `servers.rename(id, name)` | Server ID, new name | Updated server |
+| Unlink | `servers.delete(id)` | Server ID | Action result. Apps on it stop being managed by Pxxl |
+| Apps | `servers.projects(id)` | Server ID | Projects placed on the server |
+| Health | `servers.health(id)` | Server ID | Server health |
+| Metrics | `servers.metrics(id)` | Server ID | Server metrics |
+| Events | `servers.events(id)` | Server ID | Recent events |
+| Alerts | `servers.alerts(id)` | Server ID | Server alerts |
+| Settings | `servers.settings(id)` | Server ID | Server settings |
+| Update settings | `servers.updateSettings(id, settings)` | Settings object | Updated settings |
+| New install command | `servers.linkToken(id)` | Server ID | A fresh one-time install command |
+| Queue action | `servers.action(id, action, input?)` | Action, `app?` | The queued action |
+| Action status | `servers.actionStatus(id, actionId)` | Server ID, action ID | The action and its status |
+| Run action | `servers.runAction(id, action, input?)` | Action, `app?`, `timeoutMs?`, `onUpdate?` | The action once it finishes |
+| Operations | `servers.ops()` | None | Operations a server supports |
+| Run operation | `servers.runOp(id, op, input?)` | Operation, `app?`, `lines?`, `change?`, `wait?` | Operation output |
+
+An action is `restart`, `stop`, `start`, `logs`, `prune`, or `update`. Pass `app` (a container or project name) to act on one app instead of the whole server.
+
+`runAction()` queues the action and checks its status every 1.5 seconds until it finishes or `timeoutMs` passes. The default timeout is 120 seconds. It returns the latest status either way, so check `status` on the result.
+
+`runOp()` runs read operations by default. Pass `change: true` for operations that change the server. It waits for the result unless you pass `wait: false`.
+
+## Network checks and plan limits
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| Plan limits | `tools.limits()` | None | `{ limits, usage, tiers }` for tunnels and webhooks |
+| HTTP check | `tools.httpCheck(input)` | `url`, `method?` (default `GET`), `headers?`, `body?` | Redirects, timings, headers, and TLS, as Pxxl sees them |
+| Domain check | `tools.domainCheck(host)` | Hostname | DNS records and the TLS certificate |
+
+```ts
+const check = await pxxl.tools.httpCheck({ url: "https://example.com" });
+const { limits, usage } = await pxxl.tools.limits();
+```
+
+API keys need the `all` or `tools` scope for tools, tunnels, and webhooks. Creating or connecting needs a read-and-write key.
+
+## Tunnels
+
+A tunnel gives an app on your machine a public HTTPS URL. The connection goes out over HTTPS, so it works behind NAT and firewalls, and WebSockets work too. See [tunnels](/tools/tunnels) for the dashboard and CLI.
+
+```ts
+const { tunnel, connection } = await pxxl.tunnels.expose(3000, {
+  name: "my-laptop-api",
+  basicAuth: "preview:s3cret",
+});
+
+console.log(await connection.ready()); // the public URL
+connection.on("request", (event) => console.log(event.method, event.path, event.status));
+
+// later
+connection.close();
+```
+
+`expose()` reuses the tunnel with that name, or creates it. Without a name it uses your machine name and the port, such as `my-laptop-3000`.
+
+### Connection options
+
+<ParamField body="target" type="number | string" required>
+  The local service: a port such as `3000`, or a URL such as `http://localhost:8080`. `expose()` takes it as its first argument.
+</ParamField>
+
+<ParamField body="basicAuth" type="string | object">
+  Ask visitors to sign in first. Pass `"user:password"` or an object with `username` and `password`.
+</ParamField>
+
+<ParamField body="requestHeaders" type="object">
+  Headers added to every request sent to your app.
+</ParamField>
+
+<ParamField body="responseHeaders" type="object">
+  Headers added to every response sent back to visitors.
+</ParamField>
+
+<ParamField body="hostHeader" type="string" default="rewrite">
+  The `Host` header your app sees. `rewrite` uses the target's host, `preserve` keeps the public host, and any other value is sent as is.
+</ParamField>
+
+<ParamField body="allowInsecureTarget" type="boolean" default="true">
+  Accept a self-signed certificate on an `https` target.
+</ParamField>
+
+<ParamField body="reconnect" type="boolean" default="true">
+  Reconnect when the connection drops. Retries back off up to 30 seconds.
+</ParamField>
+
+<ParamField body="signal" type="AbortSignal">
+  Close the tunnel when the signal aborts.
+</ParamField>
+
+### The connection
+
+`connect()` and `expose()` return a `TunnelConnection`.
+
+| Member | What it does |
+| --- | --- |
+| `ready()` | Resolves with the public URL once connected |
+| `close()` | Stops the tunnel |
+| `closed` | A promise that resolves when the tunnel stops |
+| `status` | `connecting`, `online`, `reconnecting`, or `closed` |
+| `publicUrl` | The public URL once online |
+| `on("status", fn)` | Runs when the status changes |
+| `on("request", fn)` | Runs for each request, with `method`, `path`, `status`, `durationMs`, `bytes`, and `websocket` |
+| `on("error", fn)` | Runs when the tunnel stops for good |
+
+When retrying cannot help, such as a revoked key, a missing tunnel, or a plan limit, the tunnel stops with a `TunnelFatalError`. Its `status` field holds the HTTP status.
+
+### Tunnel operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `tunnels.list()` | None | `{ tunnels, limits }` |
+| Get | `tunnels.get(idOrName)` | ID, slug, or name | Tunnel |
+| Create | `tunnels.create(input)` | `name`, `target?` | `{ tunnel, token, commands }` |
+| Rotate token | `tunnels.rotate(idOrName)` | ID, slug, or name | `{ tunnel, token, commands }`. The old token stops working |
+| Delete | `tunnels.delete(idOrName)` | ID, slug, or name | The deleted tunnel |
+| Connect | `tunnels.connect(idOrName, options)` | Options above, with `target` | `TunnelConnection` |
+| Share | `tunnels.expose(target, options?)` | Options above, plus `name?` | `{ tunnel, connection }` |
+
+`create()` and `rotate()` return a tunnel token and ready-made `install` and `connect` commands for the `pxxl-tunnel` client. The SDK's own connection uses your API key instead.
+
+## Webhooks
+
+A webhook endpoint gives you a URL that records every request sent to it. You can forward requests from Pxxl, replay them, or stream them to your machine. See [webhooks](/tools/webhooks) for the dashboard and CLI.
+
+```ts
+const endpoint = await pxxl.webhooks.create({ name: "stripe" });
+console.log(endpoint.url); // give this URL to Stripe
+
+const listener = await pxxl.webhooks.listen("stripe", {
+  forward: "http://localhost:3000/webhooks",
+  onRequest: ({ request, delivery }) => console.log(request.method, delivery?.status),
+});
+
+// later
+listener.stop();
+```
+
+### Endpoint fields
+
+<ParamField body="name" type="string" required>
+  Name of the endpoint. Methods that take `idOrName` accept it.
+</ParamField>
+
+<ParamField body="forwardUrl" type="string">
+  Public URL that Pxxl forwards each request to.
+</ParamField>
+
+<ParamField body="forwardHeaders" type="object">
+  Headers added to forwarded requests.
+</ParamField>
+
+<ParamField body="responseStatus" type="number">
+  Status code the endpoint returns to the sender.
+</ParamField>
+
+<ParamField body="paused" type="boolean">
+  Pauses the endpoint. `pause()` and `resume()` set it for you.
+</ParamField>
+
+### Listen on your machine
+
+`listen()` checks the endpoint for new requests and passes each one to `onRequest`. With `forward`, it also sends the request to that URL from your machine, so `localhost` works.
+
+<ParamField body="forward" type="string">
+  URL to send each new request to. The request's own path and query are added to it.
+</ParamField>
+
+<ParamField body="exactPath" type="boolean" default="false">
+  Send every request to `forward` exactly, without adding the request's path.
+</ParamField>
+
+<ParamField body="headers" type="object">
+  Extra headers on each forwarded request.
+</ParamField>
+
+<ParamField body="includeExisting" type="boolean" default="false">
+  Also deliver requests that arrived before you started listening.
+</ParamField>
+
+<ParamField body="intervalMs" type="number" default="1500">
+  How often to check for new requests. The minimum is 500.
+</ParamField>
+
+<ParamField body="signal" type="AbortSignal">
+  Stop listening when the signal aborts.
+</ParamField>
+
+<ParamField body="onRequest" type="function">
+  Called with `request` and, when forwarding, `delivery` (`url`, `status`, `durationMs`, `error`).
+</ParamField>
+
+<ParamField body="onError" type="function">
+  Called when a check fails. Listening keeps going.
+</ParamField>
+
+`listen()` returns `endpoint`, `stop()`, and `closed`, a promise that resolves after you stop. Forwarded requests carry an `X-Pxxl-Webhook-Request` header with the request ID.
+
+### Webhook operations
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| List | `webhooks.list()` | None | `{ endpoints, limits }` |
+| Get | `webhooks.get(idOrName)` | ID or name | Endpoint |
+| Create | `webhooks.create(input)` | Endpoint fields above | Endpoint |
+| Update | `webhooks.update(idOrName, input)` | Endpoint fields | Endpoint |
+| Pause | `webhooks.pause(idOrName)` | ID or name | Endpoint |
+| Resume | `webhooks.resume(idOrName)` | ID or name | Endpoint |
+| Delete | `webhooks.delete(idOrName)` | ID or name | The deleted endpoint |
+| Requests | `webhooks.requests(idOrName, input?)` | `limit?` (default 50) | Requests, newest first |
+| Request | `webhooks.request(idOrName, requestId)` | Request ID | One request with its body |
+| Replay | `webhooks.replay(idOrName, requestId, input?)` | `url?`, `method?`, `headers?` | Delivery result with `status`, `durationMs`, and `error` |
+| Clear | `webhooks.clear(idOrName)` | ID or name | No value |
+| Listen | `webhooks.listen(idOrName, options?)` | Options above | `{ endpoint, stop, closed }` |
+
+`replay()` sends the request again from Pxxl, to the endpoint's `forwardUrl` or to the `url` you pass. That URL must be public. Use `listen()` to deliver to `localhost`.
+
+```ts
+const [latest] = await pxxl.webhooks.requests("stripe", { limit: 1 });
+await pxxl.webhooks.replay("stripe", latest.id, { url: "https://staging.example.com/webhooks" });
+```

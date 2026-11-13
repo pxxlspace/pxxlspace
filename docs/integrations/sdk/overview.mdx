@@ -3,19 +3,19 @@ title: "SDK overview"
 description: "Use one Pxxl client to deploy projects and manage platform services."
 ---
 
-The Pxxl SDK covers projects, deployments, environment variables, domains, billing, CDN, Storage, databases, cron jobs, analytics, teams, and MCP.
+Pxxl has SDKs for Node.js, Go, Python, and Rust. They cover projects, deployments, environment variables, domains, billing, CDN, Storage, databases, cron jobs, analytics, teams, and MCP.
 
-Version `0.2.1` adds bucket-scoped S3 clients, composed domain checkout helpers, and structured plan-gate errors across the supported SDKs.
+The Node.js SDK covers the most ground. It also manages [servers you link](/integrations/sdk/servers-tools), [tunnels](/tools/tunnels), and [webhook endpoints](/tools/webhooks), and it ships the `pxxl` command-line tool. Go, Python, and Rust cover the core platform calls, and each has a [raw request method](/integrations/sdk/errors-raw-requests) for anything else.
 
 <CardGroup cols={3}>
   <Card title="S3-compatible storage" href="/integrations/sdk/cdn-storage">
     Upload and download objects with a bucket access key and secret key.
   </Card>
   <Card title="Domain checkout" href="/integrations/sdk/domains-billing">
-    Purchase domains and generate a hosted payment link in one workflow.
+    Buy domains and get a hosted payment link in one call.
   </Card>
   <Card title="Plan gates" href="/integrations/sdk/response-patterns">
-    Handle resource limits with structured SDK error fields.
+    Handle plan limits with structured error fields.
   </Card>
 </CardGroup>
 
@@ -44,6 +44,7 @@ flowchart LR
     ```bash
     pip install pxxl
     ```
+    Python 3.9 or later.
   </Tab>
   <Tab title="Rust">
     ```bash
@@ -68,7 +69,9 @@ flowchart LR
   <Tab title="Go">
     ```go
     client, err := pxxl.NewClient(os.Getenv("PXXL_API_KEY"))
-    if err != nil { log.Fatal(err) }
+    if err != nil {
+      log.Fatal(err)
+    }
     ```
   </Tab>
   <Tab title="Python">
@@ -84,11 +87,17 @@ flowchart LR
   </Tab>
   <Tab title="Rust">
     ```rust
+    use pxxl::PxxlClient;
+
     let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?
         .with_team_id(std::env::var("PXXL_TEAM_ID").unwrap_or_default());
     ```
   </Tab>
 </Tabs>
+
+The SDKs do not read `PXXL_API_KEY` on their own. Pass the key when you create the client. See [authentication](/integrations/sdk/authentication) for every client option.
+
+In Node.js, `Pxxl` groups methods by resource, such as `pxxl.storage.createBucket()`. `PxxlClient` is also exported. It has the same calls as flat methods, such as `createStorageBucket()`, and `Pxxl` extends it, so both styles work on one client.
 
 <Note>
   Keep API keys on the server. Do not expose them in browser code.

@@ -3,11 +3,11 @@ title: "Publish the SDKs"
 description: "Release Node.js, Go, Python, and Rust packages from this repository."
 ---
 
-Publish only from a clean commit after every SDK test passes. Use one version number across all four SDKs when they describe the same API release.
+Publish only from a clean commit after every SDK test passes. The Node.js package is versioned with the CLI. Keep Go, Python, and Rust on one shared version number, currently `0.2.1`.
 
 ## Node.js and CLI
 
-The Node.js SDK and CLI are one npm package: `@pxxlapp/pxxl`.
+The Node.js SDK and CLI are one npm package: `@pxxlapp/pxxl`. `npm test` builds the package and runs the SDK tests. `npm publish` runs them again first.
 
 ```bash
 cd pxxlspace
@@ -70,7 +70,7 @@ Run `cargo login` once for local publishing, or configure a crates.io trusted pu
 ## Release checklist
 
 - Update changelog and package versions.
-- Run all four test suites.
+- Run all four test suites, including `go test ./...` in `sdks/go/pxxl`.
 - Inspect the npm, Python, and Rust package contents.
 - Commit with a message such as `feat: expand SDK platform coverage`.
 - Publish and install each released version in a clean sample project.

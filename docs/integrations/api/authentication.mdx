@@ -1,21 +1,25 @@
 ---
 title: "API authentication"
-description: "Authenticate requests, select a team, and understand key permissions."
+description: "Authenticate requests, select a team, and understand key scopes and permissions."
 ---
 
-Send your API key as a Bearer token from a trusted server.
+Create a key in **Settings > Developer > API keys** (see [account settings](/account/settings)). Keys start with `pxxl_` and are shown once. Send the key from a trusted server.
 
 ```http
 Authorization: Bearer pxxl_your_key
 Accept: application/json
 ```
 
-<ParamField header="Authorization" type="string" required>
+<ParamField header="Authorization" type="string">
   `Bearer` followed by your Pxxl API key.
 </ParamField>
 
+<ParamField header="X-Pxxl-Api-Key" type="string">
+  The raw API key. Use it instead of `Authorization` if your client already uses that header.
+</ParamField>
+
 <ParamField query="teamId" type="string">
-  Team used for a scoped request.
+  Team to work in, on endpoints that support teams. `team` is accepted as an alias.
 </ParamField>
 
 ## Check the active identity
@@ -31,29 +35,73 @@ curl https://server.pxxl.app/api/v3/cli/whoami \
   "user": { "id": "user_123", "email": "developer@example.com" },
   "authMethod": "api_key",
   "apiKeyId": "key_123",
-  "apiKeyScope": "deploy,storage",
+  "apiKeyScope": "deploy",
   "apiKeyPermission": "read_write",
   "teamId": "team_123"
 }
 ```
 
-## Identity endpoints
+## Identity and usage endpoints
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/cli/whoami` | None | Identity and API key permissions |
-| `GET` | `/cli/stats` | `teamId?` | Account or team resource totals |
-| `GET` | `/cli/usage` | `teamId?` | Build, runtime, database, and storage usage |
+| `GET` | `/cli/whoami` | None | Identity and API key details |
+| `GET` | `/cli/usage` | `teamId?` | `{ success, data }` with usage summary, projects, plan limits, and billing |
+| `GET` | `/cli/stats` | `teamId?` | Same response as `/cli/usage` |
 
-## Scopes and permissions
+`/cli/usage` and `/cli/stats` accept keys scoped to `all`, `deploy`, `project`, or `database`.
 
-The API checks both scope and permission.
+## Scopes
 
-| Setting | Examples | Effect |
-| --- | --- | --- |
-| Scope | `deploy`, `domains`, `storage`, `databases`, `cronjobs`, `analytics`, `teams`, `all` | Limits accessible modules |
-| Permission | `read`, `read_write` | Controls whether mutations are allowed |
-| Team | `teamId` | Limits resources to a team you can access |
+Each key has one scope. A route accepts the key only if its scope is in that route's list.
+
+| Scope | Gives access to |
+| --- | --- |
+| `all` | Every API-key route |
+| `deploy` | Deploy source, projects, deployments, logs, usage |
+| `project` or `projects` | Projects, deployments, environment variables, traffic analytics, usage |
+| `domain` or `domains` | Domains, DNS, contacts, orders, invoices, domain analytics |
+| `reselling` | Domain, DNS, contact, order, and invoice routes (not analytics) |
+| `cdn` | CDN and Storage |
+| `database` or `databases` | Databases, team databases, teams, usage |
+| `team` or `teams` | Teams |
+| `cron` or `cronjobs` | Cron jobs |
+| `analytics` | Project, domain, and hostname traffic analytics |
+| `servers` or `byos` | [Your own servers](/integrations/api/servers-tools) |
+| `tools`, `tunnels`, or `webhooks` | [Tunnels, webhooks, and checks](/integrations/api/servers-tools) |
+
+MCP keys are separate. They only work at the [MCP endpoint](/integrations/api/mcp).
+
+## Permissions
+
+| Permission | Effect |
+| --- | --- |
+| `read` | `GET` routes and read-only checks such as env diffs |
+| `read_write` | Everything `read` allows, plus changes. Revealing an environment variable value also needs `read_write`. |
+
+## Team-scoped keys
+
+A key created for a team works only inside that team. If you pass a different `teamId`, the API returns `403` with `API key is scoped to a different spaceship`. Plan checks use the team owner's plan.
+
+## Authentication errors
+
+| Status | Message |
+| --- | --- |
+| `401` | `Pxxl API key or bearer token required` |
+| `401` | `Invalid Pxxl API key` |
+| `403` | `API key is not allowed to access Pxxl deploy` (scope mismatch; the resource name varies) |
+| `403` | `API key permission does not allow this Pxxl deploy operation` (read key on a write route) |
+| `402` | Paid plan required for SDK and CLI access |
+
+```json
+{
+  "success": false,
+  "message": "The Pxxl SDK and CLI require an active paid plan.",
+  "reason": "plan_upgrade_required",
+  "feature": "sdk",
+  "requiredPlan": "Plus"
+}
+```
 
 <Warning>
   Do not expose API keys in browser code, public repositories, screenshots, logs, or client-side environment variables.

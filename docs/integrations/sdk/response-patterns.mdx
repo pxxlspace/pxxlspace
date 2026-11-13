@@ -3,7 +3,7 @@ title: "Response patterns"
 description: "Understand returned data, lists, files, empty results, and errors across every Pxxl SDK."
 ---
 
-Pxxl SDK methods return the useful resource directly when possible. You do not need to inspect HTTP status codes for successful calls.
+SDK methods return the parsed JSON body for successful calls. You do not need to check HTTP status codes. Failed calls throw or return an error.
 
 ## Single resources
 
@@ -20,18 +20,18 @@ Create and get methods return a resource or a small named wrapper.
 }
 ```
 
-When a Node.js method unwraps the resource, you receive the inner object directly. For example, `customers.create()` returns the customer and `cdn.upload()` returns the asset.
+Some Node.js methods unwrap the resource for you. For example, `customers.create()` returns the customer and `cdn.upload()` returns the asset.
 
-| SDK | How successful JSON is returned |
+| SDK | What you get back |
 | --- | --- |
-| Node.js | Typed resources where available, with small API wrappers kept when they contain useful metadata |
-| Go | Typed structs for core workflows and `map[string]any` for extensible platform responses |
-| Python | Dictionaries that preserve the Gateway JSON shape |
-| Rust | Typed core resources and `serde_json::Value` for extensible platform responses |
+| Node.js | Typed objects where available, with small API wrappers kept when they carry useful metadata |
+| Go | Typed structs for CDN, domains, cron jobs, and deploys; `map[string]any` for everything else |
+| Python | Dictionaries that keep the API's JSON shape |
+| Rust | Typed structs for a few core calls; `serde_json::Value` for everything else |
 
 ## Lists
 
-List methods return an array with count or pagination details.
+List methods return an array with a count or pagination details.
 
 ```json
 {
@@ -52,9 +52,11 @@ List methods return an array with count or pagination details.
 }
 ```
 
+Go unwraps a few lists into slices. `ListAssets`, `ListTLDs`, `ListDomains`, `ListCronJobs`, and `ListCronJobRuns` return the array directly.
+
 ## Actions
 
-Start, stop, trigger, resync, and delete calls return an action result. Delete helpers that return no useful data resolve without a value.
+Start, stop, trigger, resync, and similar calls return the API's action result.
 
 ```json
 {
@@ -63,6 +65,8 @@ Start, stop, trigger, resync, and delete calls return an action result. Delete h
 }
 ```
 
+Some delete methods return nothing. In Node.js these resolve to `undefined`. In Go they return only an `error`, in Python `None`, and in Rust `()`.
+
 ## Files
 
 Download methods return binary data instead of JSON.
@@ -70,13 +74,13 @@ Download methods return binary data instead of JSON.
 | SDK | Return value |
 | --- | --- |
 | Node.js | `Blob` |
-| Go | response bytes or a readable body |
+| Go | `[]byte` |
 | Python | `bytes` |
-| Rust | `Vec<u8>` or response bytes |
+| Rust | `Vec<u8>` |
 
 ## Errors
 
-Non-successful API responses throw an SDK error. The original API response remains available for validation errors and plan limits.
+A non-2xx response raises an SDK error. Plan and resource limits come back with structured fields.
 
 ```json
 {
@@ -87,22 +91,27 @@ Non-successful API responses throw an SDK error. The original API response remai
 }
 ```
 
+The SDK reads these fields from the body or from a nested `details` object. It fills `current` from `current` or `used`. A call counts as a plan gate when the body sets `upgradeRequired`, the status is `402`, or the code contains `PLAN`, `LIMIT`, or `UPGRADE`.
+
 <Tabs>
   <Tab title="Node.js">
     ```ts
+    import { PxxlAPIError, isPlanGateError } from "@pxxlapp/pxxl";
+
     try {
       await pxxl.storage.createBucket({ name: "uploads" });
     } catch (error) {
-      if (error instanceof PxxlAPIError) {
-        console.log(error.status, error.code);
-        console.log(error.limit, error.current, error.requiredPlan);
+      if (isPlanGateError(error)) {
+        console.log(error.code, error.limit, error.current, error.requiredPlan);
+      } else if (error instanceof PxxlAPIError) {
+        console.log(error.status, error.message, error.details);
       }
     }
     ```
   </Tab>
   <Tab title="Go">
     ```go
-    result, err := client.CreateStorageBucket(ctx, input)
+    result, err := client.CreateStorageBucket(ctx, map[string]any{"name": "uploads"})
     if err != nil {
       var apiErr *pxxl.APIError
       if errors.As(err, &apiErr) && apiErr.IsPlanGate() {
@@ -113,10 +122,10 @@ Non-successful API responses throw an SDK error. The original API response remai
   </Tab>
   <Tab title="Python">
     ```python
-    from pxxl import is_plan_gate_error
+    from pxxl import PxxlAPIError, is_plan_gate_error
 
     try:
-        result = client.create_storage_bucket(input)
+        result = client.create_storage_bucket({"name": "uploads"})
     except PxxlAPIError as error:
         if is_plan_gate_error(error):
             print(error.code, error.limit, error.current, error.required_plan)
@@ -124,7 +133,7 @@ Non-successful API responses throw an SDK error. The original API response remai
   </Tab>
   <Tab title="Rust">
     ```rust
-    if let Err(error) = client.create_storage_bucket(input).await {
+    if let Err(error) = client.create_storage_bucket(json!({ "name": "uploads" })).await {
         if error.is_plan_gate() {
             eprintln!("Upgrade required for another storage bucket");
         }
@@ -133,7 +142,14 @@ Non-successful API responses throw an SDK error. The original API response remai
   </Tab>
 </Tabs>
 
-Node.js also exports `isPlanGateError(error)`. Structured plan-gate handling works across storage, domains, deployments, databases, and cron jobs.
+| SDK | Error type | Fields |
+| --- | --- | --- |
+| Node.js | `PxxlAPIError` | `status`, `message`, `details`, `code`, `limit`, `current`, `requiredPlan`, `upgradeRequired` |
+| Go | `*pxxl.APIError` | `StatusCode`, `Message`, `Body`, `Code`, `Limit`, `Current`, `RequiredPlan`, `UpgradeRequired`, and `IsPlanGate()` |
+| Python | `PxxlAPIError` | `status_code`, `message`, `body`, `details`, `code`, `limit`, `current`, `required_plan`, `upgrade_required` |
+| Rust | `PxxlError::Api` | `status`, `message`, `body`, and `is_plan_gate()` |
+
+In Node.js, a network failure also throws `PxxlAPIError`, with `status` set to `0`.
 
 <Note>
   Response examples show the fields used most often. The API can add fields without breaking existing integrations.
