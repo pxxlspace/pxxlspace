@@ -1,9 +1,22 @@
 import { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlEnvironmentVariables, PxxlIdentity, PxxlInvoices, PxxlMCP, PxxlRawAPI, PxxlProjects, PxxlStorage, PxxlTeams } from "./resources.js";
 export { PxxlS3 } from "./s3.js";
 export type { PxxlS3Credentials } from "./s3.js";
+import { PxxlTools, PxxlTunnels, PxxlWebhooks } from "./tools.js";
+import { PxxlReseller } from "./reseller.js";
+import { PxxlServers } from "./servers.js";
+export * from "./tools.js";
+export * from "./reseller.js";
+export { PxxlServers } from "./servers.js";
+export type { ServerAction } from "./servers.js";
 export type CDNVisibility = "private" | "public";
 export type CDNAssetKind = "file" | "artifact";
 export declare const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
+/**
+ * The API base URL. PXXL_API_URL may point the SDK at a Pxxl staging Gateway
+ * (https://*.pxxl.app) or a local one (localhost) for testing; any other host
+ * is refused so an API key is never sent elsewhere.
+ */
+export declare function resolvePxxlAPIBaseURL(): string;
 export declare const MAX_DEPLOY_FILES = 12000;
 export declare const MAX_DEPLOY_SOURCE_BYTES: number;
 export interface PxxlClientOptions {
@@ -14,6 +27,8 @@ export interface PxxlClientOptions {
     fetchImpl?: typeof fetch;
     mcpApiKey?: string;
     mcpEndpoint?: string;
+    /** A reseller key (pxxl_rsl_...) for `pxxl.reseller`. Defaults to PXXL_RESELLER_KEY, then apiKey. */
+    resellerKey?: string;
 }
 export declare const PXXL_MCP_ENDPOINT = "https://mcp.pxxl.app/mcp";
 export declare const PXXL_MCP_PROTOCOL_VERSION = "2025-06-18";
@@ -920,6 +935,52 @@ export declare class PxxlClient {
     listProjectEnv(id: string, options?: {
         global?: boolean;
     }): Promise<unknown>;
+    private projectPath;
+    private deploymentPath;
+    /** Whether the app is up: containers, health and the live URL. */
+    projectLiveStatus(id: string): Promise<Record<string, unknown>>;
+    /** CPU, memory, network and request metrics (Pro and above for history). */
+    projectMetrics(id: string, input?: {
+        range?: string;
+    }): Promise<Record<string, unknown>>;
+    projectComputeUsage(id: string): Promise<Record<string, unknown>>;
+    projectRollbacks(id: string): Promise<Record<string, unknown>>;
+    projectDiagnostics(id: string): Promise<Record<string, unknown>>;
+    /** Change build and runtime settings: buildCommand, startCommand, installCommand, baseDirectory, port, branch, name, framework, nodeVersion, healthCheckPath… */
+    updateProject(id: string, settings: Record<string, unknown>): Promise<Record<string, unknown>>;
+    deleteProject(id: string): Promise<Record<string, unknown>>;
+    restartProject(id: string): Promise<Record<string, unknown>>;
+    pauseProject(id: string): Promise<Record<string, unknown>>;
+    setAutoDeploy(id: string, enabled: boolean): Promise<Record<string, unknown>>;
+    /** Purge the CDN cache. `id` makes the request idempotent (one is generated if omitted). */
+    purgeProjectCache(id: string, input?: {
+        id?: string;
+        deploymentId?: string;
+    }): Promise<Record<string, unknown>>;
+    projectCachePurge(id: string, purgeId: string): Promise<Record<string, unknown>>;
+    activeDeployments(): Promise<Record<string, unknown>>;
+    deploymentBuildErrors(id: string): Promise<Record<string, unknown>>;
+    /** Make a previous deployment live again. */
+    rollbackDeployment(id: string): Promise<Record<string, unknown>>;
+    cancelDeployment(id: string): Promise<Record<string, unknown>>;
+    rebuildDeployment(id: string): Promise<Record<string, unknown>>;
+    /** Add one variable (secret by default). */
+    addProjectEnv(id: string, input: {
+        key: string;
+        value: string;
+        secret?: boolean;
+        serviceAlias?: string;
+    }): Promise<Record<string, unknown>>;
+    updateProjectEnv(id: string, input: {
+        key: string;
+        value: string;
+        secret?: boolean;
+        serviceAlias?: string;
+    }): Promise<Record<string, unknown>>;
+    deleteProjectEnv(id: string, key: string): Promise<Record<string, unknown>>;
+    /** One variable's value, secrets included (needs a read-and-write key). */
+    revealProjectEnv(id: string, key: string): Promise<Record<string, unknown>>;
+    projectEnvHistory(id: string): Promise<Record<string, unknown>>;
     listDomainInvoices(teamId?: string | undefined): Promise<{
         invoices: DomainInvoice[];
         error?: boolean;
@@ -953,6 +1014,10 @@ export declare class PxxlClient {
     createInvoicePaymentLink(id: string): Promise<PaymentLinkResult>;
     cancelDomainInvoice(id: string, teamId?: string | undefined): Promise<unknown>;
     deploy(input: DeployInput): Promise<unknown>;
+    /** @internal The full API URL for a path (used by connections that are not fetch, like tunnels). */
+    apiURL(path: string): string;
+    /** @internal The Authorization header for connections that are not fetch. */
+    authHeaders(): Record<string, string>;
     request<T = unknown>(path: string, init?: PxxlRequestOptions): Promise<T>;
     rawRequest(path: string, init?: PxxlRequestOptions): Promise<Response>;
     mcpRPC<T = Record<string, unknown>>(method: string, params?: Record<string, unknown>, endpoint?: string): Promise<T>;
@@ -983,6 +1048,12 @@ export declare class Pxxl extends PxxlClient {
     readonly teams: PxxlTeams;
     readonly databases: PxxlDatabases;
     readonly mcp: PxxlMCP;
+    readonly tools: PxxlTools;
+    readonly tunnels: PxxlTunnels;
+    readonly webhooks: PxxlWebhooks;
+    readonly servers: PxxlServers;
+    /** Domain reselling with a reseller key (Pro and up), charged to your wallet. */
+    readonly reseller: PxxlReseller;
     constructor(options?: PxxlClientOptions);
 }
 export { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlEnvironmentVariables, PxxlIdentity, PxxlInvoices, PxxlMCP, PxxlRawAPI, PxxlProjects, PxxlStorage, PxxlTeams, };
@@ -994,6 +1065,10 @@ export declare function copyBoilerplate(name: string, destination: string, repoR
 export declare function readBoilerplateManifest(name: string, repoRoot?: string): Promise<BoilerplateManifest | undefined>;
 export declare function saveAuthConfig(apiKey: string, _baseUrl?: string): Promise<void>;
 export declare function saveTeamSelection(teamId?: string): Promise<void>;
+/** Store a reseller key (pxxl_rsl_...) next to the CLI's API key; pass "" to remove it. */
+export declare function saveResellerKey(resellerKey: string): Promise<void>;
+/** The reseller key: PXXL_RESELLER_KEY, then the stored one. */
+export declare function readResellerKey(): Promise<string | undefined>;
 export declare function readAuthConfig(): Promise<{
     apiKey?: string;
     selectedTeamId?: string;

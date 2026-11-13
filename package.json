@@ -1,6 +1,6 @@
 {
   "name": "@pxxlapp/pxxl",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Official Pxxl CLI and JavaScript SDK for deploys, storage, domains, billing, cron jobs, and platform operations.",
   "repository": {
     "type": "git",

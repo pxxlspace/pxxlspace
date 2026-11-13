@@ -3,7 +3,7 @@ title: "Publish the SDKs"
 description: "Release Node.js, Go, Python, and Rust packages from this repository."
 ---
 
-Publish only from a clean commit after every SDK test passes. The Node.js package is versioned with the CLI. Keep Go, Python, and Rust on one shared version number, currently `0.2.1`.
+Publish only from a clean commit after every SDK test passes. The Node.js package is versioned with the CLI. Keep Go, Python, and Rust on one shared version number, currently `0.3.0`.
 
 ## Node.js and CLI
 
@@ -30,10 +30,10 @@ cd pxxlspace/sdks/go/pxxl
 go mod tidy
 go test ./...
 cd ../../..
-git tag -a sdks/go/pxxl/v0.2.1 -m "feat: release Go SDK v0.2.1"
-git push origin sdks/go/pxxl/v0.2.1
+git tag -a sdks/go/pxxl/v0.3.0 -m "feat: release Go SDK v0.3.0"
+git push origin sdks/go/pxxl/v0.3.0
 GOPROXY=proxy.golang.org go list -m \
-  github.com/pxxlspace/pxxlspace/sdks/go/pxxl@v0.2.1
+  github.com/pxxlspace/pxxlspace/sdks/go/pxxl@v0.3.0
 ```
 
 Do not move or replace a published tag. Release a new version if a fix is needed.

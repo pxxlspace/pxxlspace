@@ -349,6 +349,24 @@ export declare class PxxlProjects {
         lines?: number;
         since?: string;
     }): Promise<unknown>;
+    status(id: string): Promise<Record<string, unknown>>;
+    metrics(id: string, input?: {
+        range?: string;
+    }): Promise<Record<string, unknown>>;
+    usage(id: string): Promise<Record<string, unknown>>;
+    diagnostics(id: string): Promise<Record<string, unknown>>;
+    rollbacks(id: string): Promise<Record<string, unknown>>;
+    update(id: string, settings: Record<string, unknown>): Promise<Record<string, unknown>>;
+    delete(id: string): Promise<Record<string, unknown>>;
+    restart(id: string): Promise<Record<string, unknown>>;
+    pause(id: string): Promise<Record<string, unknown>>;
+    /** Resume a paused project (starts it again). */
+    resume(id: string): Promise<Record<string, unknown>>;
+    autoDeploy(id: string, enabled: boolean): Promise<Record<string, unknown>>;
+    purgeCache(id: string, input?: {
+        id?: string;
+        deploymentId?: string;
+    }): Promise<Record<string, unknown>>;
 }
 export declare class PxxlEnvironmentVariables {
     private readonly client;
@@ -363,6 +381,19 @@ export declare class PxxlEnvironmentVariables {
         global?: boolean;
         replace?: boolean;
     }): Promise<unknown>;
+    add(projectId: string, input: {
+        key: string;
+        value: string;
+        secret?: boolean;
+    }): Promise<Record<string, unknown>>;
+    update(projectId: string, input: {
+        key: string;
+        value: string;
+        secret?: boolean;
+    }): Promise<Record<string, unknown>>;
+    remove(projectId: string, key: string): Promise<Record<string, unknown>>;
+    reveal(projectId: string, key: string): Promise<Record<string, unknown>>;
+    history(projectId: string): Promise<Record<string, unknown>>;
 }
 export declare class PxxlDeployments {
     private readonly client;
@@ -383,6 +414,11 @@ export declare class PxxlDeployments {
         commitSha?: string;
         commitMessage?: string;
     }): Promise<unknown>;
+    rollback(id: string): Promise<Record<string, unknown>>;
+    cancel(id: string): Promise<Record<string, unknown>>;
+    rebuild(id: string): Promise<Record<string, unknown>>;
+    buildErrors(id: string): Promise<Record<string, unknown>>;
+    active(): Promise<Record<string, unknown>>;
     deploy(input: Parameters<PxxlClient["deploy"]>[0]): Promise<unknown>;
 }
 export declare class PxxlTeams {

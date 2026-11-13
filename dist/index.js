@@ -7,7 +7,37 @@ import ignore from "ignore";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { PxxlAnalytics, PxxlAssets, PxxlBilling, PxxlCronJobs, PxxlCustomers, PxxlDatabases, PxxlDeployments, PxxlDomains, PxxlEnvironmentVariables, PxxlIdentity, PxxlInvoices, PxxlMCP, PxxlRawAPI, PxxlProjects, PxxlStorage, PxxlTeams, } from "./resources.js";
 export { PxxlS3 } from "./s3.js";
+import { PxxlTools, PxxlTunnels, PxxlWebhooks } from "./tools.js";
+import { PxxlReseller } from "./reseller.js";
+import { PxxlServers } from "./servers.js";
+export * from "./tools.js";
+export * from "./reseller.js";
+export { PxxlServers } from "./servers.js";
 export const PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3";
+/**
+ * The API base URL. PXXL_API_URL may point the SDK at a Pxxl staging Gateway
+ * (https://*.pxxl.app) or a local one (localhost) for testing; any other host
+ * is refused so an API key is never sent elsewhere.
+ */
+export function resolvePxxlAPIBaseURL() {
+    const raw = typeof process !== "undefined" ? String(process.env?.PXXL_API_URL || "").trim() : "";
+    if (!raw)
+        return PXXL_API_BASE_URL;
+    let url;
+    try {
+        url = new URL(raw);
+    }
+    catch {
+        throw new Error("PXXL_API_URL must be a URL, like https://staging-gateway.pxxl.app");
+    }
+    const host = url.hostname;
+    const pxxlHost = url.protocol === "https:" && (host === "pxxl.app" || host.endsWith(".pxxl.app"));
+    const localHost = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(host);
+    if (!pxxlHost && !localHost)
+        throw new Error("PXXL_API_URL must be an https://*.pxxl.app Gateway or localhost");
+    const base = `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+    return base.endsWith("/api/v3") ? base : `${base}/api/v3`;
+}
 export const MAX_DEPLOY_FILES = 12000;
 export const MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024;
 export const PXXL_MCP_ENDPOINT = "https://mcp.pxxl.app/mcp";
@@ -85,7 +115,7 @@ export class PxxlClient {
     fetchImpl;
     constructor(options = {}) {
         this.apiKey = (options.apiKey || "").trim() || undefined;
-        this.baseUrl = PXXL_API_BASE_URL;
+        this.baseUrl = resolvePxxlAPIBaseURL();
         this.teamId = (options.teamId || "").trim() || undefined;
         this.fetchImpl = options.fetchImpl || fetch;
     }
@@ -632,6 +662,45 @@ export class PxxlClient {
         const path = options.global ? `/cli/projects/${encodeURIComponent(id)}/global-envs` : `/cli/projects/${encodeURIComponent(id)}/envs`;
         return this.request(path);
     }
+    // ---- project control (rollback, restart, settings, env, status) ----
+    projectPath(id, suffix = "") { return `/cli/projects/${encodeURIComponent(id)}${suffix}`; }
+    deploymentPath(id, suffix = "") { return `/cli/deployments/${encodeURIComponent(id)}${suffix}`; }
+    /** Whether the app is up: containers, health and the live URL. */
+    projectLiveStatus(id) { return this.request(this.projectPath(id, "/live-status")); }
+    /** CPU, memory, network and request metrics (Pro and above for history). */
+    projectMetrics(id, input = {}) { return this.request(this.projectPath(id, `/metrics${input.range ? `?range=${encodeURIComponent(input.range)}` : ""}`)); }
+    projectComputeUsage(id) { return this.request(this.projectPath(id, "/compute-usage")); }
+    projectRollbacks(id) { return this.request(this.projectPath(id, "/rollbacks")); }
+    projectDiagnostics(id) { return this.request(this.projectPath(id, "/runtime-diagnostics")); }
+    /** Change build and runtime settings: buildCommand, startCommand, installCommand, baseDirectory, port, branch, name, framework, nodeVersion, healthCheckPath… */
+    updateProject(id, settings) { return this.request(this.projectPath(id), { method: "PUT", body: JSON.stringify(settings) }); }
+    deleteProject(id) { return this.request(this.projectPath(id), { method: "DELETE" }); }
+    restartProject(id) { return this.request(this.projectPath(id, "/restart"), { method: "POST" }); }
+    pauseProject(id) { return this.request(this.projectPath(id, "/pause"), { method: "POST" }); }
+    setAutoDeploy(id, enabled) { return this.request(this.projectPath(id, "/auto-deploy"), { method: "PUT", body: JSON.stringify({ enabled }) }); }
+    /** Purge the CDN cache. `id` makes the request idempotent (one is generated if omitted). */
+    purgeProjectCache(id, input = {}) {
+        const purgeId = input.id || `sdk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+        return this.request(this.projectPath(id, "/cache/purges"), { method: "POST", body: JSON.stringify({ id: purgeId, deployment_id: input.deploymentId }) });
+    }
+    projectCachePurge(id, purgeId) { return this.request(this.projectPath(id, `/cache/purges/${encodeURIComponent(purgeId)}`)); }
+    activeDeployments() { return this.request("/cli/deployments/active"); }
+    deploymentBuildErrors(id) { return this.request(this.deploymentPath(id, "/build-errors")); }
+    /** Make a previous deployment live again. */
+    rollbackDeployment(id) { return this.request(this.deploymentPath(id, "/rollback"), { method: "POST" }); }
+    cancelDeployment(id) { return this.request(this.deploymentPath(id, "/cancel"), { method: "POST" }); }
+    rebuildDeployment(id) { return this.request(this.deploymentPath(id, "/rebuild"), { method: "POST" }); }
+    /** Add one variable (secret by default). */
+    addProjectEnv(id, input) {
+        return this.request(this.projectPath(id, "/envs"), { method: "POST", body: JSON.stringify({ key: input.key, value: input.value, isSecret: input.secret ?? true, serviceAlias: input.serviceAlias }) });
+    }
+    updateProjectEnv(id, input) {
+        return this.request(this.projectPath(id, "/envs"), { method: "PUT", body: JSON.stringify({ key: input.key, value: input.value, isSecret: input.secret, serviceAlias: input.serviceAlias }) });
+    }
+    deleteProjectEnv(id, key) { return this.request(this.projectPath(id, "/envs"), { method: "DELETE", body: JSON.stringify({ key }) }); }
+    /** One variable's value, secrets included (needs a read-and-write key). */
+    revealProjectEnv(id, key) { return this.request(this.projectPath(id, `/envs/reveal?key=${encodeURIComponent(key)}`)); }
+    projectEnvHistory(id) { return this.request(this.projectPath(id, "/envs/history")); }
     async listDomainInvoices(teamId = this.teamId) {
         return this.request(`/cli/domainprovider/invoices${teamQuery(teamId)}`);
     }
@@ -703,6 +772,16 @@ export class PxxlClient {
         }
         return this.request("/projects/spacedrop", { method: "POST", body: form, skipContentType: true });
     }
+    /** @internal The full API URL for a path (used by connections that are not fetch, like tunnels). */
+    apiURL(path) {
+        if (!path.startsWith("/"))
+            throw new Error("Pxxl request path must start with /");
+        return `${this.baseUrl}${path}`;
+    }
+    /** @internal The Authorization header for connections that are not fetch. */
+    authHeaders() {
+        return this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {};
+    }
     async request(path, init = {}) {
         if (!path.startsWith("/"))
             throw new Error("Pxxl request path must start with /");
@@ -734,7 +813,11 @@ export class PxxlClient {
             catch {
                 details = await response.text().catch(() => "");
             }
-            const message = typeof details === "object" && details && "message" in details ? String(details.message) : `Pxxl request failed with ${response.status}`;
+            const record = typeof details === "object" && details ? details : {};
+            const base = record.message !== undefined ? String(record.message) : `Pxxl request failed with ${response.status}`;
+            // Add the server's error detail when it says more than the message.
+            const detail = typeof record.error === "string" && record.error && !base.includes(record.error) ? `: ${record.error}` : "";
+            const message = `${base}${detail}`;
             throw new PxxlAPIError(message, response.status, details);
         }
         return response;
@@ -789,8 +872,20 @@ export class Pxxl extends PxxlClient {
     teams;
     databases;
     mcp;
+    tools;
+    tunnels;
+    webhooks;
+    servers;
+    /** Domain reselling with a reseller key (Pro and up), charged to your wallet. */
+    reseller;
     constructor(options = {}) {
         super(options);
+        const resellerKey = (options.resellerKey || (typeof process !== "undefined" ? process.env?.PXXL_RESELLER_KEY : "") || "").trim();
+        this.reseller = new PxxlReseller(resellerKey ? new PxxlClient({ ...options, apiKey: resellerKey }) : this);
+        this.servers = new PxxlServers(this, (options.teamId || "").trim() || undefined);
+        this.tools = new PxxlTools(this);
+        this.tunnels = new PxxlTunnels(this);
+        this.webhooks = new PxxlWebhooks(this);
         this.identity = new PxxlIdentity(this);
         this.api = new PxxlRawAPI(this);
         this.assets = new PxxlAssets(this);
@@ -946,12 +1041,28 @@ export async function saveTeamSelection(teamId) {
     const existing = await readStoredAuthConfig();
     const next = { ...existing, selectedTeamId: teamId || undefined };
     const { baseUrl: _ignored, ...stored } = next;
-    if (!stored.apiKey && !stored.selectedTeamId)
+    if (!stored.apiKey && !stored.selectedTeamId && !stored.resellerKey)
         return clearAuthConfig();
     const path = configPath();
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, JSON.stringify(stored, null, 2), { mode: 0o600 });
     await chmod(path, 0o600).catch(() => undefined);
+}
+/** Store a reseller key (pxxl_rsl_...) next to the CLI's API key; pass "" to remove it. */
+export async function saveResellerKey(resellerKey) {
+    const existing = await readStoredAuthConfig();
+    const { baseUrl: _ignored, ...rest } = existing;
+    const next = { ...rest, resellerKey: resellerKey.trim() || undefined };
+    if (!next.apiKey && !next.selectedTeamId && !next.resellerKey)
+        return clearAuthConfig();
+    const path = configPath();
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify(next, null, 2), { mode: 0o600 });
+    await chmod(path, 0o600).catch(() => undefined);
+}
+/** The reseller key: PXXL_RESELLER_KEY, then the stored one. */
+export async function readResellerKey() {
+    return process.env.PXXL_RESELLER_KEY || (await readStoredAuthConfig()).resellerKey || undefined;
 }
 export async function readAuthConfig() {
     const stored = await readStoredAuthConfig();
