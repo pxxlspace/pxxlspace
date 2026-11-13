@@ -1,0 +1,66 @@
+---
+title: "Monitoring and alerts"
+description: "Health checks, metrics, events, and alerts for your linked servers."
+---
+
+The agent checks in every 30 seconds. A server that misses check-ins for **3 minutes** shows as offline.
+
+## Health
+
+The **Overview** tab and `pxxl servers health` show each part of the server:
+
+| Check | States |
+| --- | --- |
+| **Agent** | Version and uptime. |
+| **Podman** | Running, or down if containers can't run. |
+| **Service** | systemd or OpenRC. |
+| **Cgroups** | v1 or v2. Down means app limits don't apply. |
+| **Tunnel** | The outbound connection to Pxxl. |
+| **Disk** | Needs attention under 10% free, down under 3%. |
+| **Memory** | Same thresholds as disk. |
+
+The page also shows the OS, kernel, cloud provider, public IP, and location.
+
+## Metrics
+
+The agent sends a sample about once a minute: load, memory, disk, and the CPU and memory your apps use. Metrics are kept 8 days. Pick **Last hour**, **6 hours**, **24 hours**, or **7 days** in the **Monitoring** tab.
+
+```bash
+pxxl servers metrics
+```
+
+## Events
+
+Every link, check-in gap, app restart, terminal session, update, and operation is an event. Events are kept 30 days.
+
+```bash
+pxxl servers events --limit 50
+```
+
+## Alerts
+
+| Alert | Opens when | Clears when |
+| --- | --- | --- |
+| **Server offline** | No check-in for 3 minutes. | The next check-in. |
+| **Project crashed** | An app's container exits on its own. | It runs again, or you stop or remove it. |
+| **Crash loop** | An app restarts 3 times in 15 minutes. | No restarts for 30 minutes. |
+| **Disk full** | Over 90% for 10 minutes. | Under 85%. |
+| **Memory full** | Over 90% for 10 minutes. | Under 85%. |
+
+Alerts go to the workspace owner, and to a team's owner and admins:
+
+- The notification bell, when it opens and when it clears.
+- A push notification for outages and crashes.
+- Email, unless you turn it off.
+
+Turn each kind on or off in **Settings > Alerts**:
+
+```bash
+pxxl servers settings --set alertResources=false --set alertEmail=true
+```
+
+Settings keys: `alertOffline`, `alertCrashes`, `alertResources`, `alertEmail`, `autoUpdate`.
+
+```bash
+pxxl servers alerts
+```

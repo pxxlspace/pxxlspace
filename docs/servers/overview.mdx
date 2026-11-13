@@ -1,0 +1,81 @@
+---
+title: "Servers"
+description: "Link your own Linux server to Pxxl and manage it from the dashboard."
+---
+
+Bring your own server (BYOS) links a Linux machine you already run, at Hetzner, DigitalOcean, AWS, or anywhere else, to your Pxxl workspace. You get health checks, monitoring, alerts, a browser terminal, and safe maintenance tasks for it in the dashboard.
+
+A small agent, `pxxl-agent`, runs on the server and only makes **outbound** connections. Pxxl opens no ports and has no SSH access. The server keeps an ed25519 key; Pxxl stores only the public half.
+
+<Note>
+  Deploying your Pxxl projects onto your own server is coming soon. Linked servers already appear in the region picker, greyed out until then.
+</Note>
+
+## Plans and pricing
+
+Servers are on Plus, Pro, and Enterprise.
+
+| Plan | Included | Most you can link |
+| --- | --- | --- |
+| Plus | 1 | 5 |
+| Pro | 3 | 20 |
+| Enterprise | 10 | No limit |
+
+Each server above the included number costs **$2 a month** (₦3,000 in Nigeria), charged per day. A team's servers are billed to the team owner.
+
+## Connect a server
+
+<Steps>
+  <Step title="Name it">
+    Open **Servers**, choose **Connect Server**, and give it a name such as `hetzner-fsn-1`.
+  </Step>
+  <Step title="Run the install command">
+    Copy the command and run it on the server as root:
+    ```bash
+    curl -fsSL https://server.pxxl.app/api/v3/byos/install.sh | sudo bash -s -- --token pxl_link_...
+    ```
+    The command works once and expires in 30 minutes.
+  </Step>
+  <Step title="Confirm">
+    The script shows your workspace name and the server's specs, then asks to connect. Answer `Y`.
+  </Step>
+  <Step title="Done">
+    The dashboard shows **Connected** within a minute.
+  </Step>
+</Steps>
+
+From the CLI:
+
+```bash
+pxxl servers add hetzner-fsn-1
+```
+
+Requirements and what the script installs: [Install the agent](/servers/install).
+
+## Server page tabs
+
+| Tab | What it shows |
+| --- | --- |
+| **Overview** | Load, memory, disk, running apps, uptime, a load and memory chart, health, open alerts, and recent events. |
+| **Projects** | Apps on the server with CPU, memory, network, restarts, and uptime. View logs, restart, stop, or start each one. |
+| **Monitoring** | Memory, disk, and project CPU and memory over the last hour, 6 hours, 24 hours, or 7 days. |
+| **Terminal** | A shell on the server or in a project's container. Off until you enable it. |
+| **Events** | Everything that happened, kept 30 days. Filter by warnings or errors. |
+| **Settings** | Name, install command, agent version and updates, alerts, disk clean-up, and removal. |
+
+## Learn more
+
+<CardGroup cols={2}>
+  <Card title="Install the agent" icon="download" href="/servers/install">
+    Supported systems, what's installed, reinstall and remove.
+  </Card>
+  <Card title="Monitoring and alerts" icon="bell" href="/servers/monitoring">
+    Health checks, metrics, events and alerts.
+  </Card>
+  <Card title="Terminal" icon="terminal" href="/servers/terminal">
+    Open a root shell from the browser.
+  </Card>
+  <Card title="Safe operations" icon="shield-check" href="/servers/operations">
+    53 fixed maintenance tasks for you and the AI agent.
+  </Card>
+</CardGroup>

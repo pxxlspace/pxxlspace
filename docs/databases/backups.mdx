@@ -1,0 +1,72 @@
+---
+title: "Database backups"
+description: "Daily encrypted backups, manual recovery points, and restores."
+---
+
+Paid plans can back up a database every day and on demand. Backups are encrypted. Your plan sets how long they are kept.
+
+## Turn on backups
+
+<Steps>
+  <Step title="Open Backup">
+    Open the database and select **Backup**.
+  </Step>
+  <Step title="Choose where to store them">
+    **Pxxl-managed storage** keeps them in private Pxxl storage. **Custom S3-compatible storage** writes them to your own bucket.
+  </Step>
+  <Step title="Enable daily backups">
+    Turn on daily backups and save. To back up now, select **Create recovery point**.
+  </Step>
+</Steps>
+
+## Use your own bucket
+
+Enter these fields for a custom destination. Pxxl checks the bucket before it saves.
+
+| Field | Example |
+| --- | --- |
+| **Endpoint** | `https://s3.us-east-1.amazonaws.com` or `https://ACCOUNT_ID.r2.cloudflarestorage.com` |
+| **Bucket** | `my-backups` |
+| **Region** | `us-east-1`, or `auto` for R2 |
+| **Prefix** | `pxxl/orders-db` |
+| **Access key ID / Secret** | A key limited to that bucket and prefix |
+
+The endpoint must be public HTTPS. The key needs `s3:ListBucket` and `s3:GetBucketLocation` on the bucket, and `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` on the prefix:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::YOUR_BUCKET"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::YOUR_BUCKET/YOUR_PREFIX/*"
+    }
+  ]
+}
+```
+
+Changing the destination later doesn't move old backups. Each backup stays where it was written.
+
+## Backup status
+
+| Status | Meaning |
+| --- | --- |
+| **Queued** | Accepted, waiting to run. |
+| **Running** | Being exported and written. |
+| **Completed** | Ready to download or restore. |
+| **Failed** | Couldn't be created or stored. Check the error. |
+| **Expired** | Past retention and removed. |
+
+## Restore
+
+Pick a **Completed** backup and choose **Restore**. A restore can replace the current data, so check you picked the right database and point in time. One backup and one restore can run at a time per database.
+
+## If a backup fails
+
+Check the endpoint, the bucket region, the prefix, and the key's permissions. A key that can list the bucket but can't write to the prefix is the most common cause.

@@ -1,0 +1,86 @@
+---
+title: "Databases"
+description: "Create a managed database and connect your app to it."
+---
+
+Pxxl runs managed databases next to your apps. Create one, copy its URL into your project, and redeploy.
+
+## Engines
+
+| Engine | Good for |
+| --- | --- |
+| **PostgreSQL** | Most apps and APIs. |
+| **MySQL** | Existing MySQL apps. |
+| **MariaDB** | MySQL-compatible apps. |
+| **MongoDB** | Document data. |
+| **Redis** | Cache, queues, sessions. |
+| **KeyDB** | Redis-compatible, multi-threaded. |
+| **DragonflyDB** | Redis-compatible cache and queues. |
+| **ClickHouse** | Analytics and large column queries. |
+
+PostgreSQL and MySQL are on the Free plan. The other engines depend on your plan.
+
+## Create a database
+
+<Steps>
+  <Step title="Open Database">
+    In the dashboard, open **Database** and choose **New Database**.
+  </Step>
+  <Step title="Pick an engine and name">
+    Use a name that says what it holds, such as `orders-production`.
+  </Step>
+  <Step title="Turn on backups (optional)">
+    Paid plans can take daily encrypted backups. See [Backups](/databases/backups).
+  </Step>
+  <Step title="Wait until it's running">
+    Connect your app once the status shows healthy or running.
+  </Step>
+</Steps>
+
+From the CLI:
+
+```bash
+pxxl db create
+```
+
+See [CLI commands](/cli/commands#databases) for the options.
+
+## Connect your app
+
+Open the database and select **Connection**. Copy the **Database URL**, or the host, port, user, and password.
+
+Add it to your project as an environment variable, then redeploy:
+
+```bash
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+```
+
+When you create a database from inside a project, turn on **Add DATABASE_URL** and Pxxl adds the variable for you.
+
+<Warning>
+  Don't use `localhost`. Inside your app's container, `localhost` is the container itself. Use the host Pxxl shows you.
+</Warning>
+
+<Tip>
+  Running apps don't pick up new variables until they restart. Redeploy after you add or change `DATABASE_URL`.
+</Tip>
+
+## Database page tabs
+
+| Tab | What it does |
+| --- | --- |
+| **Connection** | Shows the URL and credentials. Secrets are hidden until you reveal them. |
+| **Monitoring** | Health, connections, storage, transfer, latency. |
+| **Visualise** | Browse tables, rows, relationships (ERD), and run queries. |
+| **Backup** | Daily and manual backups, download, and restore. |
+| **Settings** | Resources, networking, transfer, start, stop, restart, delete. |
+
+## Stop, restart, delete
+
+Open **Settings**. **Stop** pauses the database and your app's connections fail until you start it again. **Delete** is permanent. Take a backup first.
+
+## Next steps
+
+- [Backups](/databases/backups)
+- [Private networking](/networking/private-networking)
+- [Database troubleshooting](/troubleshooting/databases)

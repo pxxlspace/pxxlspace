@@ -1,0 +1,71 @@
+---
+title: "Cron jobs"
+description: "Call an HTTP endpoint on a schedule."
+---
+
+A Pxxl cron job sends an HTTP request to your app on a schedule. Use it for cleanups, reports, cache refreshes, and reminders.
+
+Cron jobs are on Plus, Pro, and Enterprise plans.
+
+## Create a job
+
+<Steps>
+  <Step title="Open Cron Jobs">
+    In the dashboard, open **Cron Jobs** and choose **New Cron Job**.
+  </Step>
+  <Step title="Set the request">
+    Enter a name, the method (`GET`, `POST`, `PUT`, `PATCH`, or `DELETE`), the public URL, and a timeout from 1 to 30 seconds. Use **Test URL** to check Pxxl can reach it.
+  </Step>
+  <Step title="Add headers">
+    Add an auth header, such as `Authorization: Bearer <token>`. Headers are stored as secrets.
+  </Step>
+  <Step title="Set the schedule">
+    Enter a cron expression or pick a preset. **Validate** shows the next run time.
+  </Step>
+</Steps>
+
+## Schedule format
+
+Five fields: `minute hour day-of-month month day-of-week`.
+
+| Schedule | Expression |
+| --- | --- |
+| Every 5 minutes | `*/5 * * * *` |
+| Every hour | `0 * * * *` |
+| Every day at midnight | `0 0 * * *` |
+| Every Monday at 09:00 | `0 9 * * 1` |
+
+## Protect the endpoint
+
+The URL is public, so check a secret header before doing any work:
+
+```js
+app.post("/jobs/cleanup", (req, res) => {
+  if (req.get("authorization") !== `Bearer ${process.env.CRON_TOKEN}`) {
+    return res.status(401).end();
+  }
+  // do the work, or queue it
+  res.status(200).json({ ok: true });
+});
+```
+
+## How runs work
+
+- Pxxl checks for due jobs every 30 seconds.
+- Each run is one HTTP request. A `2xx` response is a success. Anything else, a network error, or a timeout is a failure.
+- Run history keeps the status code and up to 10 KB of the response body.
+- After **3 failures in a row**, Pxxl disables the job. Fix the endpoint, then start the job again.
+- **Trigger** runs the job now. It shows in the same history.
+- URLs must be public `http` or `https`. Private, loopback, and metadata addresses are blocked.
+
+<Tip>
+  Keep the handler fast. For long work, queue it and return `200` straight away. Make the handler safe to run twice.
+</Tip>
+
+## From the CLI and SDKs
+
+```bash
+pxxl cron list
+```
+
+See [CLI commands](/cli/commands#cron-jobs) for all `pxxl cron` commands, and the [SDK cron guide](/integrations/sdk/cron-jobs) to manage jobs from code.

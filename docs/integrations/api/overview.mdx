@@ -3,7 +3,7 @@ title: "API overview"
 description: "Call Pxxl directly over HTTPS."
 ---
 
-Use the API when an SDK is unavailable for your language or you need direct control over requests.
+Use the API when an SDK is unavailable for your language or you need direct control over requests. Every path in these pages is relative to this base URL:
 
 ```text
 https://server.pxxl.app/api/v3
@@ -22,11 +22,14 @@ curl https://server.pxxl.app/api/v3/cli/whoami \
   "success": true,
   "user": { "id": "user_123", "email": "developer@example.com" },
   "authMethod": "api_key",
+  "apiKeyId": "key_123",
   "apiKeyScope": "all",
   "apiKeyPermission": "read_write",
-  "teamId": "team_123"
+  "teamId": ""
 }
 ```
+
+`teamId` is empty for a personal key and holds the team ID for a team-scoped key.
 
 ## Request formats
 
@@ -45,7 +48,30 @@ flowchart LR
   Gateway -->|"JSON or binary response"| Client
 ```
 
-Every resource page shows its accepted parameters, example request, success response, and possible action result.
+## Plans
+
+API keys work on paid plans. Most modules (projects, deployments, environment variables, domains, cron jobs, CDN, storage, analytics, and usage) return `402` when the key owner has no active paid plan. Databases, teams, servers, and tools accept any valid key, and their own plan limits still apply.
+
+## Rate limits
+
+Each endpoint has its own per-minute limit. Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (seconds until the window resets). Over the limit you get `429`.
+
+## What you can call
+
+| Page | Covers |
+| --- | --- |
+| [Authentication](/integrations/api/authentication) | Headers, scopes, permissions, teams |
+| [Projects and deployments](/integrations/api/projects-deployments) | Deploy source, redeploy, logs, project control |
+| [Environment variables](/integrations/api/environments) | List, diff, push, reveal |
+| [Domains and billing](/integrations/api/domains-billing) | Search, buy, connect, DNS, invoices |
+| [CDN and Storage](/integrations/api/cdn-storage) | Assets, buckets, objects, S3 keys |
+| [Databases](/integrations/api/databases) | Create, operate, monitor |
+| [Cron jobs](/integrations/api/cron-jobs) | Schedule, trigger, run history |
+| [Analytics and teams](/integrations/api/analytics-teams) | Traffic analytics, teams |
+| [Servers and tools](/integrations/api/servers-tools) | Your own servers, tunnels, webhooks, checks |
+| [MCP](/integrations/api/mcp) | JSON-RPC tools for AI clients |
+
+Dashboard-only features, such as creating API keys, managing MCP connections, and revealing database credentials, need a signed-in browser session and do not accept API keys.
 
 <Note>
   MCP uses `https://mcp.pxxl.app/mcp`. Do not append it to the REST API base URL.

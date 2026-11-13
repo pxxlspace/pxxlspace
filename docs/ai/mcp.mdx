@@ -1,0 +1,82 @@
+---
+title: "MCP"
+description: "Connect Claude, Cursor, Codex, or any MCP client to your Pxxl account."
+---
+
+The Pxxl MCP server lets an AI client work with your projects, deployments, domains, DNS, databases, storage, and cron jobs. You decide what each connection can see and change.
+
+MCP is on Plus, Pro, and Enterprise.
+
+## Connect a client
+
+<Steps>
+  <Step title="Create a connection">
+    Open **MCP** in the sidebar and create a connection. Pick your client: Claude Desktop, Cursor, Codex, or another client.
+  </Step>
+  <Step title="Choose access">
+    For each area, pick **No access**, **Read**, or **Read and write**. You can limit a connection to certain projects (up to 200).
+  </Step>
+  <Step title="Copy the key">
+    The key starts with `pxxl_mcp_`. It's shown once.
+  </Step>
+  <Step title="Add it to your client">
+    Paste this into your client's MCP settings:
+    ```json
+    {
+      "mcpServers": {
+        "pxxl": {
+          "url": "https://mcp.pxxl.app/mcp",
+          "headers": { "Authorization": "Bearer pxxl_mcp_..." }
+        }
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+The server uses Streamable HTTP at `https://mcp.pxxl.app/mcp`. Send the key as `Authorization: Bearer <key>` or `X-Pxxl-MCP-Key: <key>`.
+
+## Access areas
+
+Account, projects, deployments, domains, DNS, databases, storage, teams, usage, analytics, metrics, subscriptions, environments, cron, repositories, artifacts, and logs.
+
+Give each connection only what it needs. A deploy assistant might need read access to repositories and logs, and write access to one project.
+
+Secrets, environment variable values, API keys, payment details, and passwords are never returned, whatever the access level.
+
+## What the client can do
+
+There are more than 150 tools. A few useful ones:
+
+| Tool | What it does |
+| --- | --- |
+| `workspace_context` | Overview of your workspace. A good first call. |
+| `tools_search` | Find the right tool. |
+| `project_diagnose` | Explain why a deploy failed. |
+| `projects_list`, `project_get`, `project_logs` | Read projects and logs. |
+| `project_redeploy`, `project_restart` | Redeploy or restart. |
+| `deployments_list`, `deployment_logs` | Deployment history and build logs. |
+| `domain_dns_records_upsert` | Add or change DNS records. |
+| `database_*` | Create, query, back up, and inspect databases. |
+| `cron_job_*` | Manage cron jobs. |
+
+Write tools need `confirm: true`, so your client asks before it changes anything. For the full current list, run:
+
+```bash
+pxxl mcp tools
+```
+
+## Monitor and manage
+
+Each connection's page shows request volume, success rate, latency, the most used tools, and a request list (no request or response bodies are stored).
+
+In **Settings** you can disable the connection, generate a new key (the old one stops working at once), or delete it.
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| `401` | The key is wrong, rotated, or disabled. Check the header. |
+| `403` | The connection lacks access to that area or project. Update its permissions, then reconnect the client. |
+| `402` | MCP needs Plus or above. |
+| No tools listed | Reconnect the client so it runs `initialize` and `tools/list` again. |

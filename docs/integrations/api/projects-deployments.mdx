@@ -1,36 +1,46 @@
 ---
 title: "Projects and deployments API"
-description: "Upload source, create deployments, inspect project state, and read logs."
+description: "Upload source, create deployments, control projects, and read logs."
 ---
+
+Project and deployment routes need a key scoped to `all`, `deploy`, or `project`. Uploading source needs `all` or `deploy` and `read_write` permission.
 
 ## Deploy source
 
 `POST /projects/spacedrop`
 
-This endpoint uses `multipart/form-data`.
+This endpoint uses `multipart/form-data`. Send exactly one file: a zip of your project, an `index.html`, or an `index.php`. The upload limit is 100 MB.
 
-<ParamField body="file" type="zip file" required>
-  Project source archive.
+<ParamField body="file" type="file" required>
+  Project source. Any form field name works, but send only one file.
 </ParamField>
 
-<ParamField body="name" type="string" required>
-  New project name. Optional when `projectId` is supplied.
+<ParamField body="name" type="string">
+  New project name: 3 to 63 lowercase letters, numbers, or hyphens. Required when `projectId` is not set.
 </ParamField>
 
-<ParamField body="domainChoice" type="string" required>
-  Pxxl domain suffix for a new project, such as `pxxl.pro`.
+<ParamField body="domainChoice" type="string">
+  Pxxl domain suffix for a new project, such as `pxxl.pro`. Required when `projectId` is not set.
 </ParamField>
 
 <ParamField body="projectId" type="string">
-  Existing project that receives the deployment.
+  Existing project that receives a new deployment.
+</ParamField>
+
+<ParamField body="teamId" type="string">
+  Team that owns a new project.
+</ParamField>
+
+<ParamField body="port" type="number" default="3000">
+  Port your app listens on, from 1 to 65535.
 </ParamField>
 
 <ParamField body="environment" type="string" default="production">
-  Deployment environment.
+  Environment name.
 </ParamField>
 
-<ParamField body="port" type="number">
-  Port exposed by a web service.
+<ParamField body="deployEnvironment" type="prod | staging" default="prod">
+  Deploy target.
 </ParamField>
 
 <ParamField body="baseDirectory" type="string">
@@ -38,7 +48,7 @@ This endpoint uses `multipart/form-data`.
 </ParamField>
 
 <ParamField body="installCommand" type="string">
-  Custom dependency installation command.
+  Custom dependency install command.
 </ParamField>
 
 <ParamField body="buildCommand" type="string">
@@ -46,8 +56,14 @@ This endpoint uses `multipart/form-data`.
 </ParamField>
 
 <ParamField body="startCommand" type="string">
-  Custom runtime command.
+  Custom start command.
 </ParamField>
+
+<ParamField body="commitMessage" type="string">
+  Label shown on the deployment.
+</ParamField>
+
+You can also override detection with `language`, `framework`, `runtime`, `entryFile`, and `packageManager`.
 
 ```bash
 curl https://server.pxxl.app/api/v3/projects/spacedrop \
@@ -59,29 +75,43 @@ curl https://server.pxxl.app/api/v3/projects/spacedrop \
   --form "startCommand=npm start"
 ```
 
-**Response**
+**Response** `201`
 
 ```json
 {
   "success": true,
   "projectId": "proj_123",
   "deploymentId": "dep_123",
-  "projectUrl": "https://api.pxxl.pro",
-  "status": "queued",
-  "taskId": "task_123"
+  "domainId": "dom_123",
+  "domainName": "api.pxxl.pro",
+  "message": "SpaceDrop project queued",
+  "asset": { "id": "asset_123", "fileCount": 42, "size": 182340, "entry": "index.js" },
+  "project": { "id": "proj_123", "name": "api" },
+  "deployment": { "id": "dep_123" }
 }
 ```
+
+When you send `projectId`, the response has `projectId`, `deploymentId`, `domainName`, `message`, and `asset`.
+
+| Status | Reason |
+| --- | --- |
+| `400` | No file, more than one file, bad name, port, or domain choice |
+| `402` | Plan does not allow another project |
+| `409` | `Domain is already in use` |
+| `503` | Uploads are busy. Retry shortly. |
 
 ## Projects
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/cli/projects` | `teamId?`, `page?`, `limit?` | Project collection and pagination |
-| `GET` | `/cli/projects/{projectId}` | Project ID | Project detail |
-| `GET` | `/cli/projects/{projectId}/deployments` | `page?`, `limit?`, `teamId?` | Project deployments |
-| `GET` | `/cli/projects/{projectId}/logs` | `lines?`, `since?` | Runtime logs |
-| `GET` | `/cli/projects/{projectId}/live-logs` | `tail?`, `since?` | Recent live logs |
-| `POST` | `/cli/projects/{projectId}/redeploy` | `commitSha?`, `commitMessage?` | New deployment result |
+| `GET` | `/cli/projects` | `teamId?`, `page?`, `limit?` (1 to 100), `search?`, `environmentId?` | `{ projects, total, page, limit, totalPages }` |
+| `GET` | `/cli/projects/{projectId}` | None | `{ success, project }` |
+| `PUT` | `/cli/projects/{projectId}` | Project settings | Updated project |
+| `DELETE` | `/cli/projects/{projectId}` | None | Delete result |
+| `GET` | `/cli/projects/{projectId}/deployments` | `page?`, `limit?` (default 50) | `{ deployments, total, page, limit, totalPages, hasMore }` |
+| `GET` | `/cli/projects/{projectId}/logs` | `lines?` (default 100), `service_alias?` | `{ success, logs, applicationId, lines }` |
+| `GET` | `/cli/projects/{projectId}/live-logs` | `tail?` (default 100, max 500), `service_alias?` | `{ success, logs, source }` |
+| `POST` | `/cli/projects/{projectId}/redeploy` | `commitSha?`, `commitMessage?` | New deployment |
 
 ```json
 {
@@ -95,13 +125,20 @@ curl https://server.pxxl.app/api/v3/projects/spacedrop \
       "language": "node"
     }
   ],
+  "total": 1,
   "page": 1,
-  "limit": 20,
-  "total": 1
+  "limit": 100,
+  "totalPages": 1
 }
 ```
 
+`GET /cli/projects/{projectId}` returns `id`, `name`, `projectType`, `source`, `githubUrl`, `githubBranch`, `baseDirectory`, `framework`, and `language`.
+
+`PUT /cli/projects/{projectId}` accepts any of `name`, `port`, `language`, `framework`, `projectType`, `baseDirectory`, `branch`, `installCommand`, `buildCommand`, `startCommand`, `nodeVersion`, `pythonVersion`, `goVersion`, `runtimeVersion`, `healthCheckPath`, `healthCheckMethod`, `healthCheckMode`, `healthCheckExpectedStatus`, `limits_cpus`, and `limits_memory`.
+
 ## Redeploy
+
+`commitSha` must be 7 to 40 hex characters. Leave it out to redeploy the latest commit.
 
 ```bash
 curl --request POST \
@@ -111,28 +148,61 @@ curl --request POST \
   --data '{"commitSha":"9868bbc","commitMessage":"Deploy release"}'
 ```
 
+**Response** `201`
+
 ```json
 {
   "success": true,
-  "projectId": "proj_123",
+  "message": "Redeployment queued successfully",
   "deploymentId": "dep_124",
-  "status": "queued"
+  "commitSha": "9868bbc",
+  "commitMessage": "Deploy release"
 }
 ```
+
+`POST /projects/{projectId}/redeploy` does the same and accepts keys scoped to `all` or `deploy`.
+
+## Project control
+
+| Method | Path | Body or parameters | Returns |
+| --- | --- | --- | --- |
+| `POST` | `/cli/projects/{projectId}/restart` | None | `{ success, message, status }` |
+| `POST` | `/cli/projects/{projectId}/pause` | None | `{ success, message, status }` |
+| `PUT` | `/cli/projects/{projectId}/auto-deploy` | `{ "enabled": true }` | `{ success, message, autoDeploy }` |
+| `GET` | `/cli/projects/{projectId}/live-status` | None | `{ data }` with running instances and state |
+| `GET` | `/cli/projects/{projectId}/metrics` | `limit?` | CPU and memory metrics |
+| `GET` | `/cli/projects/{projectId}/compute-usage` | `range?`: `1h`, `6h`, `24h`, `7d`, `30d`, `1y` | `{ projectId, range, series }` |
+| `GET` | `/cli/projects/{projectId}/rollbacks` | None | `{ projectId, rollbacks }` |
+| `GET` | `/cli/projects/{projectId}/runtime-diagnostics` | None | `{ success, diagnostics }` |
+| `POST` | `/cli/projects/{projectId}/cache/purges` | `{ "id": "...", "deployment_id": "..." }` | Purge status |
+| `GET` | `/cli/projects/{projectId}/cache/purges/{purgeId}` | None | Purge status |
+
+A cache purge needs a stable `id` that you choose, so a retry does not purge twice. Add `deployment_id` to purge only one deployment's cache.
 
 ## Deployments and logs
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/cli/deployments` | `teamId?`, `page?`, `limit?` | Deployment collection |
-| `GET` | `/cli/deployments/{deploymentId}` | Deployment ID | Deployment detail |
-| `GET` | `/cli/deployments/{deploymentId}/logs` | `since?` | Runtime log collection |
-| `GET` | `/cli/deployments/{deploymentId}/build-logs` | `since?` | Build phase logs |
+| `GET` | `/cli/deployments` | `teamId?`, `projectId?`, `status?`, `search?`, `page?`, `limit?` (default 15) | `{ deployments, total, page, limit, totalPages }` |
+| `GET` | `/cli/deployments/active` | None | `{ data }` with builds in progress |
+| `GET` | `/cli/deployments/{deploymentId}` | None | Deployment detail |
+| `GET` | `/cli/deployments/{deploymentId}/logs` | None | `{ deploymentId, projectId, status, logType, buildLogs }` |
+| `GET` | `/cli/deployments/{deploymentId}/build-logs` | `afterSequence?`, `limit?` (1 to 500) | Structured build logs |
+| `GET` | `/cli/deployments/{deploymentId}/build-errors` | None | Detected build errors |
+| `POST` | `/cli/deployments/{deploymentId}/rollback` | None | `201` with `{ success, message, deploymentId, data }` |
+| `POST` | `/cli/deployments/{deploymentId}/rebuild` | None | `201` with `{ success, message, deploymentId, commitSha, commitMessage, data }` |
+| `POST` | `/cli/deployments/{deploymentId}/cancel` | None | `{ success, message }` |
+
+```bash
+curl https://server.pxxl.app/api/v3/cli/deployments/dep_123/build-logs \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
 
 ```json
 {
+  "success": true,
   "deploymentId": "dep_123",
-  "status": "building",
+  "buildStatus": "building",
   "logs": [
     {
       "phase": "install",
@@ -143,6 +213,8 @@ curl --request POST \
 }
 ```
 
+When cursor reads are on and you pass `afterSequence` or `limit`, the response adds `nextSequence`, `hasMore`, and `isComplete`. Build logs past your plan's retention come back empty with `isComplete: true`.
+
 <Note>
-  User-facing build logs come from `/cli/deployments/{deploymentId}/build-logs`.
+  Build logs for people come from `/cli/deployments/{deploymentId}/build-logs`. The `/logs` route returns the raw stored build log.
 </Note>

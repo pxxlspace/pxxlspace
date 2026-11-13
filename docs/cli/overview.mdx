@@ -1,0 +1,93 @@
+---
+title: "CLI"
+description: "Install the pxxl CLI, sign in, and learn how it finds your project."
+---
+
+The `pxxl` CLI deploys folders, manages projects, variables, domains, databases, cron jobs, tunnels, webhooks, and servers.
+
+## Install
+
+```bash
+npm install -g @pxxlapp/pxxl
+```
+
+The same package is also the [JavaScript SDK](/integrations/sdk/overview).
+
+```bash
+pxxl --version
+pxxl help
+pxxl help deploy     # help for one area
+```
+
+## Sign in
+
+Create an API key in **Settings > Developer > API keys**, then:
+
+```bash
+pxxl login --api-key pxxl_your_key
+pxxl whoami
+```
+
+The key is checked, then saved to `~/.config/pxxl/config.json` (readable only by you). `pxxl logout` deletes that file.
+
+In CI, skip `login` and set the key as an environment variable:
+
+```bash
+export PXXL_API_KEY=pxxl_your_key
+pxxl deploy --yes --no-wait
+```
+
+## Environment variables
+
+| Variable | What it does |
+| --- | --- |
+| `PXXL_API_KEY` | API key. Overrides the saved one. |
+| `PXXL_TEAM_ID` | Team (spaceship) to act in. Overrides `pxxl team use`. |
+| `NO_COLOR` | Turns off colour and spinners. |
+
+## How the CLI finds your project
+
+Commands that act on a project look in this order:
+
+1. The `--project <id>` flag (or a project id argument).
+2. `projectId` in `pxxl.toml` in the current folder (or `--dir`).
+3. A picker, if you're in an interactive terminal.
+
+`pxxl deploy`, `pxxl init`, and `pxxl link` write `projectId` to `pxxl.toml`. `pxxl unlink` removes it.
+
+## Teams
+
+Projects can belong to you or to a team (called a spaceship).
+
+```bash
+pxxl team list
+pxxl team use <team-id>
+pxxl team current
+pxxl team clear
+```
+
+Most commands also take `--team <id>` for a single run.
+
+## Common flags
+
+| Flag | Meaning |
+| --- | --- |
+| `--json` | Print raw JSON. Good for scripts. |
+| `--project <id>` | Use this project instead of the linked one. |
+| `--dir <path>` | Use this folder instead of the current one. |
+| `--team <id>` | Act in this team. |
+| `--yes` | Skip confirmations. |
+| `--no-wait` | Don't follow the build. |
+| `--quiet` | Hide streamed log lines. |
+
+Write flags as `--flag value`. Some commands also accept `--flag=value`, but the space form always works.
+
+## Files the CLI uses
+
+| File | Purpose |
+| --- | --- |
+| `pxxl.toml` | Project settings and the linked `projectId`. See [pxxl.toml](/reference/pxxl-toml). |
+| `.pxxlignore` | Files to leave out of uploads. See [.pxxlignore](/reference/pxxl-toml#pxxlignore). |
+| `~/.config/pxxl/config.json` | Your API key and selected team. |
+
+Next: [all commands](/cli/commands).

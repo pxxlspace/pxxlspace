@@ -3,11 +3,11 @@
   "name": "Pxxl",
   "theme": "maple",
   "logo": {
-    "light": "https://media.brand.dev/b477ef75-f22a-41f0-a85b-c85119e091f9.png",
-    "dark": "https://media.brand.dev/b477ef75-f22a-41f0-a85b-c85119e091f9.png",
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png",
     "href": "https://pxxl.app"
   },
-  "favicon": "https://media.brand.dev/77aa8868-c2fb-4583-b67b-5c01bdfcd7fe.png",
+  "favicon": "/favicon.png",
   "colors": {
     "primary": "#de59db",
     "light": "#de59db",
@@ -26,72 +26,31 @@
         "tab": "Documentation",
         "groups": [
           {
-            "group": "Get Started",
+            "group": "Get started",
             "pages": [
               "introduction",
-              "quickstart"
-            ]
-          },
-          {
-            "group": "Projects",
-            "pages": [
-              "projects/project-workspace",
-              "projects/project-types",
-              "projects/supported-stacks",
-              "projects/how-pxxl-builds",
-              "projects/secrets",
-              "projects/web-analytics",
-              "projects/monitoring",
-              "projects/terminal",
-              "projects/compute",
-              "projects/password-protection"
+              "quickstart",
+              "get-started/cli"
             ]
           },
           {
             "group": "Deploy",
             "pages": [
-              "deploy/overview",
               "deploy/sources",
-              "deploy/configuration",
-              "deploy/functions",
-              "routing-and-rewrites",
-              "deploy/multiple-services",
-              "deploy/lifecycle"
+              "deploy/builds",
+              "deploy/frameworks",
+              "deploy/environment-variables",
+              "deploy/monorepos",
+              "deploy/routing",
+              "deploy/functions"
             ]
           },
           {
-            "group": "Regions",
+            "group": "Projects",
             "pages": [
-              "regions/overview"
-            ]
-          },
-          {
-            "group": "Storage",
-            "pages": [
-              "storage/overview",
-              "storage/log-drains",
-              "storage/database-backups"
-            ]
-          },
-          {
-            "group": "Database",
-            "pages": [
-              "database/overview",
-              "database/connection",
-              "database/monitoring",
-              "database/visualise",
-              "database/backups",
-              "database/settings"
-            ]
-          },
-          {
-            "group": "MCP",
-            "pages": [
-              "mcp/overview",
-              "mcp/connection",
-              "mcp/permissions",
-              "mcp/monitoring",
-              "mcp/settings"
+              "projects/overview",
+              "projects/password-protection",
+              "projects/log-drains"
             ]
           },
           {
@@ -99,28 +58,84 @@
             "pages": [
               "domains/overview",
               "domains/dns",
-              "domains/nameservers",
-              "domains/routing",
-              "domains/monitoring",
-              "domains/settings"
+              "domains/proxy"
             ]
           },
           {
-            "group": "Cron Jobs",
+            "group": "Networking",
             "pages": [
-              "cron-jobs/overview",
-              "cron-jobs/connection",
-              "cron-jobs/schedules",
-              "cron-jobs/execution",
-              "cron-jobs/monitoring",
-              "cron-jobs/cli-and-sdks"
+              "networking/private-networking",
+              "networking/regions"
+            ]
+          },
+          {
+            "group": "Databases",
+            "pages": [
+              "databases/overview",
+              "databases/backups"
+            ]
+          },
+          {
+            "group": "Storage",
+            "pages": [
+              "storage/overview"
+            ]
+          },
+          {
+            "group": "Cron jobs",
+            "pages": [
+              "cron-jobs"
+            ]
+          },
+          {
+            "group": "Servers",
+            "pages": [
+              "servers/overview",
+              "servers/install",
+              "servers/monitoring",
+              "servers/terminal",
+              "servers/operations"
+            ]
+          },
+          {
+            "group": "Tools",
+            "pages": [
+              "tools/tunnels",
+              "tools/webhooks"
+            ]
+          },
+          {
+            "group": "AI",
+            "pages": [
+              "ai/agent",
+              "ai/mcp"
+            ]
+          },
+          {
+            "group": "Account",
+            "pages": [
+              "account/plans",
+              "account/wallet",
+              "account/settings"
+            ]
+          },
+          {
+            "group": "Migrate",
+            "pages": [
+              "migrate/overview",
+              "migrate/vercel",
+              "migrate/netlify",
+              "migrate/render",
+              "migrate/railway",
+              "migrate/heroku",
+              "migrate/coolify"
             ]
           },
           {
             "group": "Troubleshooting",
             "pages": [
-              "troubleshooting/domains",
               "troubleshooting/deployments",
+              "troubleshooting/domains",
               "troubleshooting/databases",
               "troubleshooting/proxy-security",
               "troubleshooting/oauth"
@@ -131,6 +146,19 @@
       {
         "tab": "Integrations",
         "groups": [
+          {
+            "group": "Configuration",
+            "pages": [
+              "reference/pxxl-toml"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "cli/overview",
+              "cli/commands"
+            ]
+          },
           {
             "group": "SDK",
             "pages": [
@@ -144,26 +172,10 @@
               "integrations/sdk/databases",
               "integrations/sdk/cron-jobs",
               "integrations/sdk/analytics-teams",
+              "integrations/sdk/servers-tools",
               "integrations/sdk/mcp",
               "integrations/sdk/errors-raw-requests",
               "integrations/sdk/publishing"
-            ]
-          },
-          {
-            "group": "CLI",
-            "pages": [
-              "integrations/cli/overview",
-              "integrations/cli/deploy",
-              "integrations/cli/develop-ship",
-              "integrations/cli/projects-logs",
-              "integrations/cli/environments",
-              "integrations/cli/domains-billing",
-              "integrations/cli/cdn-storage",
-              "integrations/cli/databases-cron",
-              "integrations/cli/analytics-teams",
-              "integrations/cli/tunnels-webhooks",
-              "integrations/cli/servers",
-              "integrations/cli/mcp"
             ]
           },
           {
@@ -179,7 +191,14 @@
               "integrations/api/databases",
               "integrations/api/cron-jobs",
               "integrations/api/analytics-teams",
+              "integrations/api/servers-tools",
               "integrations/api/mcp"
+            ]
+          },
+          {
+            "group": "OAuth",
+            "pages": [
+              "reference/oauth"
             ]
           }
         ]
@@ -190,5 +209,243 @@
     "socials": {
       "website": "https://pxxl.app"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/deploy/overview",
+      "destination": "/deploy/builds"
+    },
+    {
+      "source": "/deploy/configuration",
+      "destination": "/deploy/builds"
+    },
+    {
+      "source": "/deploy/lifecycle",
+      "destination": "/deploy/builds"
+    },
+    {
+      "source": "/deploy/multiple-services",
+      "destination": "/deploy/monorepos"
+    },
+    {
+      "source": "/projects/project-workspace",
+      "destination": "/projects/overview"
+    },
+    {
+      "source": "/projects/project-types",
+      "destination": "/deploy/builds"
+    },
+    {
+      "source": "/projects/how-pxxl-builds",
+      "destination": "/deploy/builds"
+    },
+    {
+      "source": "/projects/supported-stacks",
+      "destination": "/deploy/frameworks"
+    },
+    {
+      "source": "/projects/secrets",
+      "destination": "/deploy/environment-variables"
+    },
+    {
+      "source": "/projects/compute",
+      "destination": "/projects/overview"
+    },
+    {
+      "source": "/projects/monitoring",
+      "destination": "/projects/overview"
+    },
+    {
+      "source": "/projects/terminal",
+      "destination": "/projects/overview"
+    },
+    {
+      "source": "/projects/web-analytics",
+      "destination": "/projects/overview"
+    },
+    {
+      "source": "/regions/overview",
+      "destination": "/networking/regions"
+    },
+    {
+      "source": "/storage/log-drains",
+      "destination": "/projects/log-drains"
+    },
+    {
+      "source": "/storage/database-backups",
+      "destination": "/databases/backups"
+    },
+    {
+      "source": "/database/overview",
+      "destination": "/databases/overview"
+    },
+    {
+      "source": "/database/connection",
+      "destination": "/databases/overview"
+    },
+    {
+      "source": "/database/monitoring",
+      "destination": "/databases/overview"
+    },
+    {
+      "source": "/database/visualise",
+      "destination": "/databases/overview"
+    },
+    {
+      "source": "/database/settings",
+      "destination": "/databases/overview"
+    },
+    {
+      "source": "/database/backups",
+      "destination": "/databases/backups"
+    },
+    {
+      "source": "/domains/nameservers",
+      "destination": "/domains/dns"
+    },
+    {
+      "source": "/domains/routing",
+      "destination": "/domains/proxy"
+    },
+    {
+      "source": "/domains/monitoring",
+      "destination": "/domains/proxy"
+    },
+    {
+      "source": "/domains/settings",
+      "destination": "/domains/overview"
+    },
+    {
+      "source": "/cron-jobs/:slug*",
+      "destination": "/cron-jobs"
+    },
+    {
+      "source": "/mcp/:slug*",
+      "destination": "/ai/mcp"
+    },
+    {
+      "source": "/routing-and-rewrites",
+      "destination": "/deploy/routing"
+    },
+    {
+      "source": "/integrations/cli/tunnels-webhooks",
+      "destination": "/tools/tunnels"
+    },
+    {
+      "source": "/integrations/cli/servers",
+      "destination": "/servers/overview"
+    },
+    {
+      "source": "/integrations/cli/overview",
+      "destination": "/cli/overview"
+    },
+    {
+      "source": "/integrations/cli/:slug*",
+      "destination": "/cli/commands"
+    },
+    {
+      "source": "/integrations/github-previews",
+      "destination": "/deploy/sources"
+    },
+    {
+      "source": "/integrations/cdn-proxy",
+      "destination": "/storage/overview"
+    },
+    {
+      "source": "/integrations/oauth",
+      "destination": "/reference/oauth"
+    },
+    {
+      "source": "/api/pxxl-toml",
+      "destination": "/reference/pxxl-toml"
+    },
+    {
+      "source": "/api/pxxlignore",
+      "destination": "/reference/pxxl-toml"
+    },
+    {
+      "source": "/api/pxxl-cli",
+      "destination": "/cli/overview"
+    },
+    {
+      "source": "/api/pxxl-deploy",
+      "destination": "/cli/commands"
+    },
+    {
+      "source": "/api/pxxl-env",
+      "destination": "/cli/commands"
+    },
+    {
+      "source": "/api/pxxl-domains",
+      "destination": "/cli/commands"
+    },
+    {
+      "source": "/api/pxxl-logs-open",
+      "destination": "/cli/commands"
+    },
+    {
+      "source": "/api/pxxl-diagnostics",
+      "destination": "/cli/commands"
+    },
+    {
+      "source": "/api/pxxl-boilerplates",
+      "destination": "/cli/commands"
+    },
+    {
+      "source": "/api/cron-cli",
+      "destination": "/cli/commands"
+    },
+    {
+      "source": "/api/overview",
+      "destination": "/integrations/api/overview"
+    },
+    {
+      "source": "/api/authentication",
+      "destination": "/integrations/api/authentication"
+    },
+    {
+      "source": "/api/deployments",
+      "destination": "/integrations/api/projects-deployments"
+    },
+    {
+      "source": "/api/database-api",
+      "destination": "/integrations/api/databases"
+    },
+    {
+      "source": "/api/cdn",
+      "destination": "/storage/overview"
+    },
+    {
+      "source": "/api/:slug*",
+      "destination": "/integrations/sdk/overview"
+    },
+    {
+      "source": "/dashboard/api-keys",
+      "destination": "/account/settings"
+    },
+    {
+      "source": "/dashboard/domains",
+      "destination": "/domains/overview"
+    },
+    {
+      "source": "/dashboard/database",
+      "destination": "/databases/overview"
+    },
+    {
+      "source": "/dashboard/import-projects",
+      "destination": "/migrate/overview"
+    },
+    {
+      "source": "/dashboard/deploy-project",
+      "destination": "/quickstart"
+    },
+    {
+      "source": "/dashboard/settings-usage-webhooks",
+      "destination": "/account/settings"
+    },
+    {
+      "source": "/dashboard/:slug*",
+      "destination": "/projects/overview"
+    }
+  ]
 }

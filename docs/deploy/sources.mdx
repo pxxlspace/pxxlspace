@@ -1,35 +1,69 @@
 ---
-title: "Deployment Sources"
-sidebarTitle: "Sources"
-description: "Choose the source that matches how your project is stored."
+title: "Deployment sources"
+description: "Deploy from GitHub, GitLab, a Docker image, a Dockerfile, a zip, a template, or the CLI."
 ---
 
-The first step in Deploy is **Deployment source**. Choose the path that matches the project you want to run.
+Open **Deploy** and pick where your code comes from.
 
-<Frame caption="Pxxl supports repository, upload, container, WordPress, import, and template sources.">
+<Frame>
   <img src="/images/deploy-sources.jpeg" alt="Pxxl deployment source picker showing GitHub, GitLab, Pxxl Drop, WordPress, Docker, imports, and templates." />
 </Frame>
 
-## Source options
+| Source | Use it when |
+| --- | --- |
+| **GitHub** | Your code is on GitHub. Pushes deploy automatically. |
+| **GitLab** | Your code is on GitLab. |
+| **Pxxl Drop** | You want to upload a zip or a built folder once. |
+| **Docker image** | You already have an image on Docker Hub or another registry. |
+| **Dockerfile** | You want Pxxl to build your Dockerfile. |
+| **WordPress** | You want a managed WordPress site. |
+| **Templates** | You want to start from a ready-made app. |
+| **Import projects** | You're moving a project from another host. |
+| **CLI** | You want to deploy a local folder with `pxxl deploy`. See [Deploy with the CLI](/get-started/cli). |
 
-| Option | Choose it when | What happens next |
-| --- | --- | --- |
-| **GitHub** | The project is in a GitHub repository. | Connect GitHub, select a repository and commit, then let Pxxl analyze it. Future commits can be deployed from the connected source. |
-| **GitLab** | The project is in GitLab. | Connect GitLab and select the project to deploy. |
-| **Pxxl Drop** | You have a local archive or static build. | Drag the archive or build into Pxxl and choose the release settings. |
-| **WordPress** | You want a managed WordPress installation. | Provide the WordPress setup details and let Pxxl create the service. |
-| **Docker image** | You already have a built image. | Enter the image from Docker Hub or another registry. Pxxl runs it as a Web Service. |
-| **Dockerfile** | You need your own container instructions. | Upload or select the Dockerfile and let Pxxl build the image. |
-| **Import projects** | The project already exists with another provider. | Bring provider metadata and project settings into Pxxl before deployment. |
-| **Templates** | You want to start from a maintained Pxxl template. | Choose a template, create its repository, and continue through build configuration. |
+Some sources need a paid plan.
 
-Some sources are available only on plans that include the relevant feature.
+## GitHub
 
-## Choosing quickly
+<Steps>
+  <Step title="Install the GitHub App">
+    In **Deploy**, choose **GitHub** and install the Pxxl GitHub App. Give it access to the repositories you want.
+  </Step>
+  <Step title="Pick the repository and branch">
+    Pxxl scans the repo and fills in the build settings.
+  </Step>
+  <Step title="Deploy">
+    Check the settings and choose **Deploy Project**.
+  </Step>
+</Steps>
 
-- Use **GitHub** or **GitLab** for ongoing repository-based deployments.
-- Use **Pxxl Drop** for a one-off local archive or static release.
-- Use **Docker image** when the image is already built.
-- Use **Dockerfile** when Pxxl should build the image from your instructions.
-- Use **Templates** when you want a ready starting point.
-- Use **Import projects** when moving an existing application into Pxxl.
+After that:
+
+- **Every push** to the deploy branch starts a new deployment.
+- **Pull requests** can get their own preview deployment with its own URL. Turn on preview environments in the project's build settings.
+- Commits to other branches don't touch production.
+
+## Docker
+
+**Docker image**: enter the image name, such as `ghcr.io/acme/api:1.4.0`. Pxxl pulls and runs it as a web service. Set the port your container listens on.
+
+**Dockerfile**: Pxxl builds the image from the `Dockerfile` in your base directory. Your app should still listen on `$PORT`:
+
+```dockerfile
+FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY . .
+ENV PORT=3000
+EXPOSE 3000
+CMD ["node", "server.js"]
+```
+
+## Pxxl Drop
+
+Drag a zip or a built folder (for example `dist`) into **Pxxl Drop**. Good for one-off static sites and demos. There's no Git history, so redeploys need a new upload.
+
+## Monorepos
+
+Set **Base directory** to the folder of the app you want, such as `apps/web`. For several apps in one repo, see [Monorepos and multiple services](/deploy/monorepos).

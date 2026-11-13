@@ -1,40 +1,55 @@
 ---
-title: "Domain DNS"
-sidebarTitle: "DNS"
-description: "Manage DNS records when Pxxl controls the domain zone."
+title: "DNS and nameservers"
+description: "Manage DNS records on Pxxl, or keep your current DNS provider."
 ---
 
-Use the **DNS** section when the domain uses Pxxl DNS. Select **New Record**, enter the name, type, value, and TTL, then save the record.
+A domain can use **Pxxl DNS** or **external DNS**.
 
-## Record types
-
-| Record | Common use |
+| Setup | What you do |
 | --- | --- |
-| **A** | Route a hostname to an IPv4 address. |
-| **AAAA** | Route a hostname to an IPv6 address. |
-| **CNAME** | Point a hostname to another hostname. |
-| **TXT** | Verification, SPF, DKIM, DMARC, and other text values. |
-| **MX** | Route email to a mail provider. MX records use a priority value. |
-| **NS** | Delegate a hostname to another nameserver. |
+| **Pxxl DNS** | Point your nameservers at Pxxl. Manage every record in the **DNS** tab. |
+| **External DNS** | Keep your provider. Add the record Pxxl shows you at that provider. Pxxl can read the live values but can't edit them. |
 
-## Record values
+## Switch to Pxxl DNS
 
-- Use the root name or the value shown by Pxxl for the apex domain.
-- Use only the subdomain label when the form asks for a name such as <code>api</code>.
-- Use **Auto** for TTL unless you need a specific cache period.
-- TTL can be between 60 and 86400 seconds.
-- MX priority can be between 0 and 65535.
+<Steps>
+  <Step title="Copy the nameservers">
+    Open the domain, then **Nameservers**. Copy the Pxxl values.
+  </Step>
+  <Step title="Update your registrar">
+    Replace the current nameservers at your registrar with the Pxxl ones.
+  </Step>
+  <Step title="Verify">
+    Wait for the change to spread, then select **Verify Setup**.
+  </Step>
+</Steps>
 
-## DNS control
+Recreate any records you still need (email, verification) in the **DNS** tab before or right after the switch.
 
-Pxxl can edit records only when Pxxl DNS controls the zone. If another provider controls the nameservers, Pxxl can show live values but cannot edit the external zone. Make the change at that provider, then return to [Nameservers](/domains/nameservers) to verify it.
+## Add a record
 
-The DNS changelog records changes and supports rollback when a previous record set needs to be restored.
+Open **DNS**, choose **New Record**, then enter the name, type, value, and TTL.
 
-## Before changing a record
+| Type | Common use |
+| --- | --- |
+| **A** | Point a name at an IPv4 address. |
+| **AAAA** | Point a name at an IPv6 address. |
+| **CNAME** | Point a name at another hostname. |
+| **TXT** | Verification, SPF, DKIM, DMARC. |
+| **MX** | Email. Needs a priority from 0 to 65535. |
+| **NS** | Delegate a subdomain to other nameservers. |
 
-1. Confirm the hostname and record type.
-2. Check whether another record already serves the same hostname.
-3. Review the proxy setting when the record routes web traffic.
-4. Allow time for resolver caches to expire.
-5. Use [Monitoring](/domains/monitoring) to confirm the route after propagation.
+- For a subdomain, enter only the label, such as `api`.
+- Leave TTL on **Auto** unless you need a value. Custom TTL is 60 to 86400 seconds.
+- The DNS changelog keeps every change and lets you roll back.
+
+## Example: email with Pxxl DNS
+
+```text
+Type  Name  Value                      Priority
+MX    @     mx1.mailprovider.com       10
+MX    @     mx2.mailprovider.com       20
+TXT   @     v=spf1 include:mailprovider.com ~all
+```
+
+Use the exact values your email provider gives you.

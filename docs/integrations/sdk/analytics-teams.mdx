@@ -9,7 +9,7 @@ description: "Read traffic analytics and scope platform resources to a team."
 | --- | --- | --- | --- |
 | Project traffic | `analytics.projectTraffic(projectId, input?)` | `timeframe?`, `domain?` | Requests, visitors, transfer, errors, latency, countries, and timeline |
 | Owned domain traffic | `analytics.domainTraffic(domainId, input?)` | `timeframe?`, `teamId?` | Domain traffic summary and timeline |
-| Domain lookup | `analytics.userDomainTraffic(domain, timeframe?)` | Domain name, `timeframe?` | Traffic for an owned hostname |
+| Domain lookup | `analytics.userDomainTraffic(domain, timeframe?)` | Domain name, `timeframe?` (default `24h`) | Traffic for an owned hostname |
 
 Supported timeframes include `24h`, `48h`, `72h`, `7d`, and `30d`.
 
@@ -101,4 +101,24 @@ const databases = await pxxl.teams.databases("team_123");
 }
 ```
 
-Set a default `teamId` on the client to avoid passing it to every supported operation.
+## Other languages
+
+| Operation | Go | Python | Rust |
+| --- | --- | --- | --- |
+| Project traffic | `ProjectTraffic(ctx, projectID, values)` | `project_traffic(project_id, **params)` | `project_traffic(project_id, query)` |
+| Owned domain traffic | `DomainTraffic(ctx, domainID, values)` | `domain_traffic(domain_id, **params)` | `domain_traffic(domain_id, query)` |
+| Domain lookup | `UserDomainTraffic(ctx, domain, timeframe)` | `user_domain_traffic(domain, timeframe="24h")` | `user_domain_traffic(domain, timeframe)` |
+| List teams | `ListTeams(ctx)` | `list_teams()` | `list_teams()` |
+| Get team | `GetTeam(ctx, id)` | `get_team(team_id)` | `get_team(id)` |
+| Team databases | `ListTeamDatabases(ctx, id)` | `list_team_databases(team_id)` | `list_team_databases(id)` |
+
+## Work in a team
+
+Set a default `teamId` on the client in Node.js, Python, and Rust. Calls that accept a team use it unless you pass a different one. In Go, pass the team ID to each call that takes one.
+
+```ts
+const pxxl = new Pxxl({ apiKey: process.env.PXXL_API_KEY, teamId: "team_123" });
+const jobs = await pxxl.cron.list(); // team_123's cron jobs
+```
+
+An API key created for a team always works in that team.

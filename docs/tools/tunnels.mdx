@@ -1,0 +1,83 @@
+---
+title: "Tunnels"
+description: "Share an app running on your machine at a public HTTPS URL."
+---
+
+A tunnel gives a local port a public HTTPS URL. Use it to demo work in progress, test webhooks, or open your app on your phone. The client connects out over HTTPS, so it works behind NAT and firewalls. WebSockets work too.
+
+## Share a port
+
+```bash
+npm install -g @pxxlapp/pxxl
+pxxl login --api-key pxxl_your_key
+pxxl tunnel 3000
+```
+
+```text
+✓ Tunnel my-laptop-3000 is online
+  Public URL   https://server.pxxl.app/api/v3/t/k3j9x0a1b2c4
+```
+
+Keep the command running. Every request is logged in your terminal. Press Ctrl-C to stop.
+
+Run your dev server and share it in one step:
+
+```bash
+pxxl dev --tunnel
+```
+
+## Options
+
+| Flag | What it does |
+| --- | --- |
+| `--name <name>` | Use a named tunnel instead of `<machine>-<port>`. |
+| `--auth user:password` | Ask visitors for a username and password first. |
+| `--header "Name: value"` | Add a header to requests sent to your app. Repeatable. |
+| `--response-header "Name: value"` | Add a header to responses. Repeatable. |
+| `--host-header rewrite\|preserve\|<host>` | What `Host` your app sees. Default `rewrite`. |
+| `--strict-tls` | Check the certificate when the target is `https://`. Off by default, so self-signed certs work. |
+| `--quiet` | Print only the URL. |
+
+```bash
+pxxl tunnel 5173 --auth demo:secret
+pxxl tunnel https://localhost:8443 --name api-dev
+```
+
+## Named tunnels
+
+A named tunnel keeps the same URL every time.
+
+```bash
+pxxl tunnel create api-dev --to 3000
+pxxl tunnel connect api-dev
+pxxl tunnel list
+pxxl tunnel delete api-dev
+```
+
+You can also create one in the dashboard: **Tools > New Tool > Tunnel**. Each tunnel has **Overview**, **Connect**, and **Settings** tabs.
+
+## Without Node
+
+The standalone `pxxl-tunnel` binary needs no Node.js (macOS and Linux, amd64 and arm64):
+
+```bash
+curl -fsSL https://server.pxxl.app/api/v3/tunnels/install.sh | sh
+pxxl-tunnel --token pxt_... --to http://localhost:3000
+```
+
+The `pxt_` token is shown once when you create the tunnel. Get a new one with `pxxl tunnel rotate <name>` or from the tunnel's **Settings**. Rotating disconnects the tunnel. For Windows, download `https://server.pxxl.app/api/v3/tunnels/client/windows-amd64`.
+
+## Limits
+
+| Plan | Tunnels | Max request body |
+| --- | --- | --- |
+| Free | None | |
+| Plus | 2 | 10 MB |
+| Pro | 10 | 16 MB |
+| Enterprise | 50 | 16 MB |
+
+- Your app must answer within 60 seconds.
+- With nothing connected, visitors see `502 This tunnel is offline`.
+- Cookies and CSP headers from your app are dropped on the shared URL.
+
+Check your usage with `pxxl tools limits`. The API key needs the **All** or **Tools** scope.

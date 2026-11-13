@@ -1,0 +1,61 @@
+---
+title: "Migrate from Coolify"
+description: "Move Coolify apps, Dockerfiles, and databases to Pxxl, or keep your server and link it."
+---
+
+There's no Coolify importer. Connect the same Git repo in **Deploy** and copy your variables.
+
+## Concepts
+
+| Coolify | Pxxl |
+| --- | --- |
+| Application (Nixpacks) | Project, detected automatically |
+| Application (Dockerfile) | Project. Pxxl builds the `Dockerfile` in the base directory. |
+| Docker Compose app | One project per service, or [multiple services](/deploy/monorepos) |
+| Base directory | `[build] baseDirectory` |
+| Install / build / start commands | `[build]` in `pxxl.toml` |
+| Ports exposes | `[build] port` |
+| Environment variables | Secrets |
+| Databases | [Databases](/databases/overview) |
+| Scheduled tasks | [Cron jobs](/cron-jobs) calling an HTTP endpoint |
+| Persistent storage | [Volumes](/projects/overview#volumes) |
+| Server | [Servers](/servers/overview) |
+
+## Nixpacks settings to pxxl.toml
+
+```toml pxxl.toml
+[build]
+baseDirectory = "apps/api"
+installCommand = "pnpm install --frozen-lockfile"
+buildCommand = "pnpm build"
+startCommand = "node dist/main.js"
+port = 3000
+
+[packages]
+runtime = ["ffmpeg"]
+```
+
+`[packages]` replaces Nixpacks' `aptPkgs`/`nixPkgs` for system packages.
+
+## Dockerfile apps
+
+If the base directory has a `Dockerfile`, Pxxl builds it as-is. Make sure the app listens on `$PORT`, or set the port in the deploy form. Routing in `pxxl.toml` still applies; build keys don't.
+
+## Copy variables
+
+Export your variables from Coolify to a `.env` file, then:
+
+```bash
+pxxl env push --file .env
+```
+
+## Keep your server
+
+You don't have to give up the machine Coolify runs on. [Link it to Pxxl](/servers/overview) to get monitoring, alerts, a browser terminal, and safe maintenance tasks in the dashboard. Deploying Pxxl projects onto your own server is coming soon.
+
+## Checklist
+
+- [ ] Connect the repo and check the detected build.
+- [ ] Push variables.
+- [ ] Move databases and volumes.
+- [ ] Test the Pxxl URL, then [move your domain](/migrate/overview#switch-dns-last).

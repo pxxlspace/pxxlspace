@@ -3,7 +3,9 @@ title: "MCP"
 description: "Call Pxxl tools and resources through the Model Context Protocol."
 ---
 
-The default endpoint is `https://mcp.pxxl.app/mcp`. MCP uses JSON-RPC 2.0 and returns the inner `result` through the SDK.
+The default endpoint is `https://mcp.pxxl.app/mcp`. The SDK sends JSON-RPC 2.0 requests with your API key and protocol version `2025-06-18`, and returns the inner `result`. To connect an AI client to Pxxl instead, see [MCP](/ai/mcp).
+
+In Node.js, `pxxl.mcp` uses the client's `apiKey`. Pass `mcpApiKey` or `mcpEndpoint` to the `Pxxl` constructor to change either one.
 
 ```mermaid
 sequenceDiagram
@@ -29,6 +31,14 @@ sequenceDiagram
 | List resources | `mcp.listResources()` | None | Resource definition array |
 | Read resource | `mcp.readResource(uri)` | Resource URI | MCP resource contents |
 | Raw RPC | `mcp.rpc(method, params?)` | JSON-RPC method and params | Inner JSON-RPC result |
+
+In Go, Python, and Rust, one method sends any JSON-RPC call:
+
+| SDK | Method |
+| --- | --- |
+| Go | `client.MCP(ctx, endpoint, method, params)`, where an empty `endpoint` uses the default |
+| Python | `client.mcp_rpc(method, params=None, endpoint=...)` |
+| Rust | `client.mcp_rpc(method, params, endpoint)`, where `None` uses the default |
 
 ## List tools
 
@@ -101,4 +111,6 @@ const result = await pxxl.mcp.callTool("projects_list", { limit: 10 });
 }
 ```
 
-MCP errors can arrive as a JSON-RPC error or as `isError: true` inside a tool result. The SDK throws for JSON-RPC errors. Check `isError` for tool-level failures.
+MCP errors can arrive as a JSON-RPC error or as `isError: true` inside a tool result. The SDK throws for JSON-RPC errors. Check `isError` yourself for tool-level failures.
+
+`pxxl.mcp` throws a plain `Error` with the JSON-RPC message. The flat `pxxl.mcpRPC(method, params?, endpoint?)` method throws `PxxlAPIError` instead. Go returns an error, Python raises `RuntimeError` for a JSON-RPC error and `PxxlAPIError` for an HTTP error, and Rust returns `PxxlError::Api`.

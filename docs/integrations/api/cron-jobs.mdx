@@ -3,6 +3,8 @@ title: "Cron jobs API"
 description: "Schedule HTTP requests, control jobs, trigger runs, and inspect history."
 ---
 
+Cron routes need a key scoped to `all`, `cron`, or `cronjobs`. Changes need `read_write`.
+
 ## Create a cron job
 
 `POST /cli/cronjobs`
@@ -16,7 +18,7 @@ description: "Schedule HTTP requests, control jobs, trigger runs, and inspect hi
 </ParamField>
 
 <ParamField body="url" type="string" required>
-  HTTPS endpoint called by the job.
+  Endpoint called by the job.
 </ParamField>
 
 <ParamField body="method" type="GET | POST | PUT | PATCH | DELETE" default="GET">
@@ -27,16 +29,20 @@ description: "Schedule HTTP requests, control jobs, trigger runs, and inspect hi
   Request headers sent by Pxxl.
 </ParamField>
 
-<ParamField body="timeoutSeconds" type="number">
-  Maximum execution time.
+<ParamField body="timeoutSeconds" type="number" default="30">
+  Maximum execution time, from 1 to 30 seconds.
 </ParamField>
 
 <ParamField body="projectId" type="string">
   Associated project.
 </ParamField>
 
-<ParamField query="teamId" type="string">
+<ParamField body="teamId" type="string">
   Owning team.
+</ParamField>
+
+<ParamField header="Idempotency-Key" type="string">
+  Optional. A retry with the same key returns the first job instead of creating another.
 </ParamField>
 
 ```bash
@@ -47,36 +53,44 @@ curl --request POST \
   --data '{"name":"nightly cleanup","schedule":"0 2 * * *","url":"https://api.example.com/jobs/cleanup","method":"POST","timeoutSeconds":30}'
 ```
 
+**Response** `201`
+
 ```json
 {
   "id": "cron_123",
+  "projectId": null,
+  "teamId": null,
   "name": "nightly cleanup",
   "schedule": "0 2 * * *",
   "url": "https://api.example.com/jobs/cleanup",
   "method": "POST",
+  "headers": {},
   "timeoutSeconds": 30,
   "status": "active",
   "consecutiveFailures": 0,
+  "disabledReason": null,
   "lastRunAt": null,
   "nextRunAt": "2026-08-18T02:00:00Z"
 }
 ```
 
+Missing fields return `400`. A bad method or URL returns `422`.
+
 ## Cron endpoints
 
-| Method | Path | Parameters | Returns |
+| Method | Path | Body or parameters | Returns |
 | --- | --- | --- | --- |
 | `GET` | `/cli/cronjobs` | `teamId?` | `{ cronJobs }` |
-| `POST` | `/cli/cronjobs` | Creation body above, `teamId?` | Cron job |
-| `GET` | `/cli/cronjobs/{cronJobId}` | `teamId?` | Cron job |
-| `PUT` | `/cli/cronjobs/{cronJobId}` | Editable fields, `status?`, `teamId?` | Updated cron job |
-| `DELETE` | `/cli/cronjobs/{cronJobId}` | `teamId?` | Action result |
-| `POST` | `/cli/cronjobs/{cronJobId}/start` | `teamId?` | Action result |
-| `POST` | `/cli/cronjobs/{cronJobId}/stop` | `teamId?` | Action result |
-| `POST` | `/cli/cronjobs/{cronJobId}/trigger` | `teamId?` | Accepted run result |
-| `GET` | `/cli/cronjobs/{cronJobId}/runs` | `page?`, `limit?`, `teamId?` | Paginated runs |
-| `POST` | `/cli/cronjobs/validate-schedule` | `{ schedule }` | Validation result |
-| `POST` | `/cli/cronjobs/validate-url` | `{ url }` | Validation result |
+| `POST` | `/cli/cronjobs` | Creation body above | `201` with the cron job |
+| `GET` | `/cli/cronjobs/{cronJobId}` | None | Cron job |
+| `PUT` | `/cli/cronjobs/{cronJobId}` | `name?`, `schedule?`, `url?`, `method?`, `headers?`, `timeoutSeconds?`, `status?`, `projectId?` | Updated cron job |
+| `DELETE` | `/cli/cronjobs/{cronJobId}` | None | `{ message }` |
+| `POST` | `/cli/cronjobs/{cronJobId}/start` | None | `{ message, cronJob }` |
+| `POST` | `/cli/cronjobs/{cronJobId}/stop` | None | `{ message, cronJob }` |
+| `POST` | `/cli/cronjobs/{cronJobId}/trigger` | None | `202` with `{ message, runId }` |
+| `GET` | `/cli/cronjobs/{cronJobId}/runs` | `page?`, `limit?` (default 20) | Paginated runs |
+| `POST` | `/cli/cronjobs/validate-schedule` | `{ schedule }` | `{ valid, nextRun }` |
+| `POST` | `/cli/cronjobs/validate-url` | `{ url }` | `{ reachable, statusCode, error? }` |
 
 ## Trigger a run
 
@@ -86,12 +100,12 @@ curl --request POST \
   --header "Authorization: Bearer $PXXL_API_KEY"
 ```
 
+**Response** `202`
+
 ```json
 {
-  "success": true,
-  "message": "Cron job triggered",
-  "runId": "run_123",
-  "status": "running"
+  "message": "Cron job queued for execution",
+  "runId": "run_123"
 }
 ```
 
@@ -118,6 +132,8 @@ curl --request POST \
   "totalPages": 1
 }
 ```
+
+`status` is `running`, `success`, or `failed`. `output` holds up to 10 KB of the response body.
 
 <Note>
   Job headers can contain secrets. Keep cron management in trusted server code.

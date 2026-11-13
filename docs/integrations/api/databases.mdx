@@ -3,6 +3,8 @@ title: "Databases API"
 description: "Create, inspect, operate, and monitor managed databases."
 ---
 
+Database routes need a key scoped to `all` or `database`. Changes need `read_write`. Pass `teamId` to work in a team.
+
 ## Create a database
 
 `POST /databases`
@@ -16,19 +18,27 @@ description: "Create, inspect, operate, and monitor managed databases."
 </ParamField>
 
 <ParamField body="description" type="string">
-  Short description.
+  Short description, up to 500 characters.
 </ParamField>
 
 <ParamField body="projectId" type="string">
   Connected project.
 </ParamField>
 
+<ParamField body="setDatabaseUrlEnv" type="boolean" default="false">
+  Adds the connection URL to the connected project's environment variables.
+</ParamField>
+
 <ParamField body="dailyBackupsEnabled" type="boolean" default="false">
-  Enables supported daily backups.
+  Enables daily backups where supported.
 </ParamField>
 
 <ParamField query="teamId" type="string">
   Team that owns the database.
+</ParamField>
+
+<ParamField header="Idempotency-Key" type="string">
+  Optional. Stops a retry from creating a second database.
 </ParamField>
 
 ```bash
@@ -42,36 +52,44 @@ curl --request POST \
 ```json
 {
   "success": true,
+  "message": "database created and linked to project",
   "database": {
     "id": "db_123",
     "name": "app-db",
     "type": "postgres",
-    "status": "provisioning",
+    "status": "creating",
     "projectId": "proj_123",
     "proxyHost": null,
     "proxyPort": null,
+    "dailyBackupsEnabled": true,
     "createdAt": "2026-08-17T08:00:00Z"
-  }
+  },
+  "databaseUrlEnvSet": false,
+  "databaseUrlEnvError": ""
 }
 ```
 
+An unsupported `type` returns `400` with an `allowed` list.
+
 ## Database endpoints
 
-| Method | Path | Parameters | Returns |
+| Method | Path | Body or parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/databases` | `teamId?` | `{ databases, total, success? }` |
-| `POST` | `/databases` | Creation body above, `teamId?` | `{ database, success? }` |
-| `GET` | `/databases/{databaseId}` | `teamId?` | `{ database, success? }` |
-| `PATCH` | `/databases/{databaseId}` | `name?`, `description?`, `teamId?` | Updated database |
-| `DELETE` | `/databases/{databaseId}` | `teamId?` | Action result |
-| `POST` | `/databases/{databaseId}/start` | `teamId?` | Start result |
-| `POST` | `/databases/{databaseId}/stop` | `teamId?` | Stop result |
-| `POST` | `/databases/{databaseId}/restart` | `teamId?` | Restart result |
-| `GET` | `/databases/{databaseId}/stats` | `teamId?` | Runtime status and resource summary |
-| `GET` | `/databases/{databaseId}/metrics` | `teamId?` | CPU and memory metrics |
-| `GET` | `/databases/{databaseId}/usage` | `teamId?` | Storage, transfer, and plan usage |
-| `GET` | `/databases/{databaseId}/tables` | `teamId?` | Table or collection metadata |
-| `GET` | `/databases/{databaseId}/credentials/{field}` | `teamId?` | One revealed credential |
+| `GET` | `/databases` | `teamId?` | `{ success, databases, total }` |
+| `POST` | `/databases` | Creation body above | `{ success, message, database }` |
+| `GET` | `/databases/{databaseId}` | `teamId?` | `{ success, database }` |
+| `PATCH` | `/databases/{databaseId}` | `name?`, `description?`, `dailyBackupsEnabled?` | `{ success, database }` |
+| `DELETE` | `/databases/{databaseId}` | `teamId?` | `{ success, message }` |
+| `POST` | `/databases/{databaseId}/start` | `teamId?` | `{ success, message, infra, database }` |
+| `POST` | `/databases/{databaseId}/stop` | `teamId?` | `{ success, message, infra, database }` |
+| `POST` | `/databases/{databaseId}/restart` | `teamId?` | `{ success, message, infra, database }` |
+| `GET` | `/databases/{databaseId}/stats` | `teamId?` | `{ success, stats }` |
+| `GET` | `/databases/{databaseId}/metrics` | `teamId?` | `{ success, metrics, timeline, runtime }` |
+| `GET` | `/databases/{databaseId}/usage` | `teamId?` | `{ success, usage }` |
+| `GET` | `/databases/{databaseId}/tables` | `teamId?` | `{ success, tables }` |
+| `GET` | `/databases/{databaseId}/settings` | `teamId?` | `{ success, settings }` |
+| `PATCH` | `/databases/{databaseId}/scaling` | `memory?`, `cpu?` | `{ success, message, settings }` |
+| `PATCH` | `/databases/{databaseId}/ssl` | `enabled` | `{ success, message, settings }` |
 
 ## Runtime actions
 
@@ -84,39 +102,31 @@ curl --request POST \
 ```json
 {
   "success": true,
-  "message": "Database restart requested",
-  "databaseId": "db_123",
-  "status": "restarting"
+  "message": "database restarted",
+  "database": { "id": "db_123", "status": "running" }
 }
 ```
 
-## Metrics and usage
+## Usage
+
+`GET /databases/{databaseId}/usage` returns storage, connection, and transfer totals.
 
 ```json
 {
-  "databaseId": "db_123",
-  "status": "running",
-  "cpu": { "current": 0.12, "unit": "vCPU" },
-  "memory": { "currentBytes": 268435456 },
-  "storage": { "usedBytes": 104857600, "limitBytes": 10737418240 },
-  "series": []
+  "success": true,
+  "usage": {
+    "storageBytes": 104857600,
+    "storageLimitBytes": 10737418240,
+    "activeConnections": 3,
+    "connectionCount": 1204,
+    "bytesIn": 52428800,
+    "bytesOut": 157286400,
+    "transferBytes": 209715200,
+    "backups": []
+  }
 }
 ```
 
-## Reveal a credential
+## Credentials
 
-```bash
-curl https://server.pxxl.app/api/v3/databases/db_123/credentials/password \
-  --header "Authorization: Bearer $PXXL_API_KEY"
-```
-
-```json
-{
-  "field": "password",
-  "value": "sensitive-value"
-}
-```
-
-<Warning>
-  Credential responses contain sensitive values. Do not log, cache, or return them to a browser.
-</Warning>
+Connection passwords are not returned to API keys. `GET /databases/{databaseId}/credentials/{field}` accepts only a recent signed-in dashboard session and returns `403` for API keys. Copy credentials from the dashboard, or set `setDatabaseUrlEnv` when you create the database so your project gets the URL directly.

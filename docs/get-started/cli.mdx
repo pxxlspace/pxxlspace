@@ -1,0 +1,64 @@
+---
+title: "Deploy with the CLI"
+description: "Install pxxl, sign in, and deploy a folder from your terminal."
+---
+
+<Steps>
+  <Step title="Install the CLI">
+    ```bash
+    npm install -g @pxxlapp/pxxl
+    ```
+    The command is `pxxl`. Check it with `pxxl --version`.
+  </Step>
+  <Step title="Create an API key">
+    In the dashboard, open **Settings > Developer > API keys** and create a key. Copy it. It's shown once.
+  </Step>
+  <Step title="Sign in">
+    ```bash
+    pxxl login --api-key pxxl_your_key
+    ```
+  </Step>
+  <Step title="Deploy">
+    From your project folder:
+    ```bash
+    pxxl deploy
+    ```
+    The first time, Pxxl asks for a name and a domain suffix. It uploads the folder, streams the build, and prints the live URL.
+  </Step>
+</Steps>
+
+`pxxl deploy` saves the project id in `pxxl.toml`. Run `pxxl deploy` again to ship a new version.
+
+## Start from a template
+
+```bash
+pxxl init --new vite-react-pnpm --name my-app
+cd my-app
+pxxl deploy
+```
+
+Run `pxxl init --new` with no name to pick a template from a list.
+
+## Link an existing project
+
+If the project already exists on Pxxl (for example, it deploys from GitHub):
+
+```bash
+pxxl link
+pxxl logs -f
+```
+
+`pxxl link` saves the project in `pxxl.toml`, so later commands in this folder use it.
+
+## Useful next commands
+
+```bash
+pxxl doctor              # check auth, git, config and build settings
+pxxl env push            # upload your .env file
+pxxl logs -f             # follow runtime logs
+pxxl dev                 # run locally with your Pxxl env vars
+pxxl domains connect example.com
+pxxl open                # open the project in the dashboard
+```
+
+See [all CLI commands](/cli/commands).

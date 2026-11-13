@@ -3,6 +3,8 @@ title: "Domains and billing"
 description: "Search, purchase, connect, configure, and pay for domains."
 ---
 
+For the dashboard view of domains, see [domains](/domains/overview).
+
 ## Purchase flow
 
 ```mermaid
@@ -24,9 +26,30 @@ flowchart LR
   Optional TLD category filter.
 </ParamField>
 
-```ts
-const result = await pxxl.domains.search({ query: "pxxl.cv" });
-```
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const result = await pxxl.domains.search({ query: "pxxl.cv" });
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    result, err := client.SearchDomains(ctx, "pxxl.cv")
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = client.search_domains("pxxl.cv")
+    ```
+  </Tab>
+  <Tab title="Rust">
+    ```rust
+    let result = client.search_domains("pxxl.cv").await?;
+    ```
+  </Tab>
+</Tabs>
+
+Only Node.js and Python accept the `type` filter.
 
 ```json
 {
@@ -157,8 +180,8 @@ const customer = await pxxl.customers.create({
   Full domain name.
 </ParamField>
 
-<ParamField body="domains[].years" type="number" default="1">
-  Registration duration.
+<ParamField body="domains[].years" type="number">
+  Registration length in years.
 </ParamField>
 
 <ParamField body="domains[].addons" type="array">
@@ -170,7 +193,7 @@ const customer = await pxxl.customers.create({
 </ParamField>
 
 <ParamField body="customerId" type="string | number">
-  Existing customer used for registration.
+  Saved customer used as the registrant. The SDK sends it as `contactId`.
 </ParamField>
 
 <ParamField body="contact" type="object">
@@ -181,8 +204,8 @@ const customer = await pxxl.customers.create({
   Inline registrant address.
 </ParamField>
 
-<ParamField body="currency" type="NGN | USD" default="NGN">
-  Checkout currency.
+<ParamField body="currency" type="NGN | USD">
+  Checkout currency. It is also used for the payment link.
 </ParamField>
 
 <ParamField body="teamId" type="string">
@@ -230,7 +253,7 @@ const customer = await pxxl.customers.create({
   </Tab>
 </Tabs>
 
-The composed checkout returns both `purchase` and `payment`. The lower-level purchase and payment URL methods remain available when you need to persist or validate additional state between calls.
+The checkout call creates the invoice, then asks for its payment link, and returns both as `purchase` and `payment`. To store the invoice before you fetch a link, call `domains.purchase()` and then `invoices.paymentUrl()` yourself. In Go, Python, and Rust, `purchase` is the raw API response, so the invoice ID is under `data`.
 
 Treat the hosted payment URL as a redirect destination, not proof of payment. Read the invoice again from your backend and require a paid state before provisioning the domain or any plan-gated service.
 
@@ -267,6 +290,21 @@ Treat the hosted payment URL as a redirect destination, not proof of payment. Re
   "paymentUrlExpiresAt": "2026-08-18T08:00:00Z"
 }
 ```
+
+## Domain orders and add-ons
+
+An order collects domains before you create an invoice for them. Orders are in Node.js only.
+
+| Operation | Node.js | Parameters | Returns |
+| --- | --- | --- | --- |
+| Create order | `domains.createOrder(input)` | `domains` (names), `customerId?` | Order result |
+| List orders | `domains.listOrders()` | None | `{ orders, count }` |
+| Get order | `domains.getOrder(id)` | Order ID | Order detail |
+| Change length | `domains.updateOrderDuration(domainId, duration)` | Order domain ID, years | Updated order |
+| Add add-ons | `domains.addOrderAddons(domainId, addonIds)` | Order domain ID, add-on IDs | Updated order |
+| Add-on invoice | `domains.createAddonInvoice(domainId, addonIds, currency?)` | Owned domain ID, add-on IDs, `NGN` or `USD` (default `NGN`) | Invoice for the add-ons |
+
+Turn an order into an invoice with `billing.create({ domainOrderId })`, then get a link with `billing.paymentLink(id)`.
 
 ## Connect a domain
 
@@ -317,13 +355,13 @@ const connected = await pxxl.domains.connect({
 | Get | `domains.get(id, teamId?)` | Domain ID, `teamId?` | Domain detail |
 | Check | `domains.check(domain, teamId?)` | Domain name, `teamId?` | Availability or connection status |
 | Stats | `domains.stats(domain, input?)` | `timeframe?`, `teamId?` | Domain analytics |
-| Connect | `domains.connect(input)` | Fields above | Connected domain result |
+| Connect | `domains.connect(input)` | Fields above | Connected domain result. `domains.add()` is the same call |
 | Connect many | `domains.connectMany(inputs)` | Connection array | `{ accepted, rejected, attempted }` |
-| Update | `domains.update(id, input)` | HTTPS, websocket, project, proxy rule fields | Updated domain result |
+| Update | `domains.update(id, input)` | `forceHttps?`, `allowWebsocket?`, `isActive?`, `projectId?`, `proxyRules?`, `isPxxlManaged?`, `isPxxlNS?`, `teamId?` | Updated domain result |
 | Verify | `domains.verify(input)` | `domain`, `projectId`, `teamId?` | DNS verification result |
 | Remove | `domains.remove(domain, input?)` | `projectId?`, `teamId?` | Action result |
 | Resync | `domains.resync(domain, input?)` | `teamId?` | Route resync result |
-| Connection status | `domains.zoneStatus(id, teamId?)` | Domain ID, `teamId?` | DNS, proxy, and SSL status |
+| Connection status | `domains.zoneStatus(id, teamId?)` | Domain ID, `teamId?` | Zone status for `.cv` domains, otherwise the activation check |
 | Activate | `domains.activate(id, teamId?)` | Domain ID, `teamId?` | Activation result |
 | Certificate | `domains.downloadCertificate(id, teamId?)` | Domain ID, `teamId?` | Binary certificate bundle |
 
@@ -346,6 +384,8 @@ Bulk connect keeps partial success visible:
 
 ## DNS records and nameservers
 
+See [DNS](/domains/dns) for the records Pxxl manages.
+
 <ParamField body="type" type="string" required>
   `A`, `AAAA`, `CNAME`, `TXT`, `MX`, or another supported record type.
 </ParamField>
@@ -364,6 +404,10 @@ Bulk connect keeps partial success visible:
 
 <ParamField body="priority" type="number">
   Priority for records such as `MX`.
+</ParamField>
+
+<ParamField body="proxied" type="boolean">
+  Sends traffic for the record through the Pxxl proxy.
 </ParamField>
 
 ```ts
@@ -429,3 +473,18 @@ Invoice objects include totals for their currency, status, payment URL, expiry, 
   "paidAt": null
 }
 ```
+
+## Other languages
+
+Go, Python, and Rust cover search, customers, checkout, invoices, and connected domains. DNS lookups, add-ons, orders, nameservers, DNS change logs, and the `billing` resource are in Node.js only.
+
+| Operation | Go | Python | Rust |
+| --- | --- | --- | --- |
+| Search | `SearchDomains(ctx, query)` | `search_domains(query, type=None)` | `search_domains(query)` |
+| Availability | `CheckDomainAvailability(ctx, domain)` | `check_domain_availability(domain)` | `check_domain_availability(domain)` |
+| TLDs | `ListTLDs(ctx)`, `GetTLD(ctx, tld)` | `list_tlds()`, `popular_tlds()`, `search_tlds(q)`, `get_tld(tld)` | `list_tlds()`, `popular_tlds()`, `search_tlds(q)`, `get_tld(tld)` |
+| Customers | `CreateCustomer`, `ListCustomers`, `GetCustomer`, `UpdateCustomer`, `DeleteCustomer` | `create_customer`, `list_customers`, `get_customer`, `update_customer`, `delete_customer` | `create_customer`, `list_customers`, `get_customer`, `update_customer`, `delete_customer` |
+| Purchase | `PurchaseDomain`, `PurchaseDomainCheckout` | `purchase_domain`, `purchase_domain_checkout` | `purchase_domain`, `purchase_domain_checkout` |
+| Invoices | `ListDomainInvoices`, `GetDomainInvoice`, `GetPaymentURL`, `PayDomainInvoice`, `CancelDomainInvoice`, `ListPurchasedDomains` | `list_domain_invoices`, `get_domain_invoice`, `get_payment_url`, `pay_domain_invoice`, `cancel_domain_invoice`, `list_purchased_domains` | `list_domain_invoices`, `get_domain_invoice`, `get_payment_url`, `pay_domain_invoice`, `cancel_domain_invoice`, `list_purchased_domains` |
+| Connected domains | `ListDomains`, `GetDomain`, `CheckDomain`, `ConnectDomain`, `VerifyDomainRecord`, `DisconnectDomain`, `ResyncDomainProxy`, `ActivateDomain`, `GetDomainZoneStatus`, `DownloadDomainCertificate` | `list_domains`, `get_domain`, `check_domain`, `domain_stats`, `connect_domain`, `update_domain`, `verify_domain_record`, `disconnect_domain`, `resync_domain_proxy`, `activate_domain`, `get_domain_zone_status`, `download_domain_certificate` | `list_domains`, `get_domain`, `check_domain`, `connect_domain`, `connect_domain_to_service`, `verify_domain_record`, `disconnect_domain`, `resync_domain_proxy`, `activate_domain`, `domain_zone_status`, `download_domain_certificate` |
+| DNS records | `ListDomainDNSRecords`, `CreateDomainDNSRecord`, `UpdateDomainDNSRecords`, `DeleteDomainDNSRecord` | `list_domain_dns_records`, `create_domain_dns_record`, `update_domain_dns_records`, `delete_domain_dns_record` | `list_domain_dns_records`, `create_domain_dns_record`, `update_domain_dns_records`, `delete_domain_dns_record` |

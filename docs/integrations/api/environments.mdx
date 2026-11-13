@@ -1,9 +1,11 @@
 ---
 title: "Environment variables API"
-description: "List, compare, and push encrypted project configuration."
+description: "List, compare, push, and reveal project configuration."
 ---
 
-Pxxl list responses contain variable names and metadata. Stored secret values are not returned.
+These routes need a key scoped to `all` or `project`. Reading and diffing needs `read`. Changing or revealing a value needs `read_write`.
+
+List responses never include secret values. A secret row has `value: ""` and `masked: true`. Non-secret values are returned as stored.
 
 ## Variable body
 
@@ -12,47 +14,71 @@ Pxxl list responses contain variable names and metadata. Stored secret values ar
 </ParamField>
 
 <ParamField body="vars[].key" type="string" required>
-  Environment variable name.
+  Variable name. Must match `^[A-Za-z_][A-Za-z0-9_]*$`.
 </ParamField>
 
 <ParamField body="vars[].value" type="string" required>
-  Value encrypted by Pxxl.
+  Value. Surrounding quotes are stripped.
 </ParamField>
 
-<ParamField body="vars[].isSecret" type="boolean" default="true">
-  Marks the value as sensitive.
+<ParamField body="vars[].isSecret" type="boolean" default="false">
+  Marks the value as secret, so it is masked in lists.
 </ParamField>
 
 <ParamField body="replace" type="boolean" default="false">
-  Removes remote variables missing from `vars`.
+  Bulk only. Removes remote variables missing from `vars`.
 </ParamField>
 
 ## Endpoints
 
-| Method | Path | Body | Returns |
+| Method | Path | Body or parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/cli/projects/{projectId}/envs` | None | Project variable metadata |
+| `GET` | `/cli/projects/{projectId}/envs` | None | `{ success, envs, data }` |
+| `POST` | `/cli/projects/{projectId}/envs` | `{ key, value, isSecret? }` | `{ success, data }` |
+| `PUT` | `/cli/projects/{projectId}/envs` | `{ key, value, isSecret? }` | `{ success, data }` |
+| `DELETE` | `/cli/projects/{projectId}/envs` | `{ key }` | Delete result |
 | `POST` | `/cli/projects/{projectId}/envs/diff` | `{ vars }` | Diff result |
-| `POST` | `/cli/projects/{projectId}/envs/bulk` | `{ vars, replace }` | Applied change counts |
-| `GET` | `/cli/projects/{projectId}/global-envs` | None | Global variable metadata |
+| `POST` | `/cli/projects/{projectId}/envs/bulk` | `{ vars, replace? }` | Bulk result |
+| `GET` | `/cli/projects/{projectId}/envs/reveal` | `key` | One decrypted value |
+| `GET` | `/cli/projects/{projectId}/envs/history` | None | `{ success, history, canRollback }` |
+| `GET` | `/cli/projects/{projectId}/global-envs` | None | Global variables |
 | `POST` | `/cli/projects/{projectId}/global-envs/diff` | `{ vars }` | Global diff result |
-| `POST` | `/cli/projects/{projectId}/global-envs/bulk` | `{ vars, replace }` | Applied global changes |
+| `POST` | `/cli/projects/{projectId}/global-envs/bulk` | `{ vars, replace? }` | Global bulk result |
+
+```json
+{
+  "success": true,
+  "envs": [
+    {
+      "id": "env_123",
+      "projectId": "proj_123",
+      "key": "DATABASE_URL",
+      "value": "",
+      "isSecret": true,
+      "masked": true,
+      "hasValue": true
+    }
+  ]
+}
+```
 
 ## Compare before pushing
+
+The diff never returns values. It returns a 12-character hash of each side so you can tell them apart.
 
 ```bash
 curl --request POST \
   https://server.pxxl.app/api/v3/cli/projects/proj_123/envs/diff \
   --header "Authorization: Bearer $PXXL_API_KEY" \
   --header "Content-Type: application/json" \
-  --data '{"vars":[{"key":"NODE_ENV","value":"production","isSecret":false}]}'
+  --data '{"vars":[{"key":"NODE_ENV","value":"production"}]}'
 ```
 
 ```json
 {
   "success": true,
   "projectId": "proj_123",
-  "scope": "project",
+  "scope": "app",
   "counts": { "same": 0, "changed": 1, "missingRemote": 0, "missingLocal": 0 },
   "diff": [
     {
@@ -61,12 +87,14 @@ curl --request POST \
       "local": true,
       "remote": true,
       "same": false,
-      "localHash": "sha256:...",
-      "remoteHash": "sha256:..."
+      "localHash": "a1b2c3d4e5f6",
+      "remoteHash": "0f9e8d7c6b5a"
     }
   ]
 }
 ```
+
+`status` is `same`, `changed`, `missing_remote`, or `missing_local`. `scope` is `app` for project variables and `global` for global ones.
 
 ## Push variables
 
@@ -75,20 +103,39 @@ curl --request POST \
   https://server.pxxl.app/api/v3/cli/projects/proj_123/envs/bulk \
   --header "Authorization: Bearer $PXXL_API_KEY" \
   --header "Content-Type: application/json" \
-  --data '{"vars":[{"key":"NODE_ENV","value":"production","isSecret":false}],"replace":false}'
+  --data '{"vars":[{"key":"NODE_ENV","value":"production"},{"key":"API_TOKEN","value":"abc","isSecret":true}],"replace":false}'
 ```
 
 ```json
 {
   "success": true,
-  "projectId": "proj_123",
-  "scope": "project",
-  "created": 1,
-  "updated": 0,
-  "deleted": 0
+  "message": "Bulk environment variables processed",
+  "replaced": false,
+  "data": [
+    { "key": "NODE_ENV", "value": "production", "isSecret": false },
+    { "key": "API_TOKEN", "value": "abc", "isSecret": true }
+  ]
 }
 ```
+
+`data` echoes the variables that were applied, values included, so don't log it. Invalid keys fail the whole request with `400`.
 
 <Warning>
   `replace: true` deletes remote keys missing from the submitted array. Run the diff endpoint first.
 </Warning>
+
+## Reveal one value
+
+```bash
+curl "https://server.pxxl.app/api/v3/cli/projects/proj_123/envs/reveal?key=API_TOKEN" \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "success": true,
+  "data": { "key": "API_TOKEN", "value": "abc", "isSecret": true }
+}
+```
+
+Values that can't be revealed return `409`.

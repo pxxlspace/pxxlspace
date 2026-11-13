@@ -1,0 +1,370 @@
+---
+title: "pxxl.toml"
+description: "Every pxxl.toml key: build, packages, env, services, routing, and functions."
+---
+
+`pxxl.toml` keeps your build and routing settings in your repository, so they deploy and roll back with your code. Put it in the repo root, or in the project's base directory.
+
+```toml pxxl.toml
+version = 1
+
+[build]
+packageManager = "pnpm"
+buildCommand = "pnpm build"
+startCommand = "node dist/server.js"
+port = 3000
+
+[routing]
+spa = true
+
+[[redirects]]
+source = "/blog/:slug"
+destination = "/posts/:slug"
+status = 308
+```
+
+## How it's read
+
+- Pxxl reads `pxxl.toml` from **GitHub** at the commit being deployed. It looks in the base directory first, then the repo root.
+- `pxxl.toml` settings **override** the build settings saved in the dashboard.
+- If the file is invalid (wrong types, bad routing), the deploy fails and your current version stays live.
+- Unknown keys are ignored. Check spelling.
+- Don't put secrets here. It's committed with your code.
+
+<Note>
+  **CLI deploys** (`pxxl deploy`) use a few top-level keys instead. See [Keys the CLI uses](#keys-the-cli-uses).
+</Note>
+
+<Note>
+  If the base directory has a `Dockerfile`, Pxxl builds it as a Docker project. `[build]`, `[packages]`, `[env]` and `[functions]` don't apply then. Routing still does.
+</Note>
+
+## version
+
+```toml
+version = 1
+```
+
+Required when you use any routing keys. The only value is `1`.
+
+## build
+
+How Pxxl installs, builds, and starts your app. Some keys have short aliases.
+
+| Key | Alias | Example | What it does |
+| --- | --- | --- | --- |
+| `language` | | `"python"` | `javascript`, `html`, `python`, `php`, `go`, `rust`, `java`, `csharp`, `ruby`, `dart`. |
+| `runtime` | | `"node"` | Runtime to use. A language name sets both. |
+| `framework` | | `"nestjs"` | Override the detected framework. |
+| `packageManager` | | `"pnpm"` | `npm`, `pnpm`, `yarn`, or `bun`. `"bun@1.3.14"` pins Bun. |
+| `packageManagerVersion` | | `"1.3.14"` | Exact Bun version. Bun only. |
+| `installCommand` | `install` | `"pnpm install --frozen-lockfile"` | Max 400 characters. |
+| `buildCommand` | `command`, `build` | `"pnpm build"` | Max 400 characters. |
+| `startCommand` | `start` | `"node dist/main.js"` | Max 400 characters. Web services only. |
+| `outputDirectory` | `output` | `"dist"` | Folder a static build produces. Defaults to `dist` for Vite-style apps and `build` for Create React App. |
+| `entryFile` | `entry` | `"src/index.ts"` | App entry file. |
+| `baseDirectory` | | `"apps/web"` | Folder to build. |
+| `port` | | `8080` | Port your app listens on (1 to 65535). Default `3000`. |
+| `nodeVersion` | | `"24"` | `22`, `24`, or `26` (default `26`). |
+| `pythonVersion` | | `"3.12"` | `3.11`, `3.12` (default), or `3.13`. |
+| `goVersion` | | `"1.26"` | `1.22` to `1.26`. |
+| `runtimeVersion` | | `"21"` | Version for other runtimes: PHP `8.3`/`8.4`/`8.5`, Java `17`/`21`/`25`, .NET `8.0`/`9.0`/`10.0`, Ruby `3.3`/`3.4`. |
+
+Unsupported versions fall back to the default. Rust always uses `stable`.
+
+```toml
+[build]
+framework = "nestjs"
+packageManager = "pnpm"
+installCommand = "pnpm install --frozen-lockfile"
+buildCommand = "pnpm build"
+startCommand = "node dist/main.js"
+port = 8080
+nodeVersion = "24"
+```
+
+## packages
+
+System packages to install. Up to 80 in total.
+
+| Key | What it does |
+| --- | --- |
+| `packages.build` | Installed for the build only. |
+| `packages.runtime` | Installed in the running app. |
+| `runtime.packages` | Same as `packages.runtime`. |
+
+```toml
+[packages]
+build = ["python3", "make", "g++"]
+runtime = ["ffmpeg", "tzdata"]
+```
+
+## env
+
+Plain, non-secret values for the **build**. Up to 80 keys, each value up to 8 KB.
+
+```toml
+[env]
+NODE_OPTIONS = "--max-old-space-size=4096"
+NEXT_TELEMETRY_DISABLED = "1"
+```
+
+A variable with the same name in the dashboard wins. Put secrets and runtime config in [environment variables](/deploy/environment-variables), not here.
+
+## services
+
+For a project with [multiple services](/deploy/monorepos). Each `[services.<alias>]` block changes one service you've already added in the dashboard. The alias must match.
+
+Keys: `language`, `runtime`, `framework`, `packageManager`, `packageManagerVersion`, `installCommand`, `buildCommand`, `startCommand`, `entryFile`, `outputDirectory`, `baseDirectory`, `port`, `runtimeVersion`, `buildPackages`, `runtimePackages` (with the same aliases as `[build]`).
+
+```toml
+[services.api]
+baseDirectory = "apps/api"
+packageManager = "pnpm"
+installCommand = "cd ../.. && pnpm install --frozen-lockfile"
+startCommand = "pnpm start"
+port = 3001
+runtimePackages = ["curl"]
+
+[services.web]
+baseDirectory = "apps/web"
+buildCommand = "cd ../.. && pnpm --filter web build"
+startCommand = "pnpm start"
+port = 3000
+```
+
+Order of precedence: dashboard, then `[build]`, then `[services.<alias>]`.
+
+## routing
+
+Routing rules run at the Pxxl edge, for static sites, web services, and functions. They need `version = 1`.
+
+```toml
+[routing]
+spa = true        # serve index.html for unknown page routes
+cleanUrls = true  # serve /about from /about.html (static, when spa is off)
+```
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `routing.spa` | `false` | Single-page app fallback to `/index.html`. |
+| `routing.cleanUrls` | `false` | `/about` serves `about.html`. Static sites only, and only when `spa` is off. |
+
+### redirects
+
+Send the browser to a new URL.
+
+```toml
+[[redirects]]
+source = "/docs/:path*"
+destination = "https://docs.example.com/:path*"
+status = 301
+```
+
+| Key | Required | Notes |
+| --- | --- | --- |
+| `source` | Yes | Path to match. |
+| `destination` | Yes | Path or `https://` URL. |
+| `status` | Yes | `301`, `302`, `307`, or `308`. Use `307`/`308` to keep the method and body. |
+
+Redirect loops are rejected.
+
+### rewrites
+
+Serve a different path, or proxy to another site, without changing the URL in the browser.
+
+```toml
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://api.example.com/:path*"
+```
+
+External rewrites are proxied by the edge. The method, body, query, cookies, and `Authorization` header are passed on. The destination must be `https://` on port 443. Private IPs, `localhost`, `.internal`, `.local`, and Pxxl's own domains are blocked.
+
+### headers
+
+Add response headers.
+
+```toml
+[[headers]]
+source = "/assets/:path*"
+[headers.headers]
+Cache-Control = "public, max-age=31536000, immutable"
+X-Content-Type-Options = "nosniff"
+```
+
+Up to 32 headers per rule. You can't set `Authorization`, `Cookie`, `Set-Cookie`, `Host`, `Content-Length`, `Connection`, `Upgrade`, `Transfer-Encoding`, `Proxy-*`, or `X-Pxxl-*`.
+
+### Path patterns
+
+| Pattern | Matches |
+| --- | --- |
+| `/login` | Exactly `/login`. |
+| `/:slug` | One segment: `/ada`, not `/ada/posts`. |
+| `/blog/:slug/:page` | Two segments after `/blog`. |
+| `/api/:path*` | Zero or more segments: `/api`, `/api/a/b`. |
+| `/api/:path+` | One or more segments. |
+| `/:lang?/about` | Optional segment. |
+| `/:id(\\d+)` | A segment matching a regex. |
+| `/(.*)` | Anything. Use `$1` in the destination. |
+
+Use the same names in the destination: `/:slug` to `/posts/:slug`. Query strings are kept unless the destination sets its own.
+
+### Conditions
+
+Match a rule only when a header, cookie, host, or query value is present (`has`) or absent (`missing`). Up to 8 per rule.
+
+```toml
+[[rewrites]]
+source = "/:slug"
+destination = "/api/og?username=:slug"
+has = [{ type = "header", key = "user-agent", value = "(?i).*(twitterbot|whatsapp|discordbot).*" }]
+
+[[redirects]]
+source = "/"
+destination = "/fr"
+status = 307
+has = [{ type = "cookie", key = "lang", value = "fr" }]
+missing = [{ type = "query", key = "stay" }]
+```
+
+| Type | `key` | `value` |
+| --- | --- | --- |
+| `header` | Header name | Optional regex. |
+| `cookie` | Cookie name | Optional regex. |
+| `host` | | Hostname, or `*.example.com`. |
+| `query` | Parameter name | Optional plain value. |
+
+`has_header = { key = "user-agent", regex = "..." }` is a short form for one header condition.
+
+### Order and limits
+
+1. Response headers
+2. Redirects
+3. Rewrites
+4. Clean URLs
+5. SPA fallback
+6. Static files
+
+Within each list, more specific (longer) sources match first. Real files like `/favicon.ico` and `/assets/app.js` win over parameter rewrites. Up to 64 rules in total.
+
+If you also have a `vercel.json` with routing, the deploy fails. Keep routing in one file.
+
+## functions
+
+Turn a folder of handlers into HTTP endpoints. See [Functions](/deploy/functions).
+
+```toml
+[functions]
+enabled = true
+root = "api"        # folder with handlers
+prefix = "/api"     # URL prefix
+timeoutSeconds = 10
+concurrency = 10
+rateLimitPerMinute = 300
+maxBodyBytes = 4194304
+
+[[functions.routes]]
+route = "/api/users/[id]"
+timeoutSeconds = 2
+rateLimitPerMinute = 30
+```
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `enabled` | off | Must be `true` to use functions. |
+| `root` | `"api"` | Folder with handler files. |
+| `prefix` | `"/api"` | URL prefix for routes. |
+| `timeoutSeconds` | Plan limit | Lowered to your plan's limit if higher. |
+| `concurrency` | Plan limit | Same. |
+| `rateLimitPerMinute` | Plan limit | Same. |
+| `maxBodyBytes` | 4 MiB | 1 KB to 16 MiB. |
+| `functions.routes` | | Per-route `timeoutSeconds`, `concurrency`, `rateLimitPerMinute`. The `route` must exist. Up to 100. |
+
+## Not in pxxl.toml
+
+Set these in the dashboard instead: health check path, replicas, CPU and memory, volumes, region, domains, cron jobs, and secrets.
+
+## Keys the CLI uses
+
+`pxxl init`, `pxxl link`, and `pxxl deploy` write a few top-level keys. When you deploy with the CLI, these are the settings that apply:
+
+| Key | Example | Meaning |
+| --- | --- | --- |
+| `name` | `"my-app"` | Project name. |
+| `domainChoice` | `"pxxl.pro"` | Pxxl domain suffix. |
+| `port` | `3000` | App port. |
+| `framework` | `"vite"` | Framework. |
+| `language` | `"javascript"` | Language. |
+| `packageManager` | `"pnpm"` | Package manager. |
+| `installCommand` | `"pnpm install"` | Install command. |
+| `buildCommand` | `"pnpm build"` | Build command. |
+| `startCommand` | `"pnpm start"` | Start command. |
+| `baseDirectory` | `"apps/web"` | Folder to build. |
+| `entryFile` | `"server.js"` | Entry file. |
+| `environment` | `"production"` | Environment name. |
+| `projectId` | | Linked project. Written for you. |
+| `deploymentId`, `projectUrl`, `deploymentUrl`, `lastDeployedAt` | | Last deploy. Written for you. |
+
+The two styles can live in one file. Git deploys read `[build]` and the sections above; CLI deploys read the top-level keys.
+
+```toml
+name = "my-app"
+domainChoice = "pxxl.pro"
+port = 3000
+projectId = "..."
+
+version = 1
+
+[build]
+buildCommand = "pnpm build"
+startCommand = "node dist/server.js"
+```
+
+## .pxxlignore
+
+The CLI leaves these out of every upload: `.git`, `node_modules`, `.env`, `.env.*`, `*.log`, `dist`, `build`, `.next`, `.turbo`, `.cache`. Pxxl builds your app from source, so build folders don't need uploading.
+
+`.pxxlignore` uses `.gitignore` syntax:
+
+```text .pxxlignore
+coverage/
+*.sqlite
+tmp/
+```
+
+<Warning>
+  The CLI currently rewrites `.pxxlignore` with its default list when it updates `pxxl.toml` (`init`, `link`, `unlink`, and after each `deploy`). Extra lines you add are lost. Until this is fixed, re-add them before deploying, or keep large files out of the folder.
+</Warning>
+
+The CLI also skips symlinks and files that look like private keys (`*.pem`, `*.key`, `id_rsa`, `credentials.json`).
+
+## Full example
+
+A Vite app that proxies `/api` to a backend, caches assets, and redirects an old path:
+
+```toml pxxl.toml
+version = 1
+
+[build]
+packageManager = "pnpm"
+buildCommand = "pnpm build"
+outputDirectory = "dist"
+
+[routing]
+spa = true
+
+[[rewrites]]
+source = "/api/:path*"
+destination = "https://api.example.com/api/:path*"
+
+[[redirects]]
+source = "/old-pricing"
+destination = "/pricing"
+status = 308
+
+[[headers]]
+source = "/assets/:path*"
+[headers.headers]
+Cache-Control = "public, max-age=31536000, immutable"
+```

@@ -3,6 +3,8 @@ title: "Databases"
 description: "Create databases, control runtimes, inspect usage, and reveal credentials."
 ---
 
+For engines, plans, and connection details, see [databases](/databases/overview).
+
 ## Create a database
 
 <ParamField body="name" type="string" required>
@@ -10,7 +12,7 @@ description: "Create databases, control runtimes, inspect usage, and reveal cred
 </ParamField>
 
 <ParamField body="type" type="string" required>
-  `postgres`, `mysql`, `mariadb`, `mongodb`, `redis`, `dragonfly`, `keydb`, or `clickhouse`.
+  `postgres` (or `postgresql`), `mysql`, `mariadb`, `mongodb`, `redis`, `dragonfly`, `keydb`, or `clickhouse`.
 </ParamField>
 
 <ParamField body="description" type="string">
@@ -26,7 +28,7 @@ description: "Create databases, control runtimes, inspect usage, and reveal cred
 </ParamField>
 
 <ParamField body="teamId" type="string">
-  Team that owns the database.
+  Team that owns the database. Node.js only; in Go, Python, and Rust the database goes to the key's own account or team.
 </ParamField>
 
 <Tabs>
@@ -100,7 +102,7 @@ description: "Create databases, control runtimes, inspect usage, and reveal cred
 | Metrics | `databases.metrics(id, teamId?)` | Database ID, `teamId?` | Time-series CPU and memory metrics |
 | Usage | `databases.usage(id, teamId?)` | Database ID, `teamId?` | Storage, network, and plan usage |
 | Tables | `databases.tables(id, teamId?)` | Database ID, `teamId?` | Table or collection metadata |
-| Credential | `databases.credential(id, field, teamId?)` | `field` such as `password` or `url` | Revealed credential result |
+| Credential | `databases.credential(id, field, teamId?)` | `password`, `root-password`, or `database-url` (`url` also works) | `{ success, field, value }` |
 
 ## Runtime responses
 
@@ -137,6 +139,7 @@ const password = result.value;
 
 ```json
 {
+  "success": true,
   "field": "password",
   "value": "sensitive-value"
 }
@@ -145,3 +148,19 @@ const password = result.value;
 <Warning>
   Credential responses contain sensitive data. Do not log, cache, or send them to a browser.
 </Warning>
+
+## Other languages
+
+Go, Python, and Rust use one method for start, stop, and restart.
+
+| Operation | Go | Python | Rust |
+| --- | --- | --- | --- |
+| List, get | `ListDatabases(ctx, teamID)`, `GetDatabase(ctx, id, teamID)` | `list_databases(team_id=None)`, `get_database(id, team_id=None)` | `list_databases(team_id)`, `get_database(id, team_id)` |
+| Create | `CreateDatabase(ctx, input)` | `create_database(values)` | `create_database(input)` |
+| Update | `UpdateDatabase(ctx, id, teamID, input)` | `update_database(id, values, team_id=None)` | `update_database(id, input, team_id)` |
+| Delete | `DeleteDatabase(ctx, id, teamID)` | `delete_database(id, team_id=None)` | `delete_database(id, team_id)` |
+| Start, stop, restart | `DatabaseAction(ctx, id, "restart", teamID)` | `database_action(id, "restart")` | `database_action(id, "restart", team_id)` |
+| Stats, metrics, usage, tables | `DatabaseStats`, `DatabaseMetrics`, `DatabaseUsage`, `DatabaseTables` | `database_stats`, `database_metrics`, `database_usage`, `database_tables` | `database_stats`, `database_metrics`, `database_usage`, `database_tables` |
+| Credential | `RevealDatabaseCredential(ctx, id, field, teamID)` | `reveal_database_credential(id, field)` | `reveal_database_credential(id, field, team_id)` |
+
+The action must be `start`, `stop`, or `restart`. Any other value fails before a request is sent.

@@ -1,0 +1,79 @@
+---
+title: "Private networking"
+description: "Let your projects call each other over a private .pxxl.internal address, without the public internet."
+---
+
+Private networking gives each project a private address:
+
+```text
+http://<name>.pxxl.internal
+```
+
+Your other projects can call it directly. The traffic doesn't leave Pxxl, and the project doesn't need a public domain.
+
+## Turn it on
+
+<Steps>
+  <Step title="Enable it on both projects">
+    Open each project, go to **Networking > Private networking**, and switch it on. Both the caller and the target must have it on.
+  </Step>
+  <Step title="Redeploy">
+    It takes effect on the next deployment of each project.
+  </Step>
+  <Step title="Call the address">
+    The section shows the **Private address** and the projects **Reachable from here**.
+  </Step>
+</Steps>
+
+## Example
+
+Two projects, `web` and `api`, in the same workspace and environment:
+
+```js
+// inside "web"
+const res = await fetch("http://api.pxxl.internal/users");
+const users = await res.json();
+```
+
+Store the address in a variable so you can change it per environment:
+
+```bash
+API_URL=http://api.pxxl.internal
+```
+
+## The name
+
+The name comes from the project name: lowercase, with anything other than letters, numbers, and `-` turned into `-`, up to 63 characters. **My API** becomes `my-api.pxxl.internal`.
+
+Names must be unique within a workspace and environment. If two projects would get the same name, rename one.
+
+## Who can reach whom
+
+- Only projects in the **same workspace** (a team, or your personal projects) **and the same environment**, such as production.
+- Never across accounts or teams.
+
+## What it supports
+
+- **HTTP on port 80** only. Call `http://<name>.pxxl.internal`, without a port. Pxxl sends the request to whatever port the target serves on.
+- It isn't a raw TCP network. Connect to [databases](/databases/overview) with their own host and port.
+
+## Limits
+
+Per calling project:
+
+| Plan | Requests per minute | Transfer per month |
+| --- | --- | --- |
+| Free | 300 | 1 GB |
+| Plus | 3,000 | 50 GB |
+| Pro | 12,000 | 250 GB |
+| Enterprise | 60,000 | 1 TB |
+
+Over the limit, calls get `429` with a `Retry-After` header. The **Private networking** section shows requests and transfer per peer.
+
+## When a call fails
+
+The call is refused if:
+
+- the caller has private networking off,
+- the target is off, not running, or not redeployed since you turned it on,
+- no project in the same workspace and environment has that name.

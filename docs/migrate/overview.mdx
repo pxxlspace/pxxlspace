@@ -1,0 +1,66 @@
+---
+title: "Migrate to Pxxl"
+description: "Move an app from another host in a few steps."
+---
+
+Moving an app to Pxxl usually takes four steps: import or connect the repo, copy your variables, translate config into `pxxl.toml`, and switch DNS.
+
+## Import from your old host
+
+For **Vercel**, **Netlify**, **Render**, and **Railway**, Pxxl can read your projects for you.
+
+<Steps>
+  <Step title="Create a token at your old host">
+    Vercel: Account Settings > Tokens. Netlify: User settings > Applications > Personal access tokens. Render: Account settings > API Keys. Railway: Account settings > Tokens.
+  </Step>
+  <Step title="Open the importer">
+    In **Deploy**, choose **Import projects**, pick the provider, paste the token, and choose **Fetch Projects**.
+  </Step>
+  <Step title="Pick a project">
+    Pxxl fills in the repo, branch, framework, commands, and the environment variables the provider shares.
+  </Step>
+  <Step title="Check and create">
+    Review the commands, port, and variables. Add any secret the provider didn't return. Then create the project.
+  </Step>
+</Steps>
+
+Use a short-lived token and delete it after the move.
+
+For **Heroku**, **Coolify**, or anything else, connect your GitHub repo in **Deploy** and copy your variables in by hand or with `pxxl env push`.
+
+## Concepts
+
+| Elsewhere | On Pxxl |
+| --- | --- |
+| Site, app, service | [Project](/projects/overview) |
+| Deploy, release | Deployment |
+| Environment variables, config vars | [Secrets](/deploy/environment-variables) (or `pxxl env push`) |
+| Shared env groups | [Vault](/deploy/environment-variables#vault) |
+| Build settings, config file | [`pxxl.toml`](/reference/pxxl-toml) |
+| Redirects, rewrites, headers | [`pxxl.toml` routing](/deploy/routing) |
+| Serverless functions | [Functions](/deploy/functions) |
+| Background worker | A service with no public route ([monorepos](/deploy/monorepos)) |
+| Cron | [Cron jobs](/cron-jobs) |
+| Add-on database | [Databases](/databases/overview) |
+| Private network | [Private networking](/networking/private-networking) |
+| Preview deploys | Pull request previews (paid plans) |
+| Team | Team (spaceship) |
+
+## Switch DNS last
+
+1. Deploy on Pxxl and test the `*.pxxl.pro` URL.
+2. Add your domain in **Domains** and connect it to the project.
+3. Lower your DNS TTL a day before if you can.
+4. Update the records (or nameservers) to what Pxxl shows. HTTPS is issued automatically.
+5. Keep the old host running until traffic has moved.
+
+## Guides
+
+<CardGroup cols={3}>
+  <Card title="Vercel" href="/migrate/vercel" />
+  <Card title="Netlify" href="/migrate/netlify" />
+  <Card title="Render" href="/migrate/render" />
+  <Card title="Railway" href="/migrate/railway" />
+  <Card title="Heroku" href="/migrate/heroku" />
+  <Card title="Coolify" href="/migrate/coolify" />
+</CardGroup>

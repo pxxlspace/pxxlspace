@@ -1,0 +1,228 @@
+---
+title: "Servers and tools API"
+description: "Link your own servers, run maintenance, and manage tunnels, webhooks, and checks."
+---
+
+## Servers
+
+Manage [your own servers](/servers/overview) from code. These routes need a key scoped to `all`, `servers`, or `byos`. Changes need `read_write`. Servers are on Plus, Pro, and Enterprise; other plans get `402`.
+
+Pass `teamId` to work with a team's servers. A team-scoped key only sees its team's servers.
+
+### Link a server
+
+`POST /cli/servers`
+
+<ParamField body="name" type="string" required>
+  Name shown in Pxxl.
+</ParamField>
+
+<ParamField body="teamId" type="string">
+  Team that owns the server.
+</ParamField>
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/servers \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"hetzner-1"}'
+```
+
+**Response** `201`
+
+```json
+{
+  "server": {
+    "id": "srv_123",
+    "name": "hetzner-1",
+    "state": "pending",
+    "load1": 0,
+    "containers": 0,
+    "projectCount": 0,
+    "openAlerts": 0,
+    "latestAgentVersion": "1.4.0",
+    "createdAt": "2026-11-13T08:00:00Z"
+  },
+  "linkToken": "byos_link_token",
+  "installCommand": "curl -fsSL https://server.pxxl.app/api/v3/byos/install.sh | sudo bash -s -- --token byos_link_token",
+  "expiresAt": "2026-11-13T08:30:00Z"
+}
+```
+
+Run `installCommand` on the server as root within 30 minutes. The agent links itself, and `state` moves from `pending` to `linked` to `online`. See [install](/servers/install) for details. Reaching your plan's server limit returns `409` with reason `byos_server_limit`.
+
+### Server endpoints
+
+| Method | Path | Body or parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/servers` | `teamId?` | `{ servers, entitlement, deploysEnabled, usage }` |
+| `POST` | `/cli/servers` | `name`, `teamId?` | `201` with server, link token, and install command |
+| `GET` | `/cli/servers/{serverId}` | None | `{ server }` |
+| `PATCH` | `/cli/servers/{serverId}` | `name` | `{ server }` |
+| `DELETE` | `/cli/servers/{serverId}` | None | `{ message }` |
+| `POST` | `/cli/servers/{serverId}/link-token` | None | `{ linkToken, installCommand, expiresAt }` |
+| `GET` | `/cli/servers/{serverId}/projects` | None | `{ projects }` |
+| `GET` | `/cli/servers/{serverId}/health` | None | Health checks by component |
+| `GET` | `/cli/servers/{serverId}/metrics` | `range?`: `1h`, `6h`, `24h`, `7d` | `{ range, bucketSeconds, from, to, points }` |
+| `GET` | `/cli/servers/{serverId}/events` | `limit?`, `before?`, `level?` (`warning` or `error`) | `{ events, nextBefore }` |
+| `GET` | `/cli/servers/{serverId}/alerts` | `state?` (`open`) | `{ alerts }` |
+| `GET` | `/cli/servers/{serverId}/settings` | None | `{ settings }` |
+| `PATCH` | `/cli/servers/{serverId}/settings` | `alertEmail?`, `alertOffline?`, `alertCrashes?`, `alertResources?`, `autoUpdate?` | `{ settings }` |
+
+Deleting a server with projects on it returns `409` with reason `byos_server_in_use`. Move or delete those projects first.
+
+### Actions and operations
+
+Actions and operations run on the server through the agent. The server must be online, or you get `409`.
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| `POST` | `/cli/servers/{serverId}/actions` | `action`, `app?` | `202` with `{ action }` |
+| `GET` | `/cli/servers/{serverId}/actions/{actionId}` | None | `{ action }` |
+| `GET` | `/cli/servers/ops` | None | `{ ops, maxLines }` |
+| `POST` | `/cli/servers/{serverId}/ops/read` | `op`, `app?`, `lines?`, `wait?` | `202` with `{ action, title, change }` |
+| `POST` | `/cli/servers/{serverId}/ops/change` | `op`, `app?`, `lines?`, `wait?` | `202` with `{ action, title, change }` |
+
+`action` is `restart`, `stop`, `start`, or `logs` for an app (pass its container name in `app`), or `prune` or `update` for the whole server. Poll the action until `status` is `done` or `failed`.
+
+`GET /cli/servers/ops` lists every operation, such as `system.summary`, `disk.usage`, `logs.errors`, and `cleanup.unused_images`. Read operations only inspect. Change operations, such as the `cleanup.*` ones, modify the server and must go to `/ops/change`. Both routes need `read_write`. By default the call waits up to 45 seconds and returns the result. Send `"wait": false` to return at once and poll the action.
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/servers/srv_123/ops/read \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"op":"disk.usage"}'
+```
+
+```json
+{
+  "action": {
+    "id": "job_123",
+    "kind": "op",
+    "op": "disk.usage",
+    "app": "",
+    "status": "done",
+    "output": "Filesystem  Size  Used Avail Use% Mounted on\n/dev/sda1   80G   31G   46G  41% /",
+    "createdAt": "2026-11-13T08:10:00Z",
+    "finishedAt": "2026-11-13T08:10:02Z"
+  },
+  "title": "Disk usage",
+  "change": false
+}
+```
+
+The browser terminal is dashboard-only. See [terminal](/servers/terminal).
+
+## Tools
+
+[Tunnels](/tools/tunnels), [webhooks](/tools/webhooks), and checks need a key scoped to `all`, `tools`, `tunnels`, or `webhooks`. Changes need `read_write`. Webhooks have a free tier. Tunnels need Plus, Pro, or Enterprise. Plan limits return `402`.
+
+| Method | Path | Body or parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/tools/limits` | None | `{ limits, usage, tiers }` |
+
+### Tunnels
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/tools/tunnels \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"local api","target":"3000"}'
+```
+
+**Response** `201`
+
+```json
+{
+  "tunnel": {
+    "id": "tun_123",
+    "name": "local api",
+    "slug": "k2m9x4p7q1aa",
+    "publicUrl": "https://server.pxxl.app/api/v3/t/k2m9x4p7q1aa",
+    "online": false,
+    "tokenPrefix": "pxt_aB3dE6",
+    "targetHint": "http://localhost:3000",
+    "requestsTotal": 0,
+    "createdAt": "2026-11-13T08:00:00Z"
+  },
+  "token": "pxt_shown_once",
+  "commands": {
+    "install": "curl -fsSL https://server.pxxl.app/api/v3/tunnels/install.sh | sh",
+    "connect": "pxxl-tunnel --token pxt_shown_once --to http://localhost:3000"
+  }
+}
+```
+
+The tunnel `token` is shown once. `commands` holds ready-to-run client commands. A bare port in `target` becomes `http://localhost:PORT`; the default is port 3000.
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/tools/tunnels` | None | `{ tunnels, limits }` |
+| `POST` | `/cli/tools/tunnels` | `name` (up to 80 characters), `target?` | `201` with `{ tunnel, token, commands }` |
+| `POST` | `/cli/tools/tunnels/{tunnelId}/rotate` | None | `{ tunnel, token, commands }` |
+| `DELETE` | `/cli/tools/tunnels/{tunnelId}` | None | `{ success }` |
+| `GET` | `/cli/tools/tunnels/{tunnelId}/connect` | None | WebSocket upgrade for the tunnel client |
+
+The connect route lets the CLI and SDK open a tunnel with your API key instead of the tunnel token. It takes the tunnel ID or slug.
+
+### Webhooks
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/tools/webhooks \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"stripe","forwardUrl":"https://api.example.com/stripe","responseStatus":200}'
+```
+
+**Response** `201`
+
+```json
+{
+  "endpoint": {
+    "id": "whe_123",
+    "name": "stripe",
+    "url": "https://server.pxxl.app/api/v3/hooks/abc123",
+    "forwardUrl": "https://api.example.com/stripe",
+    "forwardHeaders": {},
+    "responseStatus": 200,
+    "paused": false,
+    "requestsTotal": 0,
+    "createdAt": "2026-11-13T08:00:00Z"
+  }
+}
+```
+
+Send requests to `url`. Pxxl stores each one and forwards it to `forwardUrl` when set.
+
+| Method | Path | Body or parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/cli/tools/webhooks` | None | `{ endpoints, limits }` |
+| `POST` | `/cli/tools/webhooks` | `name?`, `forwardUrl?`, `forwardHeaders?`, `responseStatus?`, `paused?` | `201` with `{ endpoint }` |
+| `GET` | `/cli/tools/webhooks/{endpointId}` | None | `{ endpoint, limits }` |
+| `PATCH` | `/cli/tools/webhooks/{endpointId}` | Same fields as create | `{ endpoint }` |
+| `DELETE` | `/cli/tools/webhooks/{endpointId}` | None | `{ success }` |
+| `GET` | `/cli/tools/webhooks/{endpointId}/requests` | `limit?` (1 to 200, default 50), `before?` (RFC 3339 time) | `{ requests }` without bodies |
+| `DELETE` | `/cli/tools/webhooks/{endpointId}/requests` | None | `{ success }` |
+| `GET` | `/cli/tools/webhooks/{endpointId}/requests/{requestId}` | None | `{ request }` with body |
+| `POST` | `/cli/tools/webhooks/{endpointId}/requests/{requestId}/replay` | `url?`, `method?`, `headers?` | `{ result }` |
+
+Replay sends the stored request to `url`, or to the endpoint's `forwardUrl` when you leave `url` out.
+
+### Checks
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| `POST` | `/cli/tools/http-check` | `url`, `method?`, `headers?`, `body?` | Status, timing, and redirect hops |
+| `POST` | `/cli/tools/domain-check` | `host`, `port?` (default `443`) | DNS and TLS details |
+
+```bash
+curl --request POST \
+  https://server.pxxl.app/api/v3/cli/tools/domain-check \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"host":"example.com"}'
+```

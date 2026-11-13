@@ -3,15 +3,30 @@ title: "Authentication and teams"
 description: "Authenticate SDK calls, inspect the active identity, and set team context."
 ---
 
-Create an API key in Pxxl, then store it as `PXXL_API_KEY`.
+Create an API key in [account settings](/account/settings), then store it as `PXXL_API_KEY`. Every SDK sends it as a bearer token to `https://server.pxxl.app/api/v3`.
+
+## Client options
 
 <ParamField body="apiKey" type="string" required>
-  Secret API key used for bearer authentication.
+  Secret API key. Go, Python, and Rust refuse to create a client without one.
 </ParamField>
 
 <ParamField body="teamId" type="string">
-  Default team for resources that support team ownership.
+  Default team for calls that accept a team. A method's own `teamId` argument overrides it. Go has no client-level team, so pass the team ID to each call.
 </ParamField>
+
+Each SDK has a few extra options:
+
+| SDK | Option | What it does |
+| --- | --- | --- |
+| Node.js | `fetchImpl` | Use your own `fetch` function |
+| Node.js | `mcpApiKey`, `mcpEndpoint` | Use a different key or endpoint for `pxxl.mcp` |
+| Go | `pxxl.WithHTTPClient(client)` | Use your own `*http.Client` |
+| Go | `pxxl.WithBaseURL(url)` | Send requests to another API base URL |
+| Python | `timeout` | Request timeout in seconds, default `60.0` |
+| Rust | `.with_base_url(url)` | Send requests to another API base URL |
+
+In Node.js, the `baseUrl` option is ignored. To test against a staging or local Gateway, set the `PXXL_API_URL` environment variable instead. It accepts only an `https://` host under `pxxl.app` or `localhost`, so your key is never sent anywhere else.
 
 ## Create a client
 
@@ -28,7 +43,10 @@ Create an API key in Pxxl, then store it as `PXXL_API_KEY`.
   </Tab>
   <Tab title="Go">
     ```go
-    client := pxxl.NewClient(os.Getenv("PXXL_API_KEY"))
+    client, err := pxxl.NewClient(os.Getenv("PXXL_API_KEY"))
+    if err != nil {
+      log.Fatal(err)
+    }
     ```
   </Tab>
   <Tab title="Python">
@@ -38,7 +56,7 @@ Create an API key in Pxxl, then store it as `PXXL_API_KEY`.
   </Tab>
   <Tab title="Rust">
     ```rust
-    let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)
+    let client = PxxlClient::new(std::env::var("PXXL_API_KEY")?)?
         .with_team_id("team_123");
     ```
   </Tab>
@@ -46,11 +64,11 @@ Create an API key in Pxxl, then store it as `PXXL_API_KEY`.
 
 ## Identity operations
 
-| Operation | Node.js | Parameters | Returns |
-| --- | --- | --- | --- |
-| Active identity | `identity.whoami()` | None | User, auth method, API key permissions, and team context |
-| Account stats | `identity.stats(teamId?)` | `teamId?` | Resource totals and account summary |
-| Platform usage | `identity.usage(teamId?)` | `teamId?` | Build, runtime, storage, and plan usage |
+| Operation | Node.js | Go | Python | Rust |
+| --- | --- | --- | --- | --- |
+| Active identity | `identity.whoami()` | `WhoAmI(ctx)` | `whoami()` | `whoami()` |
+| Account stats | `identity.stats(teamId?)` | `Stats(ctx, teamID)` | `stats(team_id=None)` | `stats(team_id)` |
+| Platform usage | `identity.usage(teamId?)` | `PlatformUsage(ctx, teamID)` | `platform_usage(team_id=None)` | `platform_usage(team_id)` |
 
 ```ts
 const identity = await pxxl.identity.whoami();
@@ -61,21 +79,19 @@ const identity = await pxxl.identity.whoami();
   "success": true,
   "user": {
     "id": "user_123",
-    "email": "developer@example.com",
-    "name": "Developer"
+    "email": "developer@example.com"
   },
   "authMethod": "api_key",
-  "apiKey": {
-    "name": "production automation",
-    "permission": "read_write",
-    "scopes": ["deploy", "domain", "storage"]
-  },
+  "apiKeyId": "key_123",
+  "apiKeyScope": "all",
+  "apiKeyPermission": "read_write",
   "teamId": "team_123"
 }
 ```
 
+`stats()` and `usage()` return the same usage overview: project and deployment totals, build usage, plan limits, and recent activity.
+
 ```ts
-const stats = await pxxl.identity.stats();
 const usage = await pxxl.identity.usage();
 ```
 
@@ -85,15 +101,19 @@ const usage = await pxxl.identity.usage();
   "data": {
     "summary": {
       "totalProjects": 4,
+      "activeProjects": 3,
       "totalDeployments": 18,
-      "totalDomains": 3,
-      "totalDatabases": 2
-    }
+      "successfulDeployments": 16,
+      "failedDeployments": 2
+    },
+    "projects": [],
+    "recentDeployments": [],
+    "planLimits": {}
   }
 }
 ```
 
-API keys can be read-only or read-write. Scopes can limit access to deployments, domains, environment variables, CDN, storage, databases, cron jobs, analytics, or teams.
+API keys can be read-only or read-write. A key's scope can limit it to one area, such as deployments, domains, storage, or tools.
 
 <Warning>
   Use SDK keys only in trusted servers, workers, and CI. Do not expose them in browser bundles.

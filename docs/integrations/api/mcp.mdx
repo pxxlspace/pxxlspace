@@ -9,18 +9,20 @@ MCP uses a separate endpoint:
 https://mcp.pxxl.app/mcp
 ```
 
-## Required headers
+It takes an MCP key, not a regular API key. Create one by adding an MCP connection in the dashboard (see [MCP](/ai/mcp)). The connection decides which projects and tools the key can reach. MCP needs a Plus, Pro, or Enterprise plan.
+
+## Headers
 
 <ParamField header="Authorization" type="string" required>
-  `Bearer` followed by your MCP API key.
+  `Bearer` followed by your MCP key. You can send the key in `X-Pxxl-MCP-Key` instead.
 </ParamField>
 
 <ParamField header="Content-Type" type="string" required>
-  Must be `application/json`.
+  Must be `application/json`. Anything else returns `415`.
 </ParamField>
 
-<ParamField header="MCP-Protocol-Version" type="string" default="2025-06-18">
-  MCP protocol version used by the client.
+<ParamField header="MCP-Protocol-Version" type="string" default="2025-11-25">
+  Protocol version used by the client. `2025-03-26`, `2025-06-18`, and `2025-11-25` are supported.
 </ParamField>
 
 ## JSON-RPC request
@@ -29,8 +31,8 @@ https://mcp.pxxl.app/mcp
   Must be `2.0`.
 </ParamField>
 
-<ParamField body="id" type="string | number" required>
-  Client-generated request ID.
+<ParamField body="id" type="string | number">
+  Client-generated request ID. Leave it out for notifications, which return `202` with no body.
 </ParamField>
 
 <ParamField body="method" type="string" required>
@@ -45,12 +47,19 @@ https://mcp.pxxl.app/mcp
 
 | Method | Parameters | Returns |
 | --- | --- | --- |
-| `initialize` | Protocol version, capabilities, and client info | Server capabilities and information |
-| `ping` | None | Empty successful result |
-| `tools/list` | Optional pagination | Tool definitions and schemas |
-| `tools/call` | `name`, `arguments` | Tool content and structured result |
-| `resources/list` | Optional pagination | Resource definitions |
+| `initialize` | `protocolVersion`, capabilities, client info | Protocol version, capabilities, server info, instructions |
+| `ping` | None | Empty result |
+| `tools/list` | None | Tools allowed for this connection, with schemas |
+| `tools/call` | `name`, `arguments` | Tool output as JSON text in `content` |
+| `resources/list` | None | Resource definitions |
+| `resources/templates/list` | None | Resource templates |
 | `resources/read` | `uri` | Resource contents |
+| `resources/subscribe`, `resources/unsubscribe` | `uri` | Subscription result |
+| `prompts/list`, `prompts/get` | `name` for `get` | Prompts |
+| `completion/complete` | Completion reference and argument | Suggestions |
+| `tasks/get`, `tasks/list`, `tasks/result`, `tasks/cancel` | Task ID | Long-running tool calls |
+
+A `GET` to the endpoint with `Accept: text/event-stream` opens a stream of server events. Without that header it returns `204`.
 
 ## List tools
 
@@ -58,7 +67,7 @@ https://mcp.pxxl.app/mcp
 curl https://mcp.pxxl.app/mcp \
   --header "Authorization: Bearer $PXXL_MCP_API_KEY" \
   --header "Content-Type: application/json" \
-  --header "MCP-Protocol-Version: 2025-06-18" \
+  --header "MCP-Protocol-Version: 2025-11-25" \
   --data '{"jsonrpc":"2.0","id":"1","method":"tools/list","params":{}}'
 ```
 
@@ -70,11 +79,8 @@ curl https://mcp.pxxl.app/mcp \
     "tools": [
       {
         "name": "projects_list",
-        "description": "List projects available to this key.",
-        "inputSchema": {
-          "type": "object",
-          "properties": { "limit": { "type": "integer" } }
-        }
+        "description": "List only the projects explicitly selected for this MCP connection.",
+        "inputSchema": { "type": "object", "properties": {} }
       }
     ]
   }
@@ -87,8 +93,8 @@ curl https://mcp.pxxl.app/mcp \
 curl https://mcp.pxxl.app/mcp \
   --header "Authorization: Bearer $PXXL_MCP_API_KEY" \
   --header "Content-Type: application/json" \
-  --header "MCP-Protocol-Version: 2025-06-18" \
-  --data '{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"projects_list","arguments":{"limit":10}}}'
+  --header "MCP-Protocol-Version: 2025-11-25" \
+  --data '{"jsonrpc":"2.0","id":"2","method":"tools/call","params":{"name":"projects_list","arguments":{}}}'
 ```
 
 ```json
@@ -99,11 +105,12 @@ curl https://mcp.pxxl.app/mcp \
     "content": [
       { "type": "text", "text": "{\"projects\":[],\"total\":0}" }
     ],
-    "structuredContent": { "projects": [], "total": 0 },
     "isError": false
   }
 }
 ```
+
+Tools that change or delete data need `"confirm": true` in `arguments`. Pass `idempotency_key` when you may retry a write.
 
 ## Error responses
 
@@ -115,9 +122,17 @@ JSON-RPC errors use the top-level `error` field.
   "id": "2",
   "error": {
     "code": -32602,
-    "message": "Invalid tool arguments"
+    "message": "tool arguments must be an object"
   }
 }
 ```
+
+| Code | HTTP status | Meaning |
+| --- | --- | --- |
+| `-32001` | `401` | MCP key missing or invalid |
+| `-32003` | `403` or `402` | Connection disabled, owner blocked, origin not allowed, or plan too low |
+| `-32600` | `400` | Invalid JSON-RPC request |
+| `-32601` | `200` | Method not found |
+| `-32602` | `200` | Invalid tool name or arguments |
 
 A tool can also return `isError: true` inside `result`. Check both forms.
