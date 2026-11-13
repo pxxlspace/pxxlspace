@@ -3,11 +3,11 @@
   "name": "Pxxl",
   "theme": "maple",
   "logo": {
-    "light": "https://media.brand.dev/b477ef75-f22a-41f0-a85b-c85119e091f9.png",
-    "dark": "https://media.brand.dev/b477ef75-f22a-41f0-a85b-c85119e091f9.png",
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png",
     "href": "https://pxxl.app"
   },
-  "favicon": "https://media.brand.dev/77aa8868-c2fb-4583-b67b-5c01bdfcd7fe.png",
+  "favicon": "/favicon.png",
   "colors": {
     "primary": "#de59db",
     "light": "#de59db",
@@ -144,7 +144,7 @@
         ]
       },
       {
-        "tab": "Reference",
+        "tab": "Integrations",
         "groups": [
           {
             "group": "Configuration",
