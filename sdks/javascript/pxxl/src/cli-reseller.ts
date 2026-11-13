@@ -31,7 +31,7 @@ export const resellerHelp = `${bold("pxxl domains reseller")} – sell domains t
   ${cyan("pxxl domains reseller dns")} <domain>                                  List records
   ${cyan("pxxl domains reseller dns set")} <domain> --type A --name @ --value 1.2.3.4 [--ttl 300]
   ${cyan("pxxl domains reseller dns replace")} <domain> --type TXT --name @ --value "v=spf1 ..."
-  ${cyan("pxxl domains reseller dns delete")} <domain> --id <record-id>
+  ${cyan("pxxl domains reseller dns delete")} <domain> --id <record-id> [--zone-id <zone>]
   ${cyan("pxxl domains reseller nameservers")} <domain>                          Verify
   ${cyan("pxxl domains reseller nameservers set")} <domain> ns1.example.com ns2.example.com
   ${cyan("pxxl domains reseller nameservers reset")} <domain>                    Back to Pxxl DNS
@@ -227,7 +227,7 @@ export async function resellerCommand(rawArgs: string[]) {
       if (sub === "list") return json(await r.dnsRecords(domain));
       if (sub === "logs") return json(await r.dnsChangeLogs(domain));
       if (sub === "delete" || sub === "rm") {
-        const result = await r.deleteDNSRecord(domain, { id: flag(args, "--id"), type: flag(args, "--type"), name: flag(args, "--name"), value: flag(args, "--value") });
+        const result = await r.deleteDNSRecord(domain, { id: flag(args, "--id"), zoneId: flag(args, "--zone-id"), type: flag(args, "--type"), name: flag(args, "--name"), value: flag(args, "--value") });
         return asJSON ? json(result) : print(green("Record deleted."));
       }
       const record = { type: required(flag(args, "--type"), "--type").toUpperCase(), name: flag(args, "--name") || "@", value: required(flag(args, "--value"), "--value"), ttl: num(flag(args, "--ttl")), priority: num(flag(args, "--priority")) };

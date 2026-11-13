@@ -275,7 +275,8 @@ func (r *Reseller) ReplaceDNSRecords(ctx context.Context, domain string, record 
 	return r.mapCall(ctx, http.MethodPut, "/domains/"+esc(domain)+"/dns-records", record)
 }
 
-// DeleteDNSRecord deletes a record (by ID, or type, name and value).
+// DeleteDNSRecord deletes a record (by ID, or type, name and value). For
+// .cv domains set ID and ZoneID.
 func (r *Reseller) DeleteDNSRecord(ctx context.Context, domain string, record DomainDNSRecordInput) (map[string]any, error) {
 	return r.mapCall(ctx, http.MethodDelete, "/domains/"+esc(domain)+"/dns-records", record)
 }

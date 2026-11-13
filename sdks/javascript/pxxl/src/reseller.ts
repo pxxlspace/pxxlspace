@@ -182,7 +182,8 @@ export class PxxlReseller {
   setDNSRecord(domain: string, record: ResellerDNSRecord) { return this.write<Record<string, unknown>>("POST", `/domains/${enc(domain)}/dns-records`, record); }
   /** Replace a record set (same type and name). */
   replaceDNSRecords(domain: string, record: ResellerDNSRecord) { return this.write<Record<string, unknown>>("PUT", `/domains/${enc(domain)}/dns-records`, record); }
-  deleteDNSRecord(domain: string, record: { id?: string; recordId?: string; type?: string; name?: string; value?: string }) {
+  /** Delete a record. For .cv domains pass its id and zoneId (both are in dnsRecords' raw.data). */
+  deleteDNSRecord(domain: string, record: { id?: string; recordId?: string; zoneId?: string; type?: string; name?: string; value?: string }) {
     return this.write<Record<string, unknown>>("DELETE", `/domains/${enc(domain)}/dns-records`, record);
   }
   dnsChangeLogs(domain: string) { return this.read<Record<string, unknown>>(`/domains/${enc(domain)}/dns-change-logs`); }

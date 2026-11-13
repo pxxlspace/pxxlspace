@@ -107,8 +107,9 @@ class PxxlReseller:
     def replace_dns_records(self, domain: str, type: str, name: str, value: str, *, ttl: int | None = None) -> dict[str, Any]:
         return self._call("PUT", f"/domains/{_esc(domain)}/dns-records", _clean({"type": type, "name": name, "value": value, "ttl": ttl}))
 
-    def delete_dns_record(self, domain: str, *, id: str | None = None, type: str | None = None, name: str | None = None, value: str | None = None) -> dict[str, Any]:
-        return self._call("DELETE", f"/domains/{_esc(domain)}/dns-records", _clean({"id": id, "type": type, "name": name, "value": value}))
+    def delete_dns_record(self, domain: str, *, id: str | None = None, zone_id: str | None = None, type: str | None = None, name: str | None = None, value: str | None = None) -> dict[str, Any]:
+        """For .cv domains pass the record id and zone_id."""
+        return self._call("DELETE", f"/domains/{_esc(domain)}/dns-records", _clean({"id": id, "zoneId": zone_id, "type": type, "name": name, "value": value}))
 
     def set_nameservers(self, domain: str, nameservers: list[str]) -> dict[str, Any]:
         return self._call("POST", f"/domains/{_esc(domain)}/nameservers", {"nameservers": nameservers})

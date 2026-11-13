@@ -169,7 +169,7 @@ impl<'a> Reseller<'a> {
         self.call(Method::PUT, &Self::domain_path(domain, "/dns-records"), Some(record), None).await
     }
 
-    /// Delete a record by `{"id": ...}` or by type, name and value.
+    /// Delete a record by `{"id": ...}` (with `"zoneId"` for .cv) or by type, name and value.
     pub async fn delete_dns_record(&self, domain: &str, record: Value) -> Result<Value, PxxlError> {
         self.call(Method::DELETE, &Self::domain_path(domain, "/dns-records"), Some(record), None).await
     }
