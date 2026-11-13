@@ -512,3 +512,29 @@ func TestDeployUsesMultipartArchive(t *testing.T) {
 		t.Fatalf("deploy result = %#v", result)
 	}
 }
+
+func TestResellerRegisterSendsKeyAndIdempotency(t *testing.T) {
+	var gotAuth, gotIdem, gotPath string
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotIdem, gotPath = r.Header.Get("Authorization"), r.Header.Get("Idempotency-Key"), r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"domain":{"domain":"a.cv","status":"registering","customer":{"reference":"c1"}},"chargedMinor":412,"balanceMinor":588}`))
+	}))
+	defer server.Close()
+	client, err := NewClient("pxxl_rsl_test", WithBaseURL(server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := client.Reseller().Register(context.Background(), ResellerRegisterInput{Domain: "a.cv", Years: 1, Customer: &ResellerCustomer{Reference: "c1"}, IdempotencyKey: "k1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotAuth != "Bearer pxxl_rsl_test" || gotIdem != "k1" || gotPath != "/domain-reseller/domains" {
+		t.Fatalf("auth=%q idem=%q path=%q", gotAuth, gotIdem, gotPath)
+	}
+	if gotBody["domain"] != "a.cv" || out.ChargedMinor != 412 || out.Domain.Customer.Reference != "c1" {
+		t.Fatalf("body=%v out=%+v", gotBody, out)
+	}
+}

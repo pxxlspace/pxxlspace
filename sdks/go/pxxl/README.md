@@ -44,6 +44,19 @@ identity, _ := client.WhoAmI(context.Background())
 
 Use `client.MCP` to call tools and resources from the Pxxl MCP server.
 
+## Domain reselling
+
+Sell domains to your own users (Pro plan and up). Use a reseller key from Tools > Domain reseller; purchases are charged to your Pxxl wallet. `.cv` costs ₦6,000 a year.
+
+```go
+client, _ := pxxl.NewClient(os.Getenv("PXXL_RESELLER_KEY"))
+r := client.Reseller()
+quote, _ := r.Quote(ctx, "example.cv", 1) // quote.ChargeMinor is what your wallet pays, in US cents
+buy, _ := r.Register(ctx, pxxl.ResellerRegisterInput{Domain: "example.cv", Years: 1, Customer: &pxxl.ResellerCustomer{Reference: "cust_42"}, MaxChargeMinor: quote.ChargeMinor, IdempotencyKey: "order-1001"})
+_, _ = r.SetDNSRecord(ctx, "example.cv", pxxl.DomainDNSRecordInput{Type: "A", Name: "@", Value: "203.0.113.10"})
+_, _ = r.SetNameservers(ctx, "example.cv", []string{"ns1.example.net", "ns2.example.net"})
+```
+
 ## Deploy a local codebase
 
 ```go

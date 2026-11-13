@@ -47,6 +47,18 @@ client.disconnect_domain("old.example.com", project_id="proj_123")
 
 Domain write operations require `scope=domain`, `scope=domains`, or `scope=all` with `permission=read_write`.
 
+## Domain reselling
+
+Sell domains to your own users (Pro plan and up). Use a reseller key from Tools > Domain reseller; purchases are charged to your Pxxl wallet. `.cv` costs ₦6,000 a year.
+
+```python
+client = PxxlClient(api_key=os.environ["PXXL_RESELLER_KEY"])
+quote = client.reseller.quote("example.cv")  # quote["chargeMinor"]: what your wallet pays, in US cents
+client.reseller.register("example.cv", customer={"reference": "cust_42"}, max_charge_minor=quote["chargeMinor"], idempotency_key="order-1001")
+client.reseller.set_dns_record("example.cv", "A", "@", "203.0.113.10")
+client.reseller.set_nameservers("example.cv", ["ns1.example.net", "ns2.example.net"])
+```
+
 ## Cron Jobs
 
 ```python

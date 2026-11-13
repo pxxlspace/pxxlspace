@@ -7,6 +7,9 @@ use thiserror::Error;
 use walkdir::WalkDir;
 use zip::write::FileOptions;
 
+mod reseller;
+pub use reseller::{Reseller, ResellerRegisterInput};
+
 pub const PXXL_API_BASE_URL: &str = "https://server.pxxl.app/api/v3";
 pub const PXXL_MCP_ENDPOINT: &str = "https://mcp.pxxl.app/mcp";
 pub const PXXL_MCP_PROTOCOL_VERSION: &str = "2025-06-18";
@@ -608,12 +611,25 @@ impl PxxlClient {
         path: &str,
         body: Option<Value>,
     ) -> Result<Vec<u8>, PxxlError> {
+        self.raw_with_headers(method, path, body, &[]).await
+    }
+
+    async fn raw_with_headers(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+        headers: &[(&str, &str)],
+    ) -> Result<Vec<u8>, PxxlError> {
         let url = format!("{}{}", self.base_url, path);
         let mut req = self
             .http
             .request(method, url)
             .bearer_auth(&self.api_key)
             .header("User-Agent", "pxxl-rust-sdk/0.1");
+        for (name, value) in headers {
+            req = req.header(*name, *value);
+        }
         if let Some(body) = body {
             req = req.json(&body);
         }

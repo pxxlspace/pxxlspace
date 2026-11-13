@@ -10,7 +10,10 @@ import urllib.request
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO, Mapping
+from typing import TYPE_CHECKING, Any, BinaryIO, Mapping
+
+if TYPE_CHECKING:
+    from .reseller import PxxlReseller
 
 PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3"
 PXXL_MCP_ENDPOINT = "https://mcp.pxxl.app/mcp"
@@ -56,6 +59,13 @@ class PxxlClient:
         self.team_id = (self.team_id or "").strip() or None
         self.base_url = PXXL_API_BASE_URL
         self._mcp_request_id = 0
+
+    @property
+    def reseller(self) -> "PxxlReseller":
+        """Domain reselling with a reseller key (Pro and up), charged to your wallet."""
+        from .reseller import PxxlReseller
+
+        return PxxlReseller(self)
 
     def request(
         self,
@@ -543,9 +553,11 @@ class PxxlClient:
             return {}
         return json.loads(raw.decode())
 
-    def _raw(self, method: str, path: str, *, body: bytes | None = None, content_type: str | None = None) -> bytes:
+    def _raw(self, method: str, path: str, *, body: bytes | None = None, content_type: str | None = None, extra_headers: Mapping[str, str] | None = None) -> bytes:
         req = urllib.request.Request(self.base_url + path, data=body, method=method)
         req.add_header("Authorization", f"Bearer {self.api_key}")
+        for header, header_value in (extra_headers or {}).items():
+            req.add_header(header, header_value)
         req.add_header("User-Agent", "pxxl-python-sdk/0.1")
         if content_type:
             req.add_header("Content-Type", content_type)
