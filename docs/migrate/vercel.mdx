@@ -18,6 +18,7 @@ Use the [importer](/migrate/overview#import-from-your-old-host) with a Vercel to
 | Preview deployments | Pull request previews |
 | Cron (`crons` in vercel.json) | [Cron jobs](/cron-jobs) in the dashboard |
 | Edge config, KV, Postgres | [Databases](/databases/overview) (Redis, Postgres) |
+| Microfrontends (`microfrontends.json`) | [Microfrontends](/deploy/microfrontends#coming-from-vercel) in the default app's `pxxl.toml` |
 
 ## vercel.json
 
@@ -97,4 +98,5 @@ Pxxl runs Next.js as a web service with `next start`. Check that your start scri
 - [ ] Add any env vars the import couldn't read.
 - [ ] Add `[functions]` if you use `api/` with a static frontend.
 - [ ] Recreate Vercel cron jobs in **Cron Jobs**.
+- [ ] Move `microfrontends.json` to a [`[microfrontends]` section](/deploy/microfrontends#coming-from-vercel) if you use microfrontends.
 - [ ] Test the Pxxl URL, then [move your domain](/migrate/overview#switch-dns-last).
