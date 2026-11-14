@@ -250,6 +250,33 @@ Within each list, more specific (longer) sources match first. Real files like `/
 
 If you also have a `vercel.json` with routing, the deploy fails. Keep routing in one file.
 
+## microfrontends
+
+Serve other projects of the same workspace on this project's domains, each owning its own paths. Put it in the default app's `pxxl.toml`; it applies with that project's next deployment. See [Microfrontends](/deploy/microfrontends).
+
+```toml
+[microfrontends]
+child_domains = "serve"   # or "noindex" / "redirect"
+
+[microfrontends.apps.docs]
+project = "acme-docs"     # name or ID; defaults to the table name
+paths = ["/docs", "/docs/:path*"]
+strip_prefix = "auto"     # static apps: "auto", true, false or "/docs"
+
+[microfrontends.apps.blog]
+project = "acme-blog"
+paths = ["/blog/:path*"]
+```
+
+| Key | Default | What it does |
+| --- | --- | --- |
+| `microfrontends.child_domains` | `"serve"` | What the apps' own domains do: keep serving, add `X-Robots-Tag: noindex`, or redirect to the group's domain. |
+| `microfrontends.apps.<name>.project` | the table name | A project in the same workspace. |
+| `microfrontends.apps.<name>.paths` | required | [Path patterns](#path-patterns) the app owns. Each path belongs to one app; `/` and `/:path*` are not allowed. |
+| `microfrontends.apps.<name>.strip_prefix` | `"auto"` | Static apps: remove the shared path prefix before looking up files (for builds with a base path). |
+
+Limits: 20 apps and 64 paths per group. A server app's paths need a fixed first segment, such as `/blog/:path*`.
+
 ## functions
 
 Turn a folder of handlers into HTTP endpoints. See [Functions](/deploy/functions).

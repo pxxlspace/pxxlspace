@@ -1,0 +1,189 @@
+---
+title: "Microfrontends"
+description: "Serve several projects on one domain, each owning its own paths and deploying on its own."
+---
+
+Microfrontends let one site be made of several Pxxl projects. The default app
+answers every path, and other projects in the same workspace take over the
+paths you give them. For example, `acme.com/docs` can come from a docs project
+and `acme.com/blog` from a blog server, while `acme.com` itself is your
+marketing site.
+
+Each project keeps its own repository, builds, deployments, rollbacks and
+standalone domain. The split happens at the Pxxl edge in the same request, so
+there is no extra hop, and a visitor never sees which project answered.
+
+Microfrontends are available on Plus, Pro and Enterprise. Every key is also in the [pxxl.toml reference](/reference/pxxl-toml#microfrontends).
+
+## Set it up
+
+Add a `[microfrontends]` section to the **default app's** `pxxl.toml` and
+deploy it. Name each other project and the paths it owns:
+
+```toml
+[microfrontends]
+child_domains = "serve"
+
+[microfrontends.apps.docs]
+project = "acme-docs"
+paths = ["/docs", "/docs/:path*"]
+
+[microfrontends.apps.blog]
+project = "acme-blog"
+paths = ["/blog", "/blog/:path*"]
+```
+
+Everything the default app's domains receive that no app claims stays with the
+default app. The group goes live with the default app's next deployment, and
+from then on:
+
+- deploying an app updates the group's domains within seconds of that app
+  going live, with no redeploy of the default app;
+- a rollback of the default app brings back the paths that deployment shipped
+  with;
+- removing the section, and deploying, ends the group.
+
+Static sites, server apps and Pxxl Functions can all be apps, in any mix.
+Uploads (SpaceDrop and the CLI) work too: put `pxxl.toml` at the root of the
+upload.
+
+## Apps
+
+Each `[microfrontends.apps.<name>]` table is one app. The name appears in the
+dashboard and in the `X-Pxxl-Microfrontend` response header.
+
+| Field | Meaning |
+| --- | --- |
+| `project` | The project's name or ID, in the same workspace as the default app. Defaults to the table name. |
+| `paths` | The paths the app owns on the default app's domains. Required. |
+| `strip_prefix` | Static apps only. `"auto"` (default), `true`, `false` or a path such as `"/docs"`. See [Static apps](#static-apps). |
+
+A project can be in one group, and the default app of a group can't be an app
+in another one.
+
+## Paths
+
+Paths use the same [path patterns](/reference/pxxl-toml#path-patterns) as routing rules:
+
+| Path | Matches |
+| --- | --- |
+| `/docs` | Exactly `/docs` |
+| `/docs/:path*` | `/docs` and everything under it |
+| `/blog/:slug+` | Anything under `/blog/`, but not `/blog` |
+| `/:locale(en\|fr)/shop` | `/en/shop` and `/fr/shop` |
+
+Each path belongs to exactly one app: a deploy fails when two apps claim the
+same path, or when a path would take every request (`/` or `/:path*`).
+`/__pxxl` paths are reserved. A group has at most 20 apps and 64 paths.
+
+Group paths are checked before the default app's own [redirects, rewrites and
+single-page app fallback](/deploy/routing), so a catch-all rewrite in the default app can't take
+an app's paths.
+
+## Static apps
+
+Pxxl never rewrites your HTML. Each app must serve its pages **and its
+assets** under the paths it owns: a docs app at `/docs` needs its scripts at
+`/docs/assets/...`, not `/assets/...`, or the default app answers those
+requests and the page loads blank.
+
+Most tools do this with one setting:
+
+| Tool | Setting |
+| --- | --- |
+| Vite | `base: "/docs/"` |
+| Astro | `base: "/docs"` |
+| Next.js static export | `basePath: "/docs"` |
+| SvelteKit | `paths.base = "/docs"` |
+
+Those builds write their files at the output root and expect the browser to
+ask for them under `/docs`. Pxxl handles that with `strip_prefix`: by default
+(`"auto"`), a static app whose paths share a prefix has it removed before its
+files are looked up, so `/docs/assets/app.js` serves `assets/app.js` from the
+release. Set `strip_prefix = false` if your build already writes a `docs/`
+folder.
+
+## Server apps
+
+A server app receives the full path (`/blog/hello`) and the real domain in
+`Host` and `X-Forwarded-Host`, so absolute links, sign-in callbacks and cookies
+work. Its routes must live under its paths too; most frameworks have a base
+path setting (`basePath` in Next.js, a router prefix in Express or Fastify).
+
+Each path of a server app needs a fixed first segment, such as
+`/blog/:path*`. A path that starts with a parameter (`/:slug`) is only for
+static apps.
+
+## Each app keeps its own settings
+
+An app's rules apply on its paths: its redirects, rewrites, headers, single-page
+fallback, rate limit and WebSocket setting. The default app's domain settings
+(HTTPS redirect, access rules, HSTS) apply to the whole domain.
+
+An app with [password protection](/projects/password-protection) turned on answers its paths with a 403
+page inside the group rather than its content. Sign in on the app's own domain,
+or limit its protection to previews.
+
+## The apps' own domains
+
+Each app keeps working on its own domain. `child_domains` decides what those
+domains do while the app is in a group:
+
+| Value | Effect |
+| --- | --- |
+| `serve` | Default. The app's own domains keep serving it. |
+| `noindex` | They keep serving it with `X-Robots-Tag: noindex`, so search engines index only the group's domain. |
+| `redirect` | Every request redirects (308) to the same page on the group's domain. |
+
+## Dashboard
+
+Open the default app or any app, then **Networking** → **Microfrontends**:
+
+- every app, the paths it owns and the deployment the group serves for it;
+- checks that found problems, such as a page that loads assets from paths the
+  app doesn't own, a project that has never deployed, or one with deployment
+  protection;
+- **Which app serves a URL?**: paste a path or URL to see which app answers it
+  and the path it receives;
+- **Update now** re-pins every app's live deployment without a redeploy.
+
+The same is available from the API: `GET /api/v3/projects/{id}/microfrontends`,
+`GET /api/v3/projects/{id}/microfrontends/resolve?path=/docs/intro` and
+`POST /api/v3/projects/{id}/microfrontends/republish`.
+
+## Navigation between apps
+
+Links between apps are ordinary links, so moving from one app to another is a
+full page load. All apps share one origin, which means they share cookies,
+`localStorage` and service workers: a service worker the default app registers
+at `/` also sees the apps' paths, and two apps that set a cookie with the same
+name overwrite each other.
+
+## Local development
+
+Run each app on its own port and put a small proxy in front that sends each
+path to the right one. If you already use Vercel's tooling,
+`npx @vercel/microfrontends proxy` works with Pxxl: point each app's
+`development.fallback` at its Pxxl domain.
+
+## Limits
+
+| Plan | Groups per workspace | Apps per group |
+| --- | --- | --- |
+| Free | None | None |
+| Plus | 1 | 3 |
+| Pro | 3 | 10 |
+| Enterprise | Unlimited | 20 |
+
+Apps count toward your plan's projects as usual. There is no charge for routing
+requests between apps.
+
+## Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| An app's page is unstyled or blank on the group's domain | Its assets load from paths it doesn't own. Set a base path (see [Static apps](#static-apps)); the dashboard lists the offending URLs. |
+| An app's paths show "Deployment unavailable" | The app has no live deployment, or it is stopped. Deploy it; the group picks it up when it goes live. |
+| An app's paths answer 403 "This app is protected" | The app has deployment protection on. Limit it to previews or turn it off. |
+| A deploy fails with `invalid pxxl.toml: [microfrontends] ...` | Two apps claim the same path, a project name is wrong, or a path takes every request. The message names the app. |
+| The group shows "not applied" | The plan doesn't include microfrontends, or a project named in `pxxl.toml` isn't in the default app's workspace. |

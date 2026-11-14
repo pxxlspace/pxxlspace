@@ -42,6 +42,7 @@
               "deploy/environment-variables",
               "deploy/monorepos",
               "deploy/routing",
+              "deploy/microfrontends",
               "deploy/functions"
             ]
           },
