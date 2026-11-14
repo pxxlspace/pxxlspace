@@ -42,7 +42,7 @@ export const resellerHelp = `${bold("pxxl domains reseller")} – sell domains t
   ${cyan("pxxl domains reseller charges")}                Wallet charges for reseller purchases
 
 Add --json to any command for machine-readable output. Purchases ask before charging unless you pass --yes.
-.cv costs ₦6,000 a year (VAT included); other domains are their regular price plus 8% VAT.`;
+.cv costs ₦6,000 a year; other domains cost their regular price. Each adds a 2% reseller fee, at most $10 per domain.`;
 
 function flag(args: string[], name: string): string | undefined {
   const index = args.indexOf(name);

@@ -11,10 +11,12 @@ Domain reselling is on the **Pro** and **Enterprise** plans.
 
 | Domain | You pay | Renewal |
 | --- | --- | --- |
-| `.cv` | ₦6,000 a year, VAT included | ₦6,000 a year |
-| Everything else | The regular Pxxl price plus 8% VAT | The regular renewal price plus 8% VAT |
+| `.cv` | ₦6,000 a year plus the reseller fee | ₦6,000 a year plus the reseller fee |
+| Everything else | The regular Pxxl price plus the reseller fee | The regular renewal price plus the reseller fee |
 
-Your wallet holds US dollars. A `.cv` purchase is converted at the day's naira rate, so ₦6,000 is charged as its dollar value at that moment. Every quote shows the exact charge in US cents (`chargeMinor`) before you buy.
+The reseller fee is 2% of each domain's price, at most $10 per domain. There's no VAT on reseller purchases. A `.cv` domain costs ₦6,120 a year in total.
+
+Your wallet holds US dollars. A `.cv` purchase is converted at the day's naira rate, so ₦6,000 is charged as its dollar value at that moment. Every quote shows the exact charge in US cents (`chargeMinor`), and the fee in it (`feeUsd`), before you buy.
 
 Promotional prices for normal buyers don't apply to reseller purchases.
 
@@ -152,7 +154,7 @@ Transfer a domain in from another registrar with its EPP code:
 pxxl domains reseller transfer example.com --auth-code 'EPP-CODE' --customer-ref cust_42
 ```
 
-It costs the regular transfer price plus 8% VAT, which includes a year of renewal. `.cv` domains can't be transferred in yet.
+It costs the regular transfer price plus the reseller fee (2%, at most $10), and includes a year of renewal. `.cv` domains can't be transferred in yet.
 
 To move a domain away, get its code with `transfer-code`. That also unlocks it at the registrar.
 
