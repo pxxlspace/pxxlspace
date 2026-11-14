@@ -166,6 +166,40 @@ path to the right one. If you already use Vercel's tooling,
 `npx @vercel/microfrontends proxy` works with Pxxl: point each app's
 `development.fallback` at its Pxxl domain.
 
+## Coming from Vercel
+
+Pxxl reads microfrontends from `pxxl.toml`, not `microfrontends.json`. Move each entry across:
+
+| `microfrontends.json` | `pxxl.toml` |
+| --- | --- |
+| The file in the default app | `[microfrontends]` in the default app's `pxxl.toml` |
+| `applications.<project>` with `routing` | `[microfrontends.apps.<name>]` with `project = "<project>"` |
+| `routing[].paths` | `paths` (same path syntax) |
+| `assetPrefix` | Not needed: give the app a base path, and add the prefix to `paths` if it's outside them |
+| `routing[].flag` | Not supported: flagged paths stay with the default app |
+| `development.local`, `development.fallback` | Local development only; see [Local development](#local-development) |
+
+For example:
+
+```json microfrontends.json
+{
+  "applications": {
+    "acme-web": { "development": { "fallback": "acme.com" } },
+    "acme-docs": { "routing": [{ "paths": ["/docs", "/docs/:path*"] }] }
+  }
+}
+```
+
+becomes, in `acme-web`'s `pxxl.toml`:
+
+```toml
+[microfrontends.apps.docs]
+project = "acme-docs"
+paths = ["/docs", "/docs/:path*"]
+```
+
+Apps built with `withMicrofrontends` from `@vercel/microfrontends` load their assets from a prefix such as `/vc-ap-b3331f`. Find it in the app's built HTML and add it to the app's `paths` (`"/vc-ap-b3331f/:path*"`), or build without the wrapper and use a base path under the app's own paths.
+
 ## Limits
 
 | Plan | Groups per workspace | Apps per group |
