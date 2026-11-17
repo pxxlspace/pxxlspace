@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-11-17
 
 - `pxxl setup agent`: installs the CLI globally and adds the Pxxl skill to Claude Code, Codex,
   Cursor and OpenCode. With `--mcp-key` it also registers Pxxl's MCP server in each of them,

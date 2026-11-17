@@ -11,8 +11,9 @@ import { promisify } from "node:util";
 import { checkCommand, toolsCommand, toolsHelp, tunnelCommand, webhookCommand } from "./cli-tools.js";
 import { resellerCommand, resellerHelp } from "./cli-reseller.js";
 import { serversCommand, serversHelp } from "./cli-servers.js";
+import { setupCommand, setupHelp } from "./cli-setup.js";
 import { cacheCommand, cancelCommand, curlCommand, devCommand, envCommand, errorsCommand, healthCommand, lifecycleCommand, linkCommand, logLines, lsCommand, metricsCommand, projectSettingsCommand, rebuildCommand, removeCommand, reportDeployment, rollbackCommand, unlinkCommand, deploymentLogsCommand, watchCommand, } from "./cli-platform.js";
-import { resolvePxxlAPIBaseURL, Pxxl, PxxlAPIError, PxxlClient, clearAuthConfig, configPath, copyBoilerplate, createProjectZip, readPxxlToml, readBoilerplateManifest, readAuthConfig, saveAuthConfig, saveTeamSelection, sha256Hex, writeDefaultPxxlFiles, } from "./index.js";
+import { resolvePxxlAPIBaseURL, Pxxl, PxxlAPIError, PxxlClient, PXXL_MCP_ENDPOINT, clearAuthConfig, configPath, copyBoilerplate, createProjectZip, readPxxlToml, readBoilerplateManifest, readAuthConfig, saveAuthConfig, saveTeamSelection, sha256Hex, writeDefaultPxxlFiles, } from "./index.js";
 const run = promisify(execFile);
 // `pxxl ... | head` closes stdout early; that is not an error.
 process.stdout.on("error", (error) => { if (error.code === "EPIPE")
@@ -33,6 +34,7 @@ ${bold("Website")} ${link("https://pxxl.app")}
 ${bold("Docs")}    ${link("https://docs.pxxl.app")}
 
 ${bold("Account")}
+  ${cyan("pxxl setup agent")}                Set up Pxxl for Claude Code, Codex, Cursor and OpenCode
   ${cyan("pxxl login")} --api-key <key>       Validate and save a Pxxl API key
   ${cyan("pxxl logout")}                     Remove local credentials
   ${cyan("pxxl whoami")}                     Show the active account and API key scope
@@ -195,6 +197,7 @@ ${bold("Environment")}
 `;
 const commandHelps = {
     servers: serversHelp,
+    setup: setupHelp,
     tunnel: toolsHelp.tunnel,
     webhook: toolsHelp.webhook,
     check: toolsHelp.check,
@@ -460,6 +463,15 @@ async function main() {
     }
     if (isHelpRequest(args))
         return print(commandHelp(command));
+    if (command === "setup") {
+        return setupCommand(args, {
+            version: cliVersion,
+            mcpEndpoint: PXXL_MCP_ENDPOINT,
+            login: (apiKey) => login(["--api-key", apiKey]),
+            checkMcpKey: async (key) => { await new PxxlClient({ apiKey: key }).mcpRPC("ping"); },
+            readSkill: () => readFile(new URL("../skills/pxxl/SKILL.md", import.meta.url), "utf8"),
+        });
+    }
     if (command === "login")
         return login(args);
     if (command === "logout") {
