@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `pxxl setup agent`: installs the CLI globally and adds the Pxxl skill to Claude Code, Codex,
+  Cursor and OpenCode. With `--mcp-key` it also registers Pxxl's MCP server in each of them,
+  after checking the key. `--api-key` signs the CLI in. Safe to run again.
+- `skills/pxxl`: one skill for deploying and running apps on Pxxl (deploy, failures, env,
+  databases, domains), with rules against leaking keys and deleting without asking.
+
 ## 0.5.0 - 2026-11-13
 
 Go, Python and Rust SDKs: 0.3.0.
