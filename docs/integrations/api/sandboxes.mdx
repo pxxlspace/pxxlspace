@@ -13,17 +13,19 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
 
 | Method | Path | Body or parameters | Returns |
 | --- | --- | --- | --- |
-| `GET` | `/sandboxes/pricing` | None. Public, no key needed. | Rates, sizes, templates, and plan limits |
-| `GET` | `/sandboxes` | `teamId?` | `{ sandboxes, usage, hints, pricing }` |
+| `GET` | `/sandboxes/pricing` | None. Public, no key needed. | Rates, sizes, templates with versions, and plan limits |
+| `GET` | `/sandboxes` | `teamId?`, `label?` (repeatable) | `{ sandboxes, usage, hints, pricing }` |
 | `GET` | `/sandboxes/summary` | `teamId?` | `{ data }`: counts, cost, runway and hints. See [summary](#account-summary) |
 | `POST` | `/sandboxes` | See [create](#create-a-sandbox) | `202` with `{ sandbox }` |
 | `GET` | `/sandboxes/{id}` | None | `{ sandbox }` |
-| `PATCH` | `/sandboxes/{id}` | `name?`, `autoStopMinutes?`, `previewAccess?` | `{ sandbox }` |
+| `PATCH` | `/sandboxes/{id}` | `name?`, `autoStopMinutes?`, `previewAccess?`, `labels?` | `{ sandbox }` |
 | `POST` | `/sandboxes/{id}/preview-link` | None | `{ url, access, expiresAt? }`. Private previews get a 12-hour token in `url` |
 | `POST` | `/sandboxes/{id}/exec` | `command`, `workdir?`, `timeoutSeconds?`, `background?` | `{ exitCode, output, timedOut, truncated, durationMs }`, or an NDJSON stream |
 | `GET` | `/sandboxes/{id}/files` | `path?` | `{ files }` |
-| `GET` | `/sandboxes/{id}/file` | `path` | `{ path, content }` |
-| `PUT` | `/sandboxes/{id}/file` | `path`, `content` | The saved file |
+| `GET` | `/sandboxes/{id}/file` | `path`, `encoding?` (`base64`) | `{ path, content, encoding? }` |
+| `PUT` | `/sandboxes/{id}/file` | `path`, `content`, `encoding?` (`base64`) | The saved file |
+| `GET` | `/sandboxes/{id}/processes` | None | `{ processes }`. See [processes](#processes) |
+| `DELETE` | `/sandboxes/{id}/processes/{pid}` | `signal?` (`TERM`, `KILL`, `INT`, `HUP`) | `{ pid, signal }` |
 | `POST` | `/sandboxes/{id}/start` | None. Alias `/resume`. | `{ sandbox }` |
 | `POST` | `/sandboxes/{id}/stop` | None. Alias `/pause`. | `{ sandbox }` |
 | `DELETE` | `/sandboxes/{id}` | None | `{ message }` |
@@ -54,7 +56,8 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
   "startedAt": "2026-11-24T09:00:00Z",
   "stoppedAt": null,
   "lastActivityAt": "2026-11-24T09:12:00Z",
-  "createdAt": "2026-11-24T08:59:40Z"
+  "createdAt": "2026-11-24T08:59:40Z",
+  "labels": { "team": "payments", "env": "ci" }
 }
 ```
 
@@ -72,6 +75,10 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
 
 <ResponseField name="billedUsd" type="number">
   Charged to your wallet so far. `unbilledUsd` is the running time not yet charged.
+</ResponseField>
+
+<ResponseField name="labels" type="object">
+  The sandbox's labels, as `{ "key": "value" }`. Empty when it has none.
 </ResponseField>
 
 ## Get pricing
@@ -100,8 +107,12 @@ curl https://server.pxxl.app/api/v3/sandboxes/pricing
     { "id": "large", "label": "Large", "cpus": 8, "memoryMb": 16384, "hourlyUsd": 0.192 }
   ],
   "templates": [
-    { "id": "base", "label": "Base", "description": "..." },
-    { "id": "node", "label": "Node.js", "description": "..." }
+    { "id": "base", "label": "Base", "description": "Debian 13 with git, curl, Python 3 and build tools.", "version": "Debian 13" },
+    { "id": "node", "label": "Node.js", "description": "The current Node.js LTS with npm, on Debian 13.", "version": "26.13.1" },
+    { "id": "python", "label": "Python", "description": "The latest Python 3 with pip and venv, on Debian 13.", "version": "3.15.2" },
+    { "id": "go", "label": "Go", "description": "The latest Go toolchain, on Debian 13.", "version": "1.27.4" },
+    { "id": "rust", "label": "Rust", "description": "The latest stable Rust with cargo, on Debian 13.", "version": "1.100.0" },
+    { "id": "bun", "label": "Bun", "description": "The latest Bun runtime, on Debian 13.", "version": "1.4.5" }
   ],
   "plans": {
     "plus": { "maxRunning": 3, "maxTotal": 10, "maxCpus": 4, "maxMemoryMb": 8192 },
@@ -130,6 +141,15 @@ curl https://server.pxxl.app/api/v3/sandboxes \
 
 `usage.hourlyBurnUsd` is what everything running right now costs per hour.
 
+### Filter by label
+
+Add `label=key:value` to keep only sandboxes with that label. Repeat it to require several; `label=key` matches any value of `key`.
+
+```bash
+curl "https://server.pxxl.app/api/v3/sandboxes?label=team:payments&label=env" \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
 ## Create a sandbox
 
 `POST /sandboxes`
@@ -139,7 +159,7 @@ curl https://server.pxxl.app/api/v3/sandboxes \
 </ParamField>
 
 <ParamField body="template" type="string" default="base">
-  `base`, `node`, `python`, `html`, or `php`.
+  `base` (Debian 13), `node`, `python`, `go`, `rust`, or `bun`. `nodejs`, `js`, and `typescript` mean `node`; `py` means `python`; `golang` means `go`. `GET /sandboxes/pricing` lists each template's runtime version.
 </ParamField>
 
 <ParamField body="size" type="string">
@@ -170,11 +190,15 @@ curl https://server.pxxl.app/api/v3/sandboxes \
   A GitHub repository, `owner/repo`, to clone into `/workspace`.
 </ParamField>
 
+<ParamField body="labels" type="object">
+  Up to 20 labels, as `{ "key": "value" }`. Keys match `^[a-z0-9][a-z0-9_.-]{0,62}$`. Values are one line, up to 256 characters.
+</ParamField>
+
 ```bash
 curl --request POST https://server.pxxl.app/api/v3/sandboxes \
   --header "Authorization: Bearer $PXXL_API_KEY" \
   --header "Content-Type: application/json" \
-  --data '{"name":"demo","template":"node","size":"small","autoStopMinutes":30,"env":{"NODE_ENV":"development"}}'
+  --data '{"name":"demo","template":"node","size":"small","autoStopMinutes":30,"env":{"NODE_ENV":"development"},"labels":{"team":"payments"}}'
 ```
 
 **Response** `202`
@@ -196,13 +220,13 @@ The sandbox starts as `creating`. Poll `GET /sandboxes/{id}` until `status` is `
 
 `GET /sandboxes/{id}` returns `{ sandbox }`.
 
-`PATCH /sandboxes/{id}` changes the name or auto-stop:
+`PATCH /sandboxes/{id}` changes the name, auto-stop, preview access, or labels. `labels` replaces all of them; `{}` clears them.
 
 ```bash
 curl --request PATCH https://server.pxxl.app/api/v3/sandboxes/sbx_123 \
   --header "Authorization: Bearer $PXXL_API_KEY" \
   --header "Content-Type: application/json" \
-  --data '{"autoStopMinutes":0}'
+  --data '{"autoStopMinutes":0,"labels":{"team":"payments","env":"staging"}}'
 ```
 
 ## Run a command
@@ -231,7 +255,7 @@ curl --request POST https://server.pxxl.app/api/v3/sandboxes/sbx_123/exec \
 ```
 
 ```json
-{ "exitCode": 0, "output": "v22.11.0\n", "timedOut": false, "truncated": false, "durationMs": 41 }
+{ "exitCode": 0, "output": "v26.13.1\n", "timedOut": false, "truncated": false, "durationMs": 41 }
 ```
 
 `output` holds stdout and stderr together. Very long output is cut and `truncated` is `true`.
@@ -257,13 +281,13 @@ The last line is `exit`, or `error` with a `message` if the command couldn't run
 
 ## Files
 
-Paths are inside the sandbox. Files are text, up to 2 MB.
+Paths are inside the sandbox. Files are up to 2 MB.
 
 | Method | Path | Parameters | Returns |
 | --- | --- | --- | --- |
 | `GET` | `/sandboxes/{id}/files` | `path?` (default `/workspace`) | `{ files: [{ path, name, type, size, depth }] }` |
-| `GET` | `/sandboxes/{id}/file` | `path` | `{ path, content }` |
-| `PUT` | `/sandboxes/{id}/file` | Body: `path`, `content` | The saved file |
+| `GET` | `/sandboxes/{id}/file` | `path`, `encoding?` | `{ path, content }`, or `{ path, encoding: "base64", content }` |
+| `PUT` | `/sandboxes/{id}/file` | Body: `path`, `content`, `encoding?` | The saved file |
 
 ```bash
 curl --request PUT https://server.pxxl.app/api/v3/sandboxes/sbx_123/file \
@@ -276,6 +300,44 @@ curl "https://server.pxxl.app/api/v3/sandboxes/sbx_123/file?path=/workspace/inde
 ```
 
 `type` is `file` or `directory`.
+
+### Binary files
+
+Images, archives, and other binary files go base64-encoded. Add `encoding=base64` to read one, and `"encoding": "base64"` to write one. The 2 MB limit applies to the decoded bytes.
+
+```bash
+curl --request PUT https://server.pxxl.app/api/v3/sandboxes/sbx_123/file \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data "{\"path\":\"/workspace/logo.png\",\"encoding\":\"base64\",\"content\":\"$(base64 < logo.png | tr -d '\n')\"}"
+
+curl "https://server.pxxl.app/api/v3/sandboxes/sbx_123/file?path=/workspace/logo.png&encoding=base64" \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{ "path": "/workspace/logo.png", "encoding": "base64", "content": "iVBORw0KGgoAAAANSUhEUgAA..." }
+```
+
+## Processes
+
+`GET /sandboxes/{id}/processes` lists what's running in the sandbox:
+
+```json
+{
+  "processes": [
+    { "pid": 63, "ppid": 1, "elapsedSeconds": 5, "cpuPercent": 1.1, "memoryKb": 2840, "command": "sh -c python3 -m http.server 3000" },
+    { "pid": 64, "ppid": 63, "elapsedSeconds": 5, "cpuPercent": 23.6, "memoryKb": 36864, "command": "python3 -m http.server 3000" }
+  ]
+}
+```
+
+`DELETE /sandboxes/{id}/processes/{pid}?signal=TERM` sends a signal to a process and returns `{ "pid": 64, "signal": "TERM" }`. `signal` is `TERM` (the default), `KILL`, `INT`, or `HUP`. You get `404` when there's no such process.
+
+```bash
+curl --request DELETE "https://server.pxxl.app/api/v3/sandboxes/sbx_123/processes/64?signal=KILL" \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
 
 ## Start, stop, and delete
 
@@ -356,7 +418,7 @@ Add `"background": true` to start a long-running process, such as a dev server o
 { "command": "npm run dev -- --port $PORT", "background": true }
 ```
 
-The response comes back at once with `{ "background": true, "pid": 46, "logFile": "/tmp/pxxl-bg/1795542369859626457.log" }`. The process keeps running until the sandbox stops. Read its output with another exec, for example `tail -n 50 <logFile>`.
+The response comes back at once with `{ "background": true, "pid": 46, "logFile": "/tmp/pxxl-bg/1795542369859626457.log" }`. The process keeps running until the sandbox stops or you [stop it](#processes). Read its output with another exec, for example `tail -n 50 <logFile>`.
 
 ## Preview analytics
 

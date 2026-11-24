@@ -29,7 +29,12 @@ A `read` key can list and inspect sandboxes but can't create, run commands, or c
 
     const pxxl = new Pxxl({ apiKey: process.env.PXXL_API_KEY });
 
-    const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small", autoStopMinutes: 30 });
+    const sandbox = await pxxl.sandboxes.create({
+      template: "node",
+      size: "small",
+      autoStopMinutes: 30,
+      labels: { project: "quickstart" },
+    });
     await sandbox.waitUntilReady();
 
     await sandbox.files.write(
@@ -41,7 +46,7 @@ A `read` key can list and inspect sandboxes but can't create, run commands, or c
       onOutput: (chunk) => process.stdout.write(chunk),
     });
 
-    await sandbox.exec("nohup node server.js > server.log 2>&1 &");
+    await sandbox.exec("node server.js", { background: true });
     console.log(sandbox.previewUrl); // https://<domain>
 
     await sandbox.stop(); // $0 while paused, /workspace is kept
@@ -58,7 +63,12 @@ A `read` key can list and inspect sandboxes but can't create, run commands, or c
 
     client = PxxlClient(api_key=os.environ["PXXL_API_KEY"])
 
-    sandbox = client.sandboxes.create(template="python", size="small", auto_stop_minutes=30)
+    sandbox = client.sandboxes.create(
+        template="python",
+        size="small",
+        auto_stop_minutes=30,
+        labels={"project": "quickstart"},
+    )
     sandbox.wait_until_ready()
 
     sandbox.files.write("/workspace/main.py", "print('hello from a sandbox')")
@@ -73,7 +83,8 @@ A `read` key can list and inspect sandboxes but can't create, run commands, or c
     npm install -g @pxxlapp/pxxl
     pxxl login --api-key $PXXL_API_KEY
 
-    pxxl sandbox create --name demo --template node --size small --wait
+    pxxl sandbox templates   # base, node, python, go, rust, bun and their versions
+    pxxl sandbox create --name demo --template node --size small --label project=quickstart --wait
     pxxl sandbox exec demo -- node --version
     echo "console.log('hi')" | pxxl sandbox write demo /workspace/hi.js
     pxxl sandbox exec demo -- node hi.js
@@ -88,7 +99,7 @@ A `read` key can list and inspect sandboxes but can't create, run commands, or c
     curl --request POST https://server.pxxl.app/api/v3/sandboxes \
       --header "Authorization: Bearer $PXXL_API_KEY" \
       --header "Content-Type: application/json" \
-      --data '{"name":"demo","template":"node","size":"small"}'
+      --data '{"name":"demo","template":"node","size":"small","labels":{"project":"quickstart"}}'
 
     # Poll until "status": "running"
     curl https://server.pxxl.app/api/v3/sandboxes/sbx_123 \
@@ -112,9 +123,21 @@ A `read` key can list and inspect sandboxes but can't create, run commands, or c
 Anything listening on `$PORT` (3000) inside the sandbox is served at the sandbox's `previewUrl`. Start your server in the background so `exec` returns:
 
 ```bash
-pxxl sandbox exec demo -- 'nohup npm run dev -- --port $PORT > dev.log 2>&1 &'
+pxxl sandbox exec demo --background -- 'npm run dev -- --port $PORT'
 pxxl sandbox get demo   # shows the preview URL
+pxxl sandbox ps demo    # the server's pid; pxxl sandbox kill demo <pid> stops it
 ```
+
+## Copy files in and out
+
+Files up to 2 MB, text or binary:
+
+```bash
+pxxl sandbox upload demo ./logo.png /workspace/public/logo.png
+pxxl sandbox download demo /workspace/public/logo.png copy.png
+```
+
+In code, `sandbox.files.write(path, bytes)` and `sandbox.files.read(path, { binary: true })` (Python: `binary=True`) do the same.
 
 ## Clean up
 

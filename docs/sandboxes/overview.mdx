@@ -51,15 +51,26 @@ Paused sandboxes count toward the total but not toward the running limit.
 
 ## Templates
 
-| Template | What's in it |
-| --- | --- |
-| `base` | A Linux shell with common tools. The default. |
-| `node` | Node.js and npm. |
-| `python` | Python and pip. |
-| `html` | A static site served on `$PORT`. |
-| `php` | PHP. |
+Every template is Debian 13 with git, curl and build tools. The language templates add the latest release of their runtime.
+
+| Template | What's in it | Version |
+| --- | --- | --- |
+| `base` | Debian 13 with git, curl, Python 3, and build tools. The default. | Debian 13 |
+| `node` | Node.js and npm. | 26.13.1 |
+| `python` | Python 3 with pip and venv. | 3.15.2 |
+| `go` | The Go toolchain. | 1.27.4 |
+| `rust` | Stable Rust with cargo. | 1.100.0 |
+| `bun` | The Bun runtime. | 1.4.5 |
+
+Versions are as of Nov 24, 2026; images track the latest upstream release. `GET /sandboxes/pricing` and `pxxl sandbox templates` return the current ones. `nodejs`, `js`, and `typescript` also mean `node`, `py` means `python`, and `golang` means `go`.
 
 Pass `sourceRepository` (`owner/repo`) to clone one of your connected GitHub repositories into `/workspace`.
+
+## Labels
+
+Give a sandbox up to 20 `key: value` labels, such as `team: payments` or `run: ci-4812`, to find it later. Keys are lowercase letters, digits, `_`, `.`, and `-`, up to 63 characters, starting with a letter or digit. Values are one line, up to 256 characters.
+
+Set labels when you create a sandbox, replace them with `PATCH /sandboxes/{id}`, and filter the list with `GET /sandboxes?label=team:payments`. Several `label` parameters must all match; `label=team` matches any value of `team`.
 
 ## Lifecycle
 
@@ -94,7 +105,9 @@ Every sandbox pauses itself after it's idle for `autoStopMinutes` (default 60, u
 ## Commands and files
 
 - `exec` runs a shell command in `/workspace` (or `workdir`) and returns the exit code and output. A command can run for up to 300 seconds. Ask for `application/x-ndjson` to stream output as it's produced.
-- Files are text, up to 2 MB each. List a directory, read a file, or write one.
+- `exec` with `background` starts a long-running process, such as a dev server, and returns its pid at once.
+- List the processes running in a sandbox, with CPU and memory, and stop one with a signal (`TERM`, `KILL`, `INT`, or `HUP`).
+- Files are up to 2 MB each. List a directory, read a file, or write one. Text goes as is; binary files, such as images or archives, go base64-encoded. The SDKs and the CLI's `upload` and `download` do that for you.
 - The terminal gives you an interactive shell over a WebSocket. It's available when terminals are enabled for your account.
 
 ## Costs at a glance
