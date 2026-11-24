@@ -3,7 +3,7 @@ title: "Sandboxes API"
 description: "Create sandboxes, run commands, read and write files, and pause, resume, or delete them."
 ---
 
-[Sandboxes](/sandboxes/overview) are isolated Linux workspaces billed per second from your wallet. These routes need a key scoped to `all` or `sandbox`. `GET` routes need `read`; everything else needs `read_write`. Sandboxes are on Plus, Pro, and Enterprise; other plans get `402`.
+[Sandboxes](/sandboxes/overview) are isolated Linux workspaces billed per second from your wallet. These routes need a key scoped to `all` or `sandbox`. `GET` routes need `read`; everything else needs `read_write`. Sandboxes are on Plus, Pro, and Enterprise: an API key on a free plan gets `402`, a dashboard session gets `403`.
 
 Pass `?teamId=` to work with a team's sandboxes. A team-scoped key only sees its team's sandboxes.
 
@@ -184,8 +184,10 @@ The sandbox starts as `creating`. Poll `GET /sandboxes/{id}` until `status` is `
 
 | Status | Reason |
 | --- | --- |
-| `402` | Sandboxes need Plus or higher, or your wallet has less than $0.25. |
-| `409` | You reached your plan's running or total limit, or asked for a size above your plan's maximum. |
+| `400` | Invalid options, or a size above your plan's maximum. |
+| `402` | Your wallet has less than $0.25 (or ten minutes at this size), or the API key's plan is free. |
+| `403` | Sandboxes need Plus or higher. |
+| `429` | You reached your plan's running or total sandbox limit (`reason`: `sandbox_running_limit` or `sandbox_limit`). |
 
 ## Get or update a sandbox
 
