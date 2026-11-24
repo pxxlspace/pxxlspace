@@ -64,11 +64,18 @@ client.reseller.set_nameservers("example.cv", ["ns1.example.net", "ns2.example.n
 Isolated Linux workspaces for agents, tests and previews (Plus plan and up), billed per second from your wallet while running and $0 while paused. Use an API key scoped to `all` or `sandbox`.
 
 ```python
-sandbox = client.sandboxes.create(template="python", size="small", auto_stop_minutes=30)
+# Templates: base (Debian 13), node, python, go, rust, bun.
+sandbox = client.sandboxes.create(template="python", size="small", auto_stop_minutes=30, labels={"team": "data"})
 sandbox.wait_until_ready()
 sandbox.files.write("/workspace/main.py", "print('hello')")
 result = sandbox.exec("python main.py", on_output=lambda chunk: print(chunk, end=""))
 print(result["exitCode"], sandbox.preview_url)
+sandbox.files.write("/workspace/logo.png", open("logo.png", "rb").read())  # bytes are binary-safe
+png = sandbox.files.read("/workspace/logo.png", binary=True)
+started = sandbox.exec("python3 -m http.server 3000", background=True)
+print(sandbox.processes())
+sandbox.kill(started["pid"])
+mine = client.sandboxes.list(labels={"team": "data"})["sandboxes"]
 sandbox.stop()    # paused: $0, /workspace kept
 sandbox.start()
 sandbox.delete()

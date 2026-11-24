@@ -137,12 +137,21 @@ your wallet while running ($0.012 per vCPU-hour, $0.006 per GB-hour), $0 while p
 scoped to `all` or `sandbox`.
 
 ```ts
-const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small", autoStopMinutes: 30 });
+import { readFile } from "node:fs/promises";
+
+// Templates: base (Debian 13), node, python, go, rust, bun.
+const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small", autoStopMinutes: 30, labels: { team: "web" } });
 await sandbox.waitUntilReady();
 
 await sandbox.files.write("/workspace/server.js", "require('http').createServer((_, r) => r.end('hi')).listen(process.env.PORT)");
 const { exitCode } = await sandbox.exec("npm test", { onOutput: (chunk) => process.stdout.write(chunk) });
 console.log(sandbox.previewUrl); // public URL of the app on $PORT (3000)
+
+await sandbox.files.write("/workspace/logo.png", await readFile("logo.png")); // bytes are binary-safe
+const { pid } = await sandbox.exec("node server.js", { background: true });
+console.log(await sandbox.processes());
+await sandbox.kill(pid!);
+const mine = await pxxl.sandboxes.list({ labels: { team: "web" } });
 
 await sandbox.stop();   // paused: $0, /workspace kept
 await sandbox.start();  // resume

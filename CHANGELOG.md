@@ -10,6 +10,15 @@
 - CLI: `pxxl sandbox` with `create [--wait]`, `list`, `get`, `exec <id> -- <command>` (exits with
   the command's exit code), `files`, `read`, `write`, `start`, `stop`, `delete`, `update`, `usage`,
   `logs`, `terminal` and `pricing`.
+- Sandbox templates: `base` (Debian 13, the default), `node`, `python`, `go`, `rust` and `bun`;
+  `pricing().templates` carry each runtime's version. `pxxl.sandboxes.templates()` and
+  `pxxl sandbox templates`.
+- Sandbox labels: `create({ labels })`, `list({ labels })` filters, `sandbox.setLabels()`; CLI
+  `--label key=value` on `create`, `list` and `update`. Python: `labels=`, `set_labels()`.
+- Sandbox processes: `sandbox.processes()` and `sandbox.kill(pid, signal)`; CLI `ps` and `kill`.
+- Binary sandbox files: `files.read(path, { binary: true })` returns bytes and `files.write()` takes
+  a `Uint8Array`/`Buffer` (Python: `binary=True`, `bytes`); CLI `upload` and `download`, and
+  `write --file` is binary-safe.
 - The Python SDK and the CLI honour `PXXL_API_URL` (https://*.pxxl.app or localhost), like the
   JavaScript SDK, for testing against a staging Gateway.
 
