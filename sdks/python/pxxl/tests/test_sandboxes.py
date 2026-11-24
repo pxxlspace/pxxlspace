@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import os
@@ -100,6 +101,60 @@ class SandboxTests(unittest.TestCase):
         with mock.patch.object(sandboxes_module.urllib.request, "urlopen", lambda req, timeout=None: FakeResponse(error, "application/x-ndjson")):
             with self.assertRaisesRegex(PxxlAPIError, "runtime gone"):
                 box.exec("echo", on_output=lambda chunk: None)
+
+    def test_labels(self):
+        def handler(method, path):
+            if method == "GET" and path.startswith("/sandboxes?"):
+                return {"sandboxes": [sandbox(labels={"team": "payments"})], "usage": {}}
+            if method == "PATCH":
+                return {"sandbox": sandbox(labels={"team": "growth"})}
+            return {"sandbox": sandbox(labels={"team": "payments", "env": "ci"})}
+
+        client, calls = self.client(handler)
+        box = client.sandboxes.create(template="python", labels={"team": "payments", "env": "ci"})
+        self.assertEqual(calls[0][2], {"template": "python", "labels": {"team": "payments", "env": "ci"}})
+        self.assertEqual(box.labels, {"team": "payments", "env": "ci"})
+        listed = client.sandboxes.list(labels={"team": "payments", "env": True})
+        self.assertEqual(listed["sandboxes"][0].labels["team"], "payments")
+        self.assertEqual(calls[1][1], "/sandboxes?label=team%3Apayments&label=env&teamId=team_1")
+        box.set_labels({"team": "growth"})
+        self.assertEqual(calls[2], ("PATCH", "/sandboxes/sbx_1?teamId=team_1", {"labels": {"team": "growth"}}))
+        self.assertEqual(box.labels, {"team": "growth"})
+        box.set_labels({})
+        self.assertEqual(calls[3][2], {"labels": {}})
+
+    def test_processes_and_kill(self):
+        def handler(method, path):
+            if "/processes/" in path:
+                return {"pid": 42, "signal": "KILL"}
+            return {"processes": [{"pid": 42, "ppid": 1, "elapsedSeconds": 3, "cpuPercent": 0.1, "memoryKb": 900, "command": "python3 -m http.server"}]}
+
+        client, calls = self.client(handler)
+        box = Sandbox(client.sandboxes, sandbox(status="running"), "team_1")
+        self.assertEqual(box.processes()[0]["pid"], 42)
+        self.assertEqual(box.kill(42, "kill"), {"pid": 42, "signal": "KILL"})
+        box.kill(42)
+        self.assertEqual(calls[0][:2], ("GET", "/sandboxes/sbx_1/processes?teamId=team_1"))
+        self.assertEqual(calls[1][:2], ("DELETE", "/sandboxes/sbx_1/processes/42?signal=KILL&teamId=team_1"))
+        self.assertEqual(calls[2][1], "/sandboxes/sbx_1/processes/42?signal=TERM&teamId=team_1")
+
+    def test_binary_files(self):
+        png = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0xFF, 0xFE])
+        encoded = base64.b64encode(png).decode()
+
+        def handler(method, path):
+            if method == "GET":
+                return {"path": "/workspace/a.png", "encoding": "base64", "content": encoded}
+            return {"path": "/workspace/a.png"}
+
+        client, calls = self.client(handler)
+        box = Sandbox(client.sandboxes, sandbox(status="running"), "team_1")
+        self.assertEqual(box.files.read("/workspace/a.png", binary=True), png)
+        self.assertEqual(calls[0][1], "/sandboxes/sbx_1/file?path=%2Fworkspace%2Fa.png&encoding=base64&teamId=team_1")
+        box.files.write("/workspace/a.png", png)
+        self.assertEqual(calls[1], ("PUT", "/sandboxes/sbx_1/file?teamId=team_1", {"path": "/workspace/a.png", "content": encoded, "encoding": "base64"}))
+        box.files.write("/workspace/t.txt", "text")
+        self.assertEqual(calls[2][2], {"path": "/workspace/t.txt", "content": "text"})
 
     def test_wait_until_ready(self):
         statuses = ["creating", "running"]

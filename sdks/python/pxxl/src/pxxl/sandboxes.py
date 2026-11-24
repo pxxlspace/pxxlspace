@@ -3,7 +3,7 @@
 Billed per second from your USD wallet while running, $0 while paused. Paid plans
 only (Plus and up). Use an API key scoped to ``all`` or ``sandbox``.
 
-    sandbox = client.sandboxes.create(template="node", size="small")
+    sandbox = client.sandboxes.create(template="node", size="small", labels={"team": "payments"})
     sandbox.wait_until_ready()
     result = sandbox.exec("npm test", on_output=lambda chunk: print(chunk, end=""))
     sandbox.files.write("/workspace/notes.txt", "hello")
@@ -13,6 +13,7 @@ only (Plus and up). Use an API key scoped to ``all`` or ``sandbox``.
 
 from __future__ import annotations
 
+import base64
 import json
 import time
 import urllib.error
@@ -26,6 +27,22 @@ if TYPE_CHECKING:
 
 def _esc(value: str) -> str:
     return urllib.parse.quote(str(value).strip(), safe="")
+
+
+#: Template ids. ``base`` (Debian 13) is the default; aliases nodejs/js/typescript,
+#: py and golang map to node, python and go.
+TEMPLATES = ("base", "node", "python", "go", "rust", "bun")
+#: Signals ``kill()`` can send.
+SIGNALS = ("TERM", "KILL", "INT", "HUP")
+
+
+def _label_query(labels: Mapping[str, Any] | None) -> str:
+    """``label=key:value`` parameters (AND); a value of True or None matches any value."""
+    parts = []
+    for key, value in (labels or {}).items():
+        term = str(key) if value is True or value is None else f"{key}:{value}"
+        parts.append("label=" + _esc(term))
+    return "&".join(parts)
 
 
 def is_sandbox_paused(status: str | None) -> bool:
@@ -69,9 +86,13 @@ class PxxlSandboxes:
         env: Mapping[str, str] | None = None,
         source_repository: str | None = None,
         preview_access: str | None = None,
+        labels: Mapping[str, str] | None = None,
         team_id: str | None = None,
     ) -> "Sandbox":
-        """Create a sandbox. It starts as ``creating``; call ``wait_until_ready()`` for ``running``."""
+        """Create a sandbox. It starts as ``creating``; call ``wait_until_ready()`` for ``running``.
+
+        ``template`` is base (Debian 13, the default), node, python, go, rust or bun.
+        ``labels`` is up to 20 ``{key: value}`` pairs to find the sandbox by later."""
         body = {
             "name": name,
             "template": template,
@@ -83,13 +104,18 @@ class PxxlSandboxes:
             "env": dict(env) if env else None,
             "sourceRepository": source_repository,
             "previewAccess": preview_access,
+            "labels": dict(labels) if labels else None,
         }
         result = self._call("POST", "", body, team_id)
         return Sandbox(self, result["sandbox"], team_id)
 
-    def list(self, team_id: str | None = None) -> dict[str, Any]:
-        """``{"sandboxes": [Sandbox], "usage": {...}, "pricing": {...}}``."""
-        result = self._call("GET", "", None, team_id)
+    def list(self, team_id: str | None = None, *, labels: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """``{"sandboxes": [Sandbox], "usage": {...}, "pricing": {...}}``.
+
+        ``labels={"team": "payments"}`` keeps sandboxes with every given label;
+        a value of ``True`` matches any value of that key."""
+        query = _label_query(labels)
+        result = self._call("GET", f"?{query}" if query else "", None, team_id)
         result["sandboxes"] = [Sandbox(self, info, team_id) for info in result.get("sandboxes") or []]
         return result
 
@@ -102,6 +128,10 @@ class PxxlSandboxes:
         """Rates, sizes, templates and plan limits."""
         return self._client._request("GET", "/sandboxes/pricing")
 
+    def templates(self) -> list[dict[str, Any]]:
+        """``[{id, label, description, version}]``: the templates and their runtime versions."""
+        return self.pricing().get("templates") or []
+
     def summary(self, team_id: str | None = None) -> dict[str, Any]:
         """Running/paused counts, $/hour now, this month's spend, vCPU-hours,
         GB-hours, reserved storage, wallet runway and hints."""
@@ -112,8 +142,19 @@ class PxxlSandboxes:
     def info(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
         return self._call("GET", f"/{_esc(sandbox_id)}", None, team_id)["sandbox"]
 
-    def update(self, sandbox_id: str, *, name: str | None = None, auto_stop_minutes: int | None = None, preview_access: str | None = None, team_id: str | None = None) -> dict[str, Any]:
-        return self._call("PATCH", f"/{_esc(sandbox_id)}", {"name": name, "autoStopMinutes": auto_stop_minutes, "previewAccess": preview_access}, team_id)["sandbox"]
+    def update(
+        self,
+        sandbox_id: str,
+        *,
+        name: str | None = None,
+        auto_stop_minutes: int | None = None,
+        preview_access: str | None = None,
+        labels: Mapping[str, str] | None = None,
+        team_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Change fields. ``labels`` replaces all labels (``{}`` clears them)."""
+        body = {"name": name, "autoStopMinutes": auto_stop_minutes, "previewAccess": preview_access, "labels": dict(labels) if labels is not None else None}
+        return self._call("PATCH", f"/{_esc(sandbox_id)}", body, team_id)["sandbox"]
 
     def preview_link(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
         """``{url, access, expiresAt?}``: private previews get a 12-hour token in the URL."""
@@ -146,12 +187,26 @@ class PxxlSandboxes:
         query = f"?path={_esc(path)}" if path else ""
         return self._call("GET", f"/{_esc(sandbox_id)}/files{query}", None, team_id).get("files") or []
 
-    def read_file(self, sandbox_id: str, path: str, team_id: str | None = None) -> dict[str, Any]:
-        return self._call("GET", f"/{_esc(sandbox_id)}/file?path={_esc(path)}", None, team_id)
+    def read_file(self, sandbox_id: str, path: str, team_id: str | None = None, *, encoding: str | None = None) -> dict[str, Any]:
+        """``{path, content}``; with ``encoding="base64"`` the content is base64 (binary-safe)."""
+        query = f"&encoding={_esc(encoding)}" if encoding else ""
+        return self._call("GET", f"/{_esc(sandbox_id)}/file?path={_esc(path)}{query}", None, team_id)
 
-    def write_file(self, sandbox_id: str, path: str, content: str, team_id: str | None = None) -> dict[str, Any]:
-        """Write a text file (up to 2 MB)."""
-        return self._call("PUT", f"/{_esc(sandbox_id)}/file", {"path": path, "content": content}, team_id)
+    def write_file(self, sandbox_id: str, path: str, content: str | bytes | bytearray | memoryview, team_id: str | None = None) -> dict[str, Any]:
+        """Write a file (up to 2 MB): ``str`` as text, ``bytes`` base64-encoded."""
+        if isinstance(content, str):
+            body: dict[str, Any] = {"path": path, "content": content}
+        else:
+            body = {"path": path, "content": base64.b64encode(bytes(content)).decode("ascii"), "encoding": "base64"}
+        return self._call("PUT", f"/{_esc(sandbox_id)}/file", body, team_id)
+
+    def processes(self, sandbox_id: str, team_id: str | None = None) -> list[dict[str, Any]]:
+        """``[{pid, ppid, elapsedSeconds, cpuPercent, memoryKb, command}]``."""
+        return self._call("GET", f"/{_esc(sandbox_id)}/processes", None, team_id).get("processes") or []
+
+    def kill(self, sandbox_id: str, pid: int, signal: str = "TERM", team_id: str | None = None) -> dict[str, Any]:
+        """Signal a process: TERM (default), KILL, INT or HUP. ``{pid, signal}``; 404 if no such process."""
+        return self._call("DELETE", f"/{_esc(sandbox_id)}/processes/{int(pid)}?signal={_esc(signal.upper())}", None, team_id)
 
     def exec(
         self,
@@ -241,16 +296,18 @@ class _SandboxFiles:
     def __init__(self, sandbox: "Sandbox") -> None:
         self._sandbox = sandbox
 
-    def read(self, path: str) -> str:
-        """The text content of a file."""
+    def read(self, path: str, binary: bool = False) -> Any:
+        """The text content of a file, or its ``bytes`` with ``binary=True``."""
+        if binary:
+            return base64.b64decode(self.get(path, encoding="base64").get("content") or "")
         return self.get(path).get("content", "")
 
-    def get(self, path: str) -> dict[str, Any]:
+    def get(self, path: str, encoding: str | None = None) -> dict[str, Any]:
         """The file with its metadata."""
-        return self._sandbox._api.read_file(self._sandbox.id, path, self._sandbox.team_id)
+        return self._sandbox._api.read_file(self._sandbox.id, path, self._sandbox.team_id, encoding=encoding)
 
-    def write(self, path: str, content: str) -> dict[str, Any]:
-        """Write a text file (up to 2 MB)."""
+    def write(self, path: str, content: str | bytes | bytearray | memoryview) -> dict[str, Any]:
+        """Write a file (up to 2 MB): ``str`` as text, ``bytes`` as binary."""
         return self._sandbox._api.write_file(self._sandbox.id, path, content, self._sandbox.team_id)
 
     def list(self, path: str | None = None) -> list[dict[str, Any]]:
@@ -281,6 +338,14 @@ class Sandbox:
     @property
     def status(self) -> str:
         return str(self.info.get("status") or "")
+
+    @property
+    def template(self) -> str:
+        return str(self.info.get("template") or "")
+
+    @property
+    def labels(self) -> dict[str, str]:
+        return dict(self.info.get("labels") or {})
 
     @property
     def domain(self) -> str | None:
@@ -356,9 +421,21 @@ class Sandbox:
         """Delete the sandbox and its /workspace. Cannot be undone."""
         return self._api.delete(self.id, self.team_id)
 
-    def update(self, *, name: str | None = None, auto_stop_minutes: int | None = None, preview_access: str | None = None) -> "Sandbox":
-        self.info = self._api.update(self.id, name=name, auto_stop_minutes=auto_stop_minutes, preview_access=preview_access, team_id=self.team_id)
+    def update(self, *, name: str | None = None, auto_stop_minutes: int | None = None, preview_access: str | None = None, labels: Mapping[str, str] | None = None) -> "Sandbox":
+        self.info = self._api.update(self.id, name=name, auto_stop_minutes=auto_stop_minutes, preview_access=preview_access, labels=labels, team_id=self.team_id)
         return self
+
+    def set_labels(self, labels: Mapping[str, str]) -> "Sandbox":
+        """Replace the labels (``{}`` clears them)."""
+        return self.update(labels=labels)
+
+    def processes(self) -> list[dict[str, Any]]:
+        """Processes running in the sandbox."""
+        return self._api.processes(self.id, self.team_id)
+
+    def kill(self, pid: int, signal: str = "TERM") -> dict[str, Any]:
+        """Signal a process: TERM (default), KILL, INT or HUP."""
+        return self._api.kill(self.id, pid, signal, self.team_id)
 
     def set_preview_access(self, access: str) -> "Sandbox":
         """``"public"`` or ``"private"``."""
