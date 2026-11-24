@@ -42,6 +42,7 @@ The grouped client includes:
   manual triggers, and run history.
 - `projects`, `deployments`, `env`, `databases`, `teams`, and `analytics` for the same
   platform operations available through the CLI.
+- `sandboxes` for isolated Linux sandboxes: run commands, read and write files, preview URLs.
 - `mcp` for Pxxl tools and resources over MCP.
 
 `PxxlClient` is also exported. It keeps the original flat method names for
@@ -128,6 +129,27 @@ await pxxl.reseller.setNameservers("example.cv", ["ns1.example.net", "ns2.exampl
 ```
 
 From the CLI: `pxxl domains reseller --help`.
+
+## Sandboxes
+
+Isolated Linux workspaces for agents, tests and previews (Plus plan and up). Billed per second from
+your wallet while running ($0.012 per vCPU-hour, $0.006 per GB-hour), $0 while paused. Use an API key
+scoped to `all` or `sandbox`.
+
+```ts
+const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small", autoStopMinutes: 30 });
+await sandbox.waitUntilReady();
+
+await sandbox.files.write("/workspace/server.js", "require('http').createServer((_, r) => r.end('hi')).listen(process.env.PORT)");
+const { exitCode } = await sandbox.exec("npm test", { onOutput: (chunk) => process.stdout.write(chunk) });
+console.log(sandbox.previewUrl); // public URL of the app on $PORT (3000)
+
+await sandbox.stop();   // paused: $0, /workspace kept
+await sandbox.start();  // resume
+await sandbox.delete();
+```
+
+From the CLI: `pxxl sandbox --help`.
 
 ## Cron jobs
 
