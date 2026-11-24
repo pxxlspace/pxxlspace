@@ -5,7 +5,7 @@ import { PxxlAPIError, type PxxlClient } from "./index.js";
  * away. Billed per second from your USD wallet while running, $0 while paused.
  * Paid plans only (Plus and up). Use an API key scoped to `all` or `sandbox`.
  *
- *   const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small" });
+ *   const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small", labels: { team: "payments" } });
  *   await sandbox.waitUntilReady();
  *   const { exitCode, output } = await sandbox.exec("node --version");
  *   await sandbox.stop();
@@ -21,7 +21,16 @@ export type SandboxStatus =
   | "stopped"
   | "paused_insufficient_points"
   | (string & {});
-export type SandboxTemplate = "base" | "node" | "python" | "html" | "php" | (string & {});
+/**
+ * base (Debian 13, the default), node, python, go, rust or bun. Aliases:
+ * nodejs, js and typescript mean node; py means python; golang means go.
+ */
+export type SandboxTemplate = "base" | "node" | "python" | "go" | "rust" | "bun" | (string & {});
+/** Labels: up to 20 `key: value` pairs. Keys match ^[a-z0-9][a-z0-9_.-]{0,62}$; values are one line, up to 256 characters. */
+export type SandboxLabels = Record<string, string>;
+/** A label filter for list(): every pair must match. `true` matches any value of that key. */
+export type SandboxLabelFilter = Record<string, string | true>;
+export type SandboxSignal = "TERM" | "KILL" | "INT" | "HUP";
 export type SandboxSize = "micro" | "small" | "medium" | "large" | (string & {});
 
 export interface SandboxInfo {
@@ -47,12 +56,13 @@ export interface SandboxInfo {
   stoppedAt?: string | null;
   lastActivityAt?: string | null;
   createdAt?: string;
+  labels?: SandboxLabels;
   [key: string]: unknown;
 }
 
 export interface CreateSandboxOptions {
   name?: string;
-  /** base (default), node, python, html or php. */
+  /** base (Debian 13, the default), node, python, go, rust or bun. */
   template?: SandboxTemplate;
   /** micro (1 vCPU, 1 GB), small (2, 4 GB), medium (4, 8 GB) or large (8, 16 GB). */
   size?: SandboxSize;
@@ -69,7 +79,27 @@ export interface CreateSandboxOptions {
   env?: Record<string, string>;
   /** Clone a GitHub repository ("owner/repo") into /workspace. */
   sourceRepository?: string;
+  /** Up to 20 `key: value` labels to find the sandbox by later. */
+  labels?: SandboxLabels;
   teamId?: string;
+}
+
+export interface UpdateSandboxOptions {
+  name?: string;
+  autoStopMinutes?: number;
+  previewAccess?: "public" | "private";
+  /** Replaces all labels; `{}` clears them. */
+  labels?: SandboxLabels;
+}
+
+/** One process inside the sandbox, from `ps`. */
+export interface SandboxProcess {
+  pid: number;
+  ppid: number;
+  elapsedSeconds: number;
+  cpuPercent: number;
+  memoryKb: number;
+  command: string;
 }
 
 export interface SandboxExecOptions {
@@ -106,8 +136,18 @@ export interface SandboxFileEntry {
 
 export interface SandboxFile {
   path: string;
+  /** Text, or base64 when `encoding` is "base64". */
   content: string;
+  encoding?: "base64" | (string & {});
   [key: string]: unknown;
+}
+
+export interface SandboxTemplateInfo {
+  id: SandboxTemplate;
+  label: string;
+  description?: string;
+  /** The runtime version in the image (e.g. "26.13.1" for node). */
+  version?: string;
 }
 
 export interface SandboxPricingSize {
@@ -134,7 +174,7 @@ export interface SandboxPricing {
   minimumBalanceUsd: number;
   billing: "per_second" | (string & {});
   sizes: SandboxPricingSize[];
-  templates: Array<{ id: SandboxTemplate; label: string; description?: string }>;
+  templates: SandboxTemplateInfo[];
   plans: Record<string, SandboxPlanLimits>;
 }
 
@@ -187,6 +227,31 @@ export class SandboxError extends Error {
 }
 
 const enc = encodeURIComponent;
+
+type Bytes = Uint8Array;
+const NodeBuffer = (globalThis as { Buffer?: { from(input: string | Uint8Array, encoding?: string): Uint8Array & { toString(encoding?: string): string } } }).Buffer;
+
+/** @internal */
+export function bytesToBase64(bytes: Bytes): string {
+  if (NodeBuffer) return NodeBuffer.from(bytes).toString("base64");
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return btoa(binary);
+}
+
+/** @internal A Buffer in Node, a Uint8Array elsewhere. */
+export function base64ToBytes(value: string): Bytes {
+  if (NodeBuffer) return NodeBuffer.from(value, "base64");
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+/** `label=key:value` query parameters (AND). */
+function labelQuery(labels?: SandboxLabelFilter): string {
+  return Object.entries(labels || {}).map(([key, value]) => `label=${enc(value === true ? key : `${key}:${value}`)}`).join("&");
+}
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** True for every paused state, including the legacy names. */
@@ -215,10 +280,14 @@ export class PxxlSandboxes {
     return new Sandbox(this, result.sandbox, teamId ?? this.defaultTeamId);
   }
 
-  /** Your sandboxes, month-to-date spend and the current rates. */
-  async list(input: { teamId?: string } = {}): Promise<{ sandboxes: Sandbox[]; usage: SandboxAccountUsage; pricing?: SandboxPricing }> {
+  /**
+   * Your sandboxes, month-to-date spend and the current rates. `labels`
+   * keeps only sandboxes with every given label (`true` matches any value).
+   */
+  async list(input: { teamId?: string; labels?: SandboxLabelFilter } = {}): Promise<{ sandboxes: Sandbox[]; usage: SandboxAccountUsage; pricing?: SandboxPricing }> {
     const teamId = input.teamId ?? this.defaultTeamId;
-    const result = await this.call<{ sandboxes?: SandboxInfo[]; usage: SandboxAccountUsage; pricing?: SandboxPricing }>("GET", "", undefined, teamId);
+    const query = labelQuery(input.labels);
+    const result = await this.call<{ sandboxes?: SandboxInfo[]; usage: SandboxAccountUsage; pricing?: SandboxPricing }>("GET", query ? `?${query}` : "", undefined, teamId);
     return { ...result, sandboxes: (result.sandboxes || []).map((info) => new Sandbox(this, info, teamId)) };
   }
 
@@ -231,6 +300,8 @@ export class PxxlSandboxes {
 
   /** Rates, sizes, templates and plan limits. Public: no API key needed. */
   pricing(): Promise<SandboxPricing> { return this.client.request<SandboxPricing>("/sandboxes/pricing"); }
+  /** The templates with their runtime versions. Public: no API key needed. */
+  async templates(): Promise<SandboxTemplateInfo[]> { return (await this.pricing()).templates || []; }
 
   /**
    * The account at a glance: running and paused counts, $/hour now, spend,
@@ -249,7 +320,8 @@ export class PxxlSandboxes {
   previewLink(id: string, teamId = this.defaultTeamId) {
     return this.call<{ url: string; access: "public" | "private"; expiresAt?: string }>("POST", `/${enc(id)}/preview-link`, undefined, teamId);
   }
-  async update(id: string, input: { name?: string; autoStopMinutes?: number; previewAccess?: "public" | "private" }, teamId = this.defaultTeamId): Promise<SandboxInfo> {
+  /** Change the name, auto-stop, preview access or labels (`labels` replaces them all). */
+  async update(id: string, input: UpdateSandboxOptions, teamId = this.defaultTeamId): Promise<SandboxInfo> {
     return (await this.call<{ sandbox: SandboxInfo }>("PATCH", `/${enc(id)}`, input, teamId)).sandbox;
   }
   async start(id: string, teamId = this.defaultTeamId): Promise<SandboxInfo | undefined> {
@@ -272,12 +344,23 @@ export class PxxlSandboxes {
     const result = await this.call<{ files?: SandboxFileEntry[] }>("GET", `/${enc(id)}/files${path ? `?path=${enc(path)}` : ""}`, undefined, teamId);
     return result.files || [];
   }
-  readFile(id: string, path: string, teamId = this.defaultTeamId) {
-    return this.call<SandboxFile>("GET", `/${enc(id)}/file?path=${enc(path)}`, undefined, teamId);
+  /** A file. With `{ encoding: "base64" }` the content comes back base64-encoded (binary-safe). */
+  readFile(id: string, path: string, options: { encoding?: "base64" } = {}, teamId = this.defaultTeamId) {
+    return this.call<SandboxFile>("GET", `/${enc(id)}/file?path=${enc(path)}${options.encoding ? `&encoding=${options.encoding}` : ""}`, undefined, teamId);
   }
-  /** Write a text file (up to 2 MB). Parent directories are created. */
-  writeFile(id: string, path: string, content: string, teamId = this.defaultTeamId) {
-    return this.call<Record<string, unknown>>("PUT", `/${enc(id)}/file`, { path, content }, teamId);
+  /** Write a file (up to 2 MB). A string is written as text; bytes go base64-encoded. Parent directories are created. */
+  writeFile(id: string, path: string, content: string | Uint8Array, teamId = this.defaultTeamId) {
+    const body = typeof content === "string" ? { path, content } : { path, content: bytesToBase64(content), encoding: "base64" };
+    return this.call<Record<string, unknown>>("PUT", `/${enc(id)}/file`, body, teamId);
+  }
+
+  /** Processes running in the sandbox. */
+  async processes(id: string, teamId = this.defaultTeamId): Promise<SandboxProcess[]> {
+    return (await this.call<{ processes?: SandboxProcess[] }>("GET", `/${enc(id)}/processes`, undefined, teamId)).processes || [];
+  }
+  /** Signal a process (TERM by default). A 404 means no such process. */
+  kill(id: string, pid: number, signal: SandboxSignal = "TERM", teamId = this.defaultTeamId) {
+    return this.call<{ pid: number; signal: string }>("DELETE", `/${enc(id)}/processes/${enc(String(pid))}?signal=${enc(signal)}`, undefined, teamId);
   }
 
   /**
@@ -372,6 +455,7 @@ export class Sandbox {
   get name(): string { return this.data.name; }
   get status(): SandboxStatus { return this.data.status; }
   get template(): SandboxTemplate { return this.data.template; }
+  get labels(): SandboxLabels { return this.data.labels || {}; }
   get domain(): string | undefined { return this.data.domain || undefined; }
   /** The public URL of the app on $PORT (3000) inside the sandbox. */
   get previewUrl(): string | undefined {
@@ -408,13 +492,24 @@ export class Sandbox {
 
   exec(command: string, options: SandboxExecOptions = {}) { return this.api.exec(this.id, command, options, this.teamId); }
 
-  readonly files = {
-    /** The text content of a file. */
-    read: async (path: string): Promise<string> => (await this.api.readFile(this.id, path, this.teamId)).content,
+  readonly files: {
+    /** The text content of a file; with `{ binary: true }` its bytes (a Buffer in Node). */
+    read(path: string): Promise<string>;
+    read(path: string, options: { binary: true }): Promise<Uint8Array>;
+    read(path: string, options?: { binary?: boolean }): Promise<string | Uint8Array>;
     /** The file with its metadata. */
-    get: (path: string) => this.api.readFile(this.id, path, this.teamId),
-    /** Write a text file (up to 2 MB). */
-    write: (path: string, content: string) => this.api.writeFile(this.id, path, content, this.teamId),
+    get(path: string, options?: { encoding?: "base64" }): Promise<SandboxFile>;
+    /** Write a file (up to 2 MB): a string as text, a Uint8Array or Buffer as bytes. */
+    write(path: string, content: string | Uint8Array): Promise<Record<string, unknown>>;
+    /** Files under `path` (default /workspace). */
+    list(path?: string): Promise<SandboxFileEntry[]>;
+  } = {
+    read: (async (path: string, options: { binary?: boolean } = {}) => {
+      if (!options.binary) return (await this.api.readFile(this.id, path, {}, this.teamId)).content;
+      return base64ToBytes((await this.api.readFile(this.id, path, { encoding: "base64" }, this.teamId)).content || "");
+    }) as never,
+    get: (path: string, options: { encoding?: "base64" } = {}) => this.api.readFile(this.id, path, options, this.teamId),
+    write: (path: string, content: string | Uint8Array) => this.api.writeFile(this.id, path, content, this.teamId),
     /** Files under `path` (default /workspace). */
     list: (path?: string) => this.api.listFiles(this.id, path, this.teamId),
   };
@@ -442,12 +537,18 @@ export class Sandbox {
   previewLink() { return this.api.previewLink(this.id, this.teamId); }
   /** Make the preview URL public or private. */
   setPreviewAccess(access: "public" | "private") { return this.update({ previewAccess: access }); }
-  async update(input: { name?: string; autoStopMinutes?: number; previewAccess?: "public" | "private" }): Promise<this> {
+  async update(input: UpdateSandboxOptions): Promise<this> {
     this.data = await this.api.update(this.id, input, this.teamId);
     return this;
   }
   /** Pause after this many idle minutes (0-1440; 0 = never). */
   setAutoStop(minutes: number) { return this.update({ autoStopMinutes: minutes }); }
+  /** Replace the labels (`{}` clears them). */
+  setLabels(labels: SandboxLabels) { return this.update({ labels }); }
+  /** Processes running in the sandbox (pid, ppid, elapsed seconds, CPU %, memory, command). */
+  processes() { return this.api.processes(this.id, this.teamId); }
+  /** Signal a process (TERM by default; KILL, INT or HUP). */
+  kill(pid: number, signal: SandboxSignal = "TERM") { return this.api.kill(this.id, pid, signal, this.teamId); }
   usage() { return this.api.usage(this.id, this.teamId); }
   analytics(timeframe: "24h" | "7d" | "30d" = "24h") { return this.api.analytics(this.id, timeframe, this.teamId); }
   logs() { return this.api.logs(this.id, this.teamId); }

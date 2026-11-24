@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { PxxlAPIError, resolvePxxlAPIBaseURL, type Pxxl, type Sandbox, type SandboxInfo, type SandboxPricing } from "./index.js";
+import { readFile, writeFile } from "node:fs/promises";
+import { basename } from "node:path";
+import { PxxlAPIError, resolvePxxlAPIBaseURL, type Pxxl, type Sandbox, type SandboxInfo, type SandboxPricing, type SandboxSignal, type SandboxTemplateInfo } from "./index.js";
 import type { PlatformContext } from "./cli-platform.js";
 
 // `pxxl sandbox`: isolated Linux sandboxes, billed per second from the wallet.
@@ -64,33 +65,42 @@ export const sandboxStatus = (status: string) => {
 
 export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes, billed per second from your wallet
 
-  ${cyan("pxxl sandbox list")}                       Your sandboxes, what is running and this month's spend
+  ${cyan("pxxl sandbox list")} [--label key=value]   Your sandboxes, what is running and this month's spend
   ${cyan("pxxl sandbox create")} [--wait]            Create one
-      --name <name>  --template base|node|python|html|php  --size micro|small|medium|large
+      --name <name>  --template base|node|python|go|rust|bun  --size micro|small|medium|large
       --disk 2|5|10  --auto-stop <minutes, 0 = never>  --env KEY=VALUE (repeat)  --repo owner/repo
-  ${cyan("pxxl sandbox get")} <sandbox>              Status, size, preview URL and cost
+      --label key=value (repeat)
+  ${cyan("pxxl sandbox templates")}                  Templates and their runtime versions
+  ${cyan("pxxl sandbox get")} <sandbox>              Status, size, labels, preview URL and cost
   ${cyan("pxxl sandbox exec")} <sandbox> -- <command…>
                                           Run a command; streams output and exits with its exit code
-      --workdir <dir>  --timeout <seconds, max 300>
+      --workdir <dir>  --timeout <seconds, max 300>  --background
+  ${cyan("pxxl sandbox ps")} <sandbox>               Processes running in the sandbox
+  ${cyan("pxxl sandbox kill")} <sandbox> <pid> [--signal TERM|KILL|INT|HUP]
   ${cyan("pxxl sandbox files")} <sandbox> [path]     List files (default /workspace)
-  ${cyan("pxxl sandbox read")} <sandbox> <path>      Print a file
+  ${cyan("pxxl sandbox read")} <sandbox> <path>      Print a text file
   ${cyan("pxxl sandbox write")} <sandbox> <path> [--file local | --content text]
-                                          Write a text file (up to 2 MB); reads stdin without --file
+                                          Write a file (up to 2 MB); reads stdin without --file
+  ${cyan("pxxl sandbox upload")} <sandbox> <local> [remote]
+                                          Copy a local file in (any bytes; default /workspace/<name>)
+  ${cyan("pxxl sandbox download")} <sandbox> <remote> [local]
+                                          Copy a file out (any bytes; default ./<name>)
   ${cyan("pxxl sandbox start|stop")} <sandbox>       Resume or pause ($0 while paused, /workspace kept)
   ${cyan("pxxl sandbox delete")} <sandbox> [--yes]   Delete it and its /workspace
-  ${cyan("pxxl sandbox update")} <sandbox> [--name x] [--auto-stop <minutes>]
+  ${cyan("pxxl sandbox update")} <sandbox> [--name x] [--auto-stop <minutes>] [--label key=value…] [--clear-labels]
+                                          --label replaces all labels
   ${cyan("pxxl sandbox usage")} <sandbox>            What it has cost so far
   ${cyan("pxxl sandbox summary")}                     Running now, spend this month, wallet runway, hints
   ${cyan("pxxl sandbox preview")} <sandbox>          A link to the preview (12-hour token when private)
-      create/update take --private or --public; exec takes --background
+      create/update take --private or --public
   ${cyan("pxxl sandbox logs")} <sandbox>             Provisioning events and container output
   ${cyan("pxxl sandbox terminal")} <sandbox>         Interactive shell (Ctrl-] disconnects); --url prints the WebSocket URL
-  ${cyan("pxxl sandbox pricing")}                    Rates, sizes and plan limits
+  ${cyan("pxxl sandbox pricing")}                    Rates, sizes, templates and plan limits
 
 <sandbox> is an id or a name. Add --team <id> for a spaceship's sandboxes and --json for raw API output.
 Sandboxes are on Plus and above. $0.012 per vCPU-hour and $0.006 per GB-hour of memory, 10 GB disk included.`;
 
-const VALUE_FLAGS = new Set(["--name", "--template", "--size", "--disk", "--auto-stop", "--env", "-e", "--cpus", "--memory", "--repo", "--team", "--file", "--content", "--workdir", "-w", "--timeout", "--path"]);
+const VALUE_FLAGS = new Set(["--name", "--template", "--size", "--disk", "--auto-stop", "--env", "-e", "--cpus", "--memory", "--repo", "--team", "--file", "--content", "--workdir", "-w", "--timeout", "--path", "--label", "-l", "--signal", "-s"]);
 
 /** Flags and positionals before `--`, and everything after it. */
 function parse(args: string[]) {
@@ -152,6 +162,7 @@ function printSandbox(info: SandboxInfo) {
     ["ID", info.id],
     ["Preview", preview],
     ["Template", text(info.template)],
+    ["Labels", labelText(info.labels)],
     ["Size", `${info.size ? `${info.size} · ` : ""}${info.cpus} vCPU · ${memory(info.memoryMb)}`],
     ["Disk", info.diskGb ? `${info.diskGb} GB` : info.volumeLimitMb ? memory(info.volumeLimitMb) : ""],
     ["Price", info.hourlyUsd !== undefined ? `${usd(info.hourlyUsd)}/hour while running, $0 while paused` : ""],
@@ -175,11 +186,39 @@ async function waitForSandbox(box: Sandbox, asJSON: boolean) {
   }
 }
 
-async function readStdin(): Promise<string> {
+async function readStdin(): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
 }
+
+/** `--label key=value` pairs. With `allowBare`, `--label key` matches any value (list filters). */
+function parseLabels(pairs: string[], allowBare = false): Record<string, string | true> {
+  const labels: Record<string, string | true> = {};
+  for (const pair of pairs) {
+    const eq = pair.indexOf("=");
+    if (eq < 0 && allowBare && pair) { labels[pair] = true; continue; }
+    if (eq <= 0) throw new Error(`--label takes key=value, got "${pair}"`);
+    labels[pair.slice(0, eq)] = pair.slice(eq + 1);
+  }
+  return labels;
+}
+const labelText = (labels?: Record<string, string>) => Object.entries(labels || {}).map(([key, value]) => `${key}=${value}`).join(", ");
+
+/** A command that shows the template's runtime, for the hint after create. */
+const versionCommand = (template: string) => ({ node: "node --version", python: "python3 --version", go: "go version", rust: "cargo --version", bun: "bun --version" } as Record<string, string>)[template] || "cat /etc/os-release";
+
+function printTemplates(templates: SandboxTemplateInfo[]) {
+  if (!templates.length) return print("No templates listed.");
+  table([["TEMPLATE", "VERSION", "DESCRIPTION"].map(dim), ...templates.map((template) => [text(template.id), text(template.version), text(template.description || template.label)])]);
+}
+
+const duration = (seconds: number) => {
+  const value = Math.max(0, Math.round(Number(seconds) || 0));
+  if (value < 60) return `${value}s`;
+  if (value < 3600) return `${Math.floor(value / 60)}m${value % 60 ? `${value % 60}s` : ""}`;
+  return `${Math.floor(value / 3600)}h${Math.floor((value % 3600) / 60)}m`;
+};
 
 function printPricing(pricing: SandboxPricing) {
   print(`${bold("Sandboxes")}  ${usd(pricing.vcpuHourUsd)} per vCPU-hour · ${usd(pricing.gbHourUsd)} per GB-hour of memory · billed per second`);
@@ -194,8 +233,10 @@ function printPricing(pricing: SandboxPricing) {
   const disk = pricing.diskOptionsGb?.length ? ` (${pricing.diskOptionsGb.join(", ")} GB)` : "";
   print(`Disk: ${pricing.diskIncludedGb ?? 10} GB included${disk}. Paused or stopped: $0, /workspace is kept.`);
   if (pricing.minimumBalanceUsd !== undefined) print(`Starting a sandbox needs ${usd(pricing.minimumBalanceUsd)} in your wallet; it pauses when the wallet runs low.`);
-  const templates = (pricing.templates || []).map((template) => template.id);
-  if (templates.length) print(`Templates: ${templates.join(", ")}`);
+  if (pricing.templates?.length) {
+    print("");
+    printTemplates(pricing.templates);
+  }
   const plans = Object.entries(pricing.plans || {});
   if (plans.length) {
     print("");
@@ -285,15 +326,24 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     const pricing = await (await getClient(false)).sandboxes.pricing();
     return asJSON ? json(pricing) : printPricing(pricing);
   }
+  if (sub === "templates" || sub === "template") {
+    const templates = await (await getClient(false)).sandboxes.templates();
+    if (asJSON) return json({ templates });
+    printTemplates(templates);
+    return print(dim("\nImages track the latest upstream release. pxxl sandbox create --template <id>"));
+  }
   const pxxl = await getClient(true);
 
   if (sub === "list" || sub === "ls") {
-    const result = await pxxl.sandboxes.list({ teamId });
+    const filter = parseLabels(options.all("--label", "-l"), true);
+    const filtered = Object.keys(filter).length > 0;
+    const result = await pxxl.sandboxes.list({ teamId, labels: filtered ? filter : undefined });
     if (asJSON) return json({ ...result, sandboxes: result.sandboxes.map((box) => box.info) });
-    if (!result.sandboxes.length) return print(`No sandboxes yet. Create one with ${cyan("pxxl sandbox create --template node")}.`);
-    table([["NAME", "STATUS", "SIZE", "PER HOUR", "AUTO-STOP", "PREVIEW", "ID"].map(dim), ...result.sandboxes.map((box) => {
+    if (!result.sandboxes.length) return print(filtered ? "No sandboxes with those labels." : `No sandboxes yet. Create one with ${cyan("pxxl sandbox create --template node")}.`);
+    const withLabels = result.sandboxes.some((box) => Object.keys(box.labels).length > 0);
+    table([["NAME", "STATUS", "SIZE", "PER HOUR", "AUTO-STOP", ...(withLabels ? ["LABELS"] : []), "PREVIEW", "ID"].map(dim), ...result.sandboxes.map((box) => {
       const info = box.info;
-      return [box.name, sandboxStatus(box.status), text(info.size || `${info.cpus}/${memory(info.memoryMb)}`), usd(info.hourlyUsd), info.autoStopMinutes === 0 ? "never" : info.autoStopMinutes ? `${info.autoStopMinutes}m` : "", box.previewUrl || "", box.id];
+      return [box.name, sandboxStatus(box.status), text(info.size || `${info.cpus}/${memory(info.memoryMb)}`), usd(info.hourlyUsd), info.autoStopMinutes === 0 ? "never" : info.autoStopMinutes ? `${info.autoStopMinutes}m` : "", ...(withLabels ? [labelText(box.labels)] : []), box.previewUrl || "", box.id];
     })]);
     const usage = result.usage;
     if (usage) print(dim(`\n${usage.runningCount} running · ${usd(usage.hourlyBurnUsd)}/hour now · ${usd(usage.monthToDateUsd)} this month`));
@@ -310,6 +360,11 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     printHints(summary.hints);
     return;
   }
+
+  const labelsFlag = () => {
+    const pairs = options.all("--label", "-l");
+    return pairs.length ? (parseLabels(pairs) as Record<string, string>) : undefined;
+  };
 
   if (sub === "create" || sub === "new") {
     const env: Record<string, string> = {};
@@ -329,6 +384,7 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
       env: Object.keys(env).length ? env : undefined,
       sourceRepository: options.flag("--repo"),
       previewAccess: options.has("--private") ? "private" : undefined,
+      labels: labelsFlag(),
       teamId,
     });
     if (!asJSON) done(`Created ${bold(box.name || box.id)} ${dim(box.id)}`);
@@ -337,7 +393,7 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     if (box.status === "failed") { process.exitCode = 1; return print(red(`${box.name} failed to start. pxxl sandbox logs ${box.id} shows why.`)); }
     print("");
     printSandbox(box.info);
-    print(dim(`\nNext: pxxl sandbox exec ${box.name || box.id} -- node --version${box.status === "running" ? "" : "   (once it is running; add --wait to create to wait)"}`));
+    print(dim(`\nNext: pxxl sandbox exec ${box.name || box.id} -- ${versionCommand(box.template)}${box.status === "running" ? "" : "   (once it is running; add --wait to create to wait)"}`));
     return;
   }
 
@@ -398,13 +454,57 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     if (!path) throw new Error("Usage: pxxl sandbox write <sandbox> <path> [--file local | --content text]");
     const local = options.flag("--file");
     const inline = options.flag("--content");
-    let content: string;
-    if (local) content = await readFile(local, "utf8");
+    // --file and stdin are sent as bytes, so binary files arrive intact; --content is text.
+    let content: string | Buffer;
+    if (local) content = await readFile(local);
     else if (inline !== undefined) content = inline;
     else if (!process.stdin.isTTY) content = await readStdin();
     else throw new Error("Pass --file <local path> or --content <text>, or pipe the content in.");
     const result = await box.files.write(path, content);
-    return asJSON ? json(result) : done(`Wrote ${bytes(Buffer.byteLength(content))} to ${path} on ${label}`);
+    return asJSON ? json(result) : done(`Wrote ${bytes(typeof content === "string" ? Buffer.byteLength(content) : content.length)} to ${path} on ${label}`);
+  }
+
+  if (sub === "upload" || sub === "push") {
+    const local = more[0];
+    if (!local) throw new Error("Usage: pxxl sandbox upload <sandbox> <local file> [remote path]");
+    let remote = more[1] || `/workspace/${basename(local)}`;
+    if (remote.endsWith("/")) remote += basename(local);
+    const content = await readFile(local);
+    const result = await box.files.write(remote, content);
+    return asJSON ? json(result) : done(`Uploaded ${local} (${bytes(content.length)}) to ${remote} on ${label}`);
+  }
+
+  if (sub === "download" || sub === "pull") {
+    const remote = options.flag("--path") || more[0];
+    if (!remote) throw new Error("Usage: pxxl sandbox download <sandbox> <remote path> [local file]");
+    const data = await box.files.read(remote, { binary: true });
+    const local = more[1] || basename(remote);
+    if (local === "-") { process.stdout.write(data); return; }
+    await writeFile(local, data);
+    return asJSON ? json({ path: remote, local, size: data.length }) : done(`Downloaded ${remote} (${bytes(data.length)}) to ${local}`);
+  }
+
+  if (sub === "ps" || sub === "processes" || sub === "top") {
+    const processes = await box.processes();
+    if (asJSON) return json({ processes });
+    if (!processes.length) return print("No processes.");
+    return table([["PID", "PPID", "TIME", "CPU", "MEMORY", "COMMAND"].map(dim), ...processes.map((proc) => [
+      text(proc.pid), text(proc.ppid), duration(proc.elapsedSeconds), `${Number(proc.cpuPercent || 0).toFixed(1)}%`, bytes(Number(proc.memoryKb) * 1024), text(proc.command),
+    ])]);
+  }
+
+  if (sub === "kill") {
+    const pid = Number(more[0]);
+    if (!Number.isInteger(pid) || pid <= 0) throw new Error("Usage: pxxl sandbox kill <sandbox> <pid> [--signal TERM|KILL|INT|HUP]");
+    const signal = (options.flag("--signal", "-s") || "TERM").toUpperCase().replace(/^SIG/, "");
+    if (!["TERM", "KILL", "INT", "HUP"].includes(signal)) throw new Error("--signal is TERM, KILL, INT or HUP");
+    try {
+      const result = await box.kill(pid, signal as SandboxSignal);
+      return asJSON ? json(result) : done(`Sent SIG${result.signal || signal} to ${pid} on ${label}`);
+    } catch (error) {
+      if (error instanceof PxxlAPIError && error.status === 404) throw new Error(`No process ${pid} in ${label}. pxxl sandbox ps ${box.id} lists them.`);
+      throw error;
+    }
   }
 
   if (sub === "start" || sub === "resume") {
@@ -432,9 +532,10 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     const name = options.flag("--name") || (sub === "rename" ? more[0] : undefined);
     const minutes = options.integer("--auto-stop") ?? (sub === "auto-stop" && more[0] !== undefined ? Number(more[0]) : undefined);
     const previewAccess = options.has("--private") ? "private" : options.has("--public") ? "public" : undefined;
-    if (name === undefined && minutes === undefined && !previewAccess) throw new Error("Usage: pxxl sandbox update <sandbox> [--name x] [--auto-stop <minutes>] [--private | --public]");
-    await box.update({ name, autoStopMinutes: minutes, previewAccess });
-    return asJSON ? json({ sandbox: box.info }) : done(`Updated ${box.name || label}${minutes !== undefined ? `: auto-stop ${autoStop(minutes)}` : ""}${previewAccess ? `: preview ${previewAccess}` : ""}`);
+    const labels = options.has("--clear-labels") ? {} : labelsFlag();
+    if (name === undefined && minutes === undefined && !previewAccess && !labels) throw new Error("Usage: pxxl sandbox update <sandbox> [--name x] [--auto-stop <minutes>] [--private | --public] [--label key=value…] [--clear-labels]");
+    await box.update({ name, autoStopMinutes: minutes, previewAccess, labels });
+    return asJSON ? json({ sandbox: box.info }) : done(`Updated ${box.name || label}${minutes !== undefined ? `: auto-stop ${autoStop(minutes)}` : ""}${previewAccess ? `: preview ${previewAccess}` : ""}${labels ? `: labels ${labelText(labels) || "cleared"}` : ""}`);
   }
 
   if (sub === "preview" || sub === "open") {
