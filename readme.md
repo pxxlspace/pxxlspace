@@ -23,7 +23,7 @@ pxxl deploy
 ```
 
 The CLI also handles projects, logs, environment variables, CDN assets,
-Storage, domains, invoices, databases, teams, cron jobs, and usage.
+Storage, domains, invoices, databases, teams, cron jobs, sandboxes, and usage.
 
 Share a local app and catch webhooks without deploying:
 
@@ -31,6 +31,14 @@ Share a local app and catch webhooks without deploying:
 pxxl tunnel 3000                                        # public HTTPS URL, WebSockets included
 pxxl webhook create stripe
 pxxl webhook listen stripe --forward http://localhost:3000/webhooks
+```
+
+Run code in an isolated sandbox, billed per second and $0 while paused:
+
+```bash
+pxxl sandbox create --name demo --template node --wait
+pxxl sandbox exec demo -- npm test                      # streams, exits with the test's exit code
+pxxl sandbox stop demo
 ```
 
 ## JavaScript SDK
@@ -48,6 +56,10 @@ import { Pxxl } from "@pxxlapp/pxxl";
 const pxxl = new Pxxl({ apiKey: process.env.PXXL_API_KEY });
 const domains = await pxxl.domains.search({ query: "example.com" });
 const jobs = await pxxl.cronjobs.list();
+
+const sandbox = await pxxl.sandboxes.create({ template: "node" });
+await sandbox.waitUntilReady();
+const { exitCode, output } = await sandbox.exec("node --version");
 ```
 
 The JavaScript SDK lives in [`sdks/javascript/pxxl/`](sdks/javascript/pxxl/).

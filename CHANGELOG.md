@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Sandboxes (Plus and up): isolated Linux workspaces billed per second from your wallet
+  ($0.012 per vCPU-hour, $0.006 per GB-hour, 10 GB disk included, $0 while paused).
+- SDK: `pxxl.sandboxes.create/list/get/pricing` returns a `Sandbox` with `exec` (streams output
+  with `onOutput`), `files.read/write/list`, `previewUrl`, `start`/`stop`, `delete`,
+  `waitUntilReady`, `usage`, `logs` and `setAutoStop`. Python: `client.sandboxes`, same shape.
+- CLI: `pxxl sandbox` with `create [--wait]`, `list`, `get`, `exec <id> -- <command>` (exits with
+  the command's exit code), `files`, `read`, `write`, `start`, `stop`, `delete`, `update`, `usage`,
+  `logs`, `terminal` and `pricing`.
+- The Python SDK and the CLI honour `PXXL_API_URL` (https://*.pxxl.app or localhost), like the
+  JavaScript SDK, for testing against a staging Gateway.
+
 ## 0.6.0 - 2026-11-17
 
 - `pxxl setup agent`: installs the CLI globally and adds the Pxxl skill to Claude Code, Codex,
