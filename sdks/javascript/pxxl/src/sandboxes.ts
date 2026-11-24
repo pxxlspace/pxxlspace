@@ -8,6 +8,8 @@ import { PxxlAPIError, type PxxlClient } from "./index.js";
  *   const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small", labels: { team: "payments" } });
  *   await sandbox.waitUntilReady();
  *   const { exitCode, output } = await sandbox.exec("node --version");
+ *   const snapshot = await sandbox.snapshot({ name: "deps-installed" });
+ *   const copy = await pxxl.sandboxes.create({ snapshotId: snapshot.id });
  *   await sandbox.stop();
  */
 
@@ -113,7 +115,52 @@ export interface CreateSandboxOptions {
   labels?: SandboxLabels;
   /** Outbound network policy; omitted means allow-all. `{ allow: [...] }` is an allowlist. */
   egress?: EgressPolicy;
+  /**
+   * Start from a snapshot: its home directory and /workspace come back. The
+   * template comes from the snapshot, so leave `template` out.
+   */
+  snapshotId?: string;
   teamId?: string;
+}
+
+export type SandboxSnapshotStatus = "creating" | "ready" | "failed" | (string & {});
+
+/**
+ * A saved copy of a sandbox's home directory (global installs, dotfiles) and
+ * /workspace. Memory and running processes are not kept. Saving takes about
+ * 5-15 seconds.
+ */
+export interface SandboxSnapshot {
+  id: string;
+  name: string;
+  template: SandboxTemplate;
+  /** The template's runtime version when the snapshot was taken. */
+  version?: string;
+  status: SandboxSnapshotStatus;
+  /** Why saving failed, when `status` is "failed". */
+  error?: string | null;
+  sizeBytes?: number;
+  sizeMb?: number;
+  sourceSandboxId?: string;
+  cpus?: number;
+  memoryMb?: number;
+  volumeLimitMb?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface SnapshotWaitOptions {
+  /** Give up after this long (default 5 min). */
+  timeoutMs?: number;
+  /** Poll every this many ms (default 2000). */
+  intervalMs?: number;
+}
+
+export interface CreateSnapshotOptions extends SnapshotWaitOptions {
+  name?: string;
+  /** Poll until the snapshot is ready (default true). `false` returns it while still `creating`. */
+  wait?: boolean;
 }
 
 export interface UpdateSandboxOptions {
@@ -253,6 +300,14 @@ export type SandboxSummary = {
 
 export type SandboxAnalytics = { success?: boolean; sandboxId: string; domain: string; timeframe: string; data: Record<string, unknown> };
 
+/** A snapshot failed to save, or waiting for it gave up. */
+export class SandboxSnapshotError extends Error {
+  constructor(message: string, readonly snapshot: SandboxSnapshot) {
+    super(message);
+    this.name = "SandboxSnapshotError";
+  }
+}
+
 export class SandboxError extends Error {
   constructor(message: string, readonly sandbox: SandboxInfo) {
     super(message);
@@ -295,7 +350,12 @@ export function isSandboxPaused(status: string | undefined): boolean {
 
 /** The low-level sandbox API. `pxxl.sandboxes.create()` and `get()` return a `Sandbox` handle. */
 export class PxxlSandboxes {
-  constructor(private readonly client: PxxlClient, private readonly defaultTeamId?: string) {}
+  /** Saved sandboxes to start new ones from. */
+  readonly snapshots: PxxlSandboxSnapshots;
+
+  constructor(private readonly client: PxxlClient, private readonly defaultTeamId?: string) {
+    this.snapshots = new PxxlSandboxSnapshots(client, this, defaultTeamId);
+  }
 
   /** @internal */
   path(suffix = "", teamId = this.defaultTeamId) {
@@ -429,6 +489,62 @@ export class PxxlSandboxes {
       return result;
     }
     return readExecStream(response.body, options.onOutput);
+  }
+}
+
+/**
+ * Snapshots: `pxxl.sandboxes.snapshots`. Take one with `sandbox.snapshot()`,
+ * start from one with `pxxl.sandboxes.create({ snapshotId })`. Plus keeps 5,
+ * Pro 25, Enterprise 100.
+ */
+export class PxxlSandboxSnapshots {
+  constructor(private readonly client: PxxlClient, private readonly sandboxes: PxxlSandboxes, private readonly defaultTeamId?: string) {}
+
+  private call<T>(method: string, suffix: string, body: unknown, teamId: string | undefined) {
+    return this.client.request<T>(this.sandboxes.path(suffix, teamId ?? this.defaultTeamId), { method, body: body === undefined ? undefined : JSON.stringify(body) });
+  }
+
+  /** Your snapshots, newest first; `sandboxId` keeps those taken from one sandbox. */
+  async list(input: { sandboxId?: string; teamId?: string } = {}): Promise<SandboxSnapshot[]> {
+    const query = input.sandboxId ? `?sandboxId=${enc(input.sandboxId)}` : "";
+    return (await this.call<{ snapshots?: SandboxSnapshot[] }>("GET", `/snapshots${query}`, undefined, input.teamId)).snapshots || [];
+  }
+
+  async get(id: string, input: { teamId?: string } = {}): Promise<SandboxSnapshot> {
+    return (await this.call<{ snapshot: SandboxSnapshot }>("GET", `/snapshots/${enc(id)}`, undefined, input.teamId)).snapshot;
+  }
+
+  /**
+   * Delete a snapshot. 409 while sandboxes still use it (the error's
+   * `details.sandboxIds` lists them) or while it is still saving.
+   */
+  delete(id: string, input: { teamId?: string } = {}) {
+    return this.call<Record<string, unknown>>("DELETE", `/snapshots/${enc(id)}`, undefined, input.teamId);
+  }
+
+  /**
+   * Snapshot a running sandbox (409 when it is not running, 403 over the plan's
+   * limit). Waits until the snapshot is ready unless `wait: false`; throws
+   * SandboxSnapshotError if saving fails.
+   */
+  async create(sandboxId: string, options: CreateSnapshotOptions & { teamId?: string } = {}): Promise<SandboxSnapshot> {
+    const { name, wait = true, timeoutMs, intervalMs, teamId } = options;
+    const { snapshot } = await this.call<{ snapshot: SandboxSnapshot }>("POST", `/${enc(sandboxId)}/snapshots`, name === undefined ? {} : { name }, teamId);
+    return wait ? this.waitUntilReady(snapshot, { timeoutMs, intervalMs, teamId }) : snapshot;
+  }
+
+  /** Poll until the snapshot is ready. Throws SandboxSnapshotError when it fails or `timeoutMs` passes (default 5 min). */
+  async waitUntilReady(snapshot: SandboxSnapshot | string, options: SnapshotWaitOptions & { teamId?: string } = {}): Promise<SandboxSnapshot> {
+    let current = typeof snapshot === "string" ? await this.get(snapshot, { teamId: options.teamId }) : snapshot;
+    const until = Date.now() + (options.timeoutMs ?? 300_000);
+    const interval = options.intervalMs ?? 2000;
+    for (;;) {
+      if (current.status === "ready") return current;
+      if (current.status === "failed") throw new SandboxSnapshotError(`Snapshot ${current.name || current.id} failed${current.error ? `: ${current.error}` : ""}`, current);
+      if (Date.now() >= until) throw new SandboxSnapshotError(`Snapshot ${current.name || current.id} is still ${current.status}; gave up waiting`, current);
+      await sleep(interval);
+      current = await this.get(current.id, { teamId: options.teamId });
+    }
   }
 }
 
@@ -601,6 +717,17 @@ export class Sandbox {
     if (result.sandbox) this.data = result.sandbox;
     return result;
   }
+  /**
+   * Save the home directory and /workspace as a snapshot (the sandbox must be
+   * running). Waits until it is ready unless `wait: false`; throws
+   * SandboxSnapshotError if saving fails. Start from it with
+   * `pxxl.sandboxes.create({ snapshotId })`.
+   */
+  snapshot(options: CreateSnapshotOptions = {}): Promise<SandboxSnapshot> {
+    return this.api.snapshots.create(this.id, { ...options, teamId: this.teamId });
+  }
+  /** Snapshots taken from this sandbox. */
+  snapshots() { return this.api.snapshots.list({ sandboxId: this.id, teamId: this.teamId }); }
   /** Processes running in the sandbox (pid, ppid, elapsed seconds, CPU %, memory, command). */
   processes() { return this.api.processes(this.id, this.teamId); }
   /** Signal a process (TERM by default; KILL, INT or HUP). */

@@ -33,6 +33,10 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
 | `GET` | `/sandboxes/{id}/usage` | None | `{ hourlyUsd, billedUsd, unbilledUsd, ledger }` |
 | `GET` | `/sandboxes/{id}/analytics` | `timeframe?` (`24h`, `7d`, `30d`) | Preview URL traffic: requests, visitors, bandwidth |
 | `POST` | `/sandboxes/{id}/terminal/ticket` | None | `{ wsUrl, ticket, expiresIn, sessionId }` |
+| `POST` | `/sandboxes/{id}/snapshots` | `name?` | `202` with `{ snapshot }`. See [snapshots](#snapshots) |
+| `GET` | `/sandboxes/snapshots` | `sandboxId?` | `{ snapshots }` |
+| `GET` | `/sandboxes/snapshots/{snapshotId}` | None | `{ snapshot }` |
+| `DELETE` | `/sandboxes/snapshots/{snapshotId}` | None | `{ message }` |
 
 ## The sandbox object
 
@@ -203,6 +207,10 @@ curl "https://server.pxxl.app/api/v3/sandboxes?label=team:payments&label=env" \
   The outbound network policy, `{ "mode": "...", "allow": [...] }`. Left out, the sandbox reaches the whole internet. With `allow` entries and no `mode`, it is an allowlist. See [network policies](#network-policies).
 </ParamField>
 
+<ParamField body="snapshotId" type="string">
+  Start from a [snapshot](#snapshots): its home directory and `/workspace` come back. The template comes from the snapshot, so `template` isn't needed.
+</ParamField>
+
 ```bash
 curl --request POST https://server.pxxl.app/api/v3/sandboxes \
   --header "Authorization: Bearer $PXXL_API_KEY" \
@@ -271,6 +279,64 @@ New connections follow the policy at once; connections already open are not cut.
 | --- | --- |
 | `400` | An invalid entry: a private or reserved range, an internal name, a malformed domain, more than 64 entries, or an empty allowlist. `message` says which. |
 | `409` | The server can't enforce network policies for this sandbox. |
+
+## Snapshots
+
+A snapshot saves a sandbox's home directory (global installs, dotfiles, caches) and `/workspace`. Memory and running processes aren't kept. Start new sandboxes from it to skip installs.
+
+`POST /sandboxes/{id}/snapshots` takes an optional `name`. The sandbox must be running.
+
+```bash
+curl --request POST https://server.pxxl.app/api/v3/sandboxes/sbx_123/snapshots \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"deps-installed"}'
+```
+
+**Response** `202`
+
+```json
+{
+  "snapshot": {
+    "id": "snap_123",
+    "name": "deps-installed",
+    "template": "node",
+    "version": "26.13.1",
+    "status": "creating",
+    "error": null,
+    "sizeBytes": 0,
+    "sizeMb": 0,
+    "sourceSandboxId": "sbx_123",
+    "cpus": 2,
+    "memoryMb": 4096,
+    "volumeLimitMb": 5120,
+    "createdAt": "2026-11-24T21:00:00Z",
+    "updatedAt": "2026-11-24T21:00:00Z"
+  }
+}
+```
+
+Saving takes about 5 to 15 seconds. Poll `GET /sandboxes/snapshots/{snapshotId}` until `status` is `ready`, or `failed` with an `error`. Then create a sandbox from it:
+
+```bash
+curl --request POST https://server.pxxl.app/api/v3/sandboxes \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"from-snapshot","snapshotId":"snap_123"}'
+```
+
+`GET /sandboxes/snapshots` lists your snapshots; `?sandboxId=` keeps the ones taken from one sandbox. `DELETE /sandboxes/snapshots/{snapshotId}` deletes one.
+
+| Plan | Snapshots |
+| --- | --- |
+| Plus | 5 |
+| Pro | 25 |
+| Enterprise | 100 |
+
+| Status | Reason |
+| --- | --- |
+| `403` | You're at your plan's snapshot limit. Delete one first. |
+| `409` | On create: the sandbox isn't running. On delete: the snapshot is still saving, or sandboxes still use it. The in-use response lists them: `{ "message": "...", "sandboxIds": ["sbx_456"] }`. |
 
 ## Run a command
 

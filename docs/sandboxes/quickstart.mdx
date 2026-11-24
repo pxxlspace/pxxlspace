@@ -139,6 +139,17 @@ pxxl sandbox download demo /workspace/public/logo.png copy.png
 
 In code, `sandbox.files.write(path, bytes)` and `sandbox.files.read(path, { binary: true })` (Python: `binary=True`) do the same.
 
+## Save a snapshot
+
+Installed something you'll want again? Snapshot the sandbox and start the next one from it. The home directory and `/workspace` come back; running processes don't.
+
+```bash
+pxxl sandbox snapshot demo --name deps-installed
+pxxl sandbox create --snapshot snap_123 --wait
+```
+
+See [snapshots](/sandboxes/overview#snapshots).
+
 ## Clean up
 
 A sandbox pauses itself after `autoStopMinutes` of inactivity (60 by default), and a paused sandbox costs nothing. Delete it when you no longer need `/workspace`:

@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { PxxlAPIError, resolvePxxlAPIBaseURL, type EgressPolicy, type Pxxl, type Sandbox, type SandboxEgress, type SandboxInfo, type SandboxPricing, type SandboxSignal, type SandboxTemplateInfo } from "./index.js";
+import { PxxlAPIError, resolvePxxlAPIBaseURL, type EgressPolicy, type Pxxl, type Sandbox, type SandboxEgress, type SandboxInfo, type SandboxPricing, type SandboxSignal, type SandboxSnapshot, type SandboxTemplateInfo } from "./index.js";
 import type { PlatformContext } from "./cli-platform.js";
 
 // `pxxl sandbox`: isolated Linux sandboxes, billed per second from the wallet.
@@ -70,6 +70,7 @@ export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes
       --name <name>  --template base|node|python|go|rust|bun  --size micro|small|medium|large
       --disk 2|5|10  --auto-stop <minutes, 0 = never>  --env KEY=VALUE (repeat)  --repo owner/repo
       --label key=value (repeat)  --allow <domain|cidr> (repeat; only these)  --no-internet
+      --snapshot <snapshotId>  Start from a snapshot (its template, home directory and /workspace)
   ${cyan("pxxl sandbox templates")}                  Templates and their runtime versions
   ${cyan("pxxl sandbox get")} <sandbox>              Status, size, labels, preview URL and cost
   ${cyan("pxxl sandbox exec")} <sandbox> -- <command…>
@@ -92,6 +93,12 @@ export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes
   ${cyan("pxxl sandbox network")} <sandbox>          Show the outbound network policy, or change it:
       --allow-all  |  --deny-all (--no-internet)  |  --allow <domain|cidr> (repeat; replaces the list)
       Entries: github.com (exact), *.npmjs.org (any subdomain), public IPv4 or CIDR. Up to 64.
+  ${cyan("pxxl sandbox snapshot")} <sandbox> [--name n] [--no-wait]
+                                          Save its home directory and /workspace (must be running)
+  ${cyan("pxxl sandbox snapshots")} [--sandbox <sandbox>]
+                                          Your snapshots: id, name, status, size, created
+  ${cyan("pxxl sandbox snapshots get")} <snapshotId>
+  ${cyan("pxxl sandbox snapshots rm")} <snapshotId> [--yes]   (also: pxxl sandbox snapshot-rm)
   ${cyan("pxxl sandbox usage")} <sandbox>            What it has cost so far
   ${cyan("pxxl sandbox summary")}                     Running now, spend this month, wallet runway, hints
   ${cyan("pxxl sandbox preview")} <sandbox>          A link to the preview (12-hour token when private)
@@ -103,7 +110,7 @@ export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes
 <sandbox> is an id or a name. Add --team <id> for a spaceship's sandboxes and --json for raw API output.
 Sandboxes are on Plus and above. $0.012 per vCPU-hour and $0.006 per GB-hour of memory, 10 GB disk included.`;
 
-const VALUE_FLAGS = new Set(["--name", "--template", "--size", "--disk", "--auto-stop", "--env", "-e", "--cpus", "--memory", "--repo", "--team", "--file", "--content", "--workdir", "-w", "--timeout", "--path", "--label", "-l", "--signal", "-s", "--allow"]);
+const VALUE_FLAGS = new Set(["--name", "--template", "--size", "--disk", "--auto-stop", "--env", "-e", "--cpus", "--memory", "--repo", "--team", "--file", "--content", "--workdir", "-w", "--timeout", "--path", "--label", "-l", "--signal", "-s", "--allow", "--snapshot", "--sandbox"]);
 
 /** Flags and positionals before `--`, and everything after it. */
 function parse(args: string[]) {
@@ -340,6 +347,65 @@ async function terminal(box: Sandbox, printOnly: boolean, asJSON: boolean) {
   });
 }
 
+const snapshotStatus = (status: string) => (status === "ready" ? green(status) : status === "failed" ? red(status) : status === "creating" ? yellow(status) : status);
+const snapshotSize = (snapshot: SandboxSnapshot) => (snapshot.sizeBytes !== undefined && snapshot.sizeBytes !== null ? bytes(snapshot.sizeBytes) : snapshot.sizeMb !== undefined && snapshot.sizeMb !== null ? memory(snapshot.sizeMb) : "");
+
+function printSnapshots(snapshots: SandboxSnapshot[]) {
+  table([["ID", "NAME", "STATUS", "SIZE", "CREATED"].map(dim), ...snapshots.map((snapshot) => [
+    snapshot.id, text(snapshot.name), snapshotStatus(text(snapshot.status)), snapshotSize(snapshot), ago(snapshot.createdAt),
+  ])]);
+}
+
+function printSnapshot(snapshot: SandboxSnapshot) {
+  print(`${bold(snapshot.name || snapshot.id)}  ${snapshotStatus(text(snapshot.status))}`);
+  kv([
+    ["ID", snapshot.id],
+    ["Template", `${text(snapshot.template)}${snapshot.version ? ` ${snapshot.version}` : ""}`],
+    ["Size", snapshotSize(snapshot)],
+    ["From", text(snapshot.sourceSandboxId)],
+    ["Resources", snapshot.cpus ? `${snapshot.cpus} vCPU · ${memory(snapshot.memoryMb)}${snapshot.volumeLimitMb ? ` · ${memory(snapshot.volumeLimitMb)} disk` : ""}` : ""],
+    ["Error", text(snapshot.error)],
+    ["Created", ago(snapshot.createdAt)],
+  ]);
+}
+
+/** `pxxl sandbox snapshots [list|get|rm]` and `pxxl sandbox snapshot-rm`. */
+async function snapshotsCommand(pxxl: Pxxl, ctx: PlatformContext, action: string, options: ReturnType<typeof parse>, teamId?: string) {
+  const asJSON = options.has("--json");
+  const id = options.positional[0];
+  if (action === "list" || action === "ls") {
+    const ref = options.flag("--sandbox");
+    const sandboxId = ref ? (await findSandbox(pxxl, ctx, ref, teamId)).id : undefined;
+    const snapshots = await pxxl.sandboxes.snapshots.list({ sandboxId, teamId });
+    if (asJSON) return json({ snapshots });
+    if (!snapshots.length) return print(ref ? `No snapshots of ${ref}.` : `No snapshots yet. Take one with ${cyan("pxxl sandbox snapshot <sandbox>")}.`);
+    printSnapshots(snapshots);
+    return print(dim("\nStart from one: pxxl sandbox create --snapshot <id>"));
+  }
+  if (action === "get" || action === "show" || action === "info") {
+    if (!id) throw new Error("Usage: pxxl sandbox snapshots get <snapshotId>");
+    const snapshot = await pxxl.sandboxes.snapshots.get(id, { teamId });
+    return asJSON ? json({ snapshot }) : printSnapshot(snapshot);
+  }
+  if (action === "rm" || action === "delete" || action === "remove") {
+    if (!id) throw new Error("Usage: pxxl sandbox snapshots rm <snapshotId> [--yes]");
+    if (!options.has("--yes") && !options.has("-y")) {
+      if (!ctx.interactive()) throw new Error(`Deleting snapshot ${id} cannot be undone. Pass --yes to confirm.`);
+      if (!(await ctx.promptConfirm(`Delete snapshot ${id}? This cannot be undone.`, false))) return print("Cancelled.");
+    }
+    try {
+      const result = await pxxl.sandboxes.snapshots.delete(id, { teamId });
+      return asJSON ? json(result) : done(`Deleted snapshot ${id}`);
+    } catch (error) {
+      if (!(error instanceof PxxlAPIError) || error.status !== 409) throw error;
+      const users = (error.details as { sandboxIds?: unknown } | null)?.sandboxIds;
+      const list = Array.isArray(users) && users.length ? `\n  Used by: ${users.map(text).join(", ")}` : "";
+      throw new Error(`${error.message}${list}`);
+    }
+  }
+  throw new Error(`Unknown snapshots command: ${action}. Use list, get or rm.`);
+}
+
 function printHints(hints?: { message: string }[]) {
   for (const hint of hints ?? []) print(`${cyan("›")} ${hint.message}`);
 }
@@ -362,6 +428,12 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     return print(dim("\nImages track the latest upstream release. pxxl sandbox create --template <id>"));
   }
   const pxxl = await getClient(true);
+
+  if (sub === "snapshots") {
+    const [action = "list", ...after] = rest[0] && !rest[0].startsWith("-") ? rest : ["list", ...rest];
+    return snapshotsCommand(pxxl, ctx, action, parse(after), teamId);
+  }
+  if (sub === "snapshot-rm" || sub === "snapshot-delete") return snapshotsCommand(pxxl, ctx, "rm", options, teamId);
 
   if (sub === "list" || sub === "ls") {
     const filter = parseLabels(options.all("--label", "-l"), true);
@@ -415,6 +487,7 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
       previewAccess: options.has("--private") ? "private" : undefined,
       labels: labelsFlag(),
       egress: egressFromFlags(options.all("--allow"), options.has),
+      snapshotId: options.flag("--snapshot"),
       teamId,
     });
     if (!asJSON) done(`Created ${bold(box.name || box.id)} ${dim(box.id)}`);
@@ -582,6 +655,16 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     if (!result.egressApplied) print(yellow(result.message || "This applies the next time the sandbox starts."));
     else print(dim("New connections follow it now; open connections are not cut."));
     return;
+  }
+
+  if (sub === "snapshot") {
+    const wait = !options.has("--no-wait");
+    if (!asJSON) print(dim(`Saving ${label}'s home directory and /workspace…`));
+    const snapshot = await box.snapshot({ name: options.flag("--name"), wait });
+    if (asJSON) return json({ snapshot });
+    if (!wait) return done(`Snapshot ${bold(snapshot.name || snapshot.id)} ${dim(snapshot.id)} is ${snapshot.status}. pxxl sandbox snapshots get ${snapshot.id} shows when it is ready.`);
+    done(`Snapshot ${bold(snapshot.name || snapshot.id)} ${dim(snapshot.id)} is ready${snapshotSize(snapshot) ? ` (${snapshotSize(snapshot)})` : ""}`);
+    return print(dim(`Start from it: pxxl sandbox create --snapshot ${snapshot.id}`));
   }
 
   if (sub === "preview" || sub === "open") {

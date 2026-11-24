@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Pxxl, Sandbox, SandboxError } from "../../../../dist/index.js";
+import { Pxxl, Sandbox, SandboxError, SandboxSnapshotError } from "../../../../dist/index.js";
 
 const base = "https://server.pxxl.app/api/v3";
 const sandbox = (fields = {}) => ({ id: "sbx_1", name: "demo", template: "node", status: "creating", domain: "demo.pxxl.click", cpus: 2, memoryMb: 4096, hourlyUsd: 0.048, autoStopMinutes: 60, ...fields });
@@ -390,6 +390,129 @@ test("CLI: create --allow/--no-internet and sandbox network", async () => {
     assert.notEqual(conflict.code, 0);
     const help = await run(["sandbox", "--help"]);
     assert.match(help.stdout, /pxxl sandbox network/);
+  } finally {
+    server.close();
+  }
+});
+
+const snap = (fields = {}) => ({ id: "snap_1", name: "deps", template: "node", version: "26.13.1", status: "creating", error: null, sizeBytes: 52428800, sizeMb: 50, sourceSandboxId: "sbx_1", cpus: 2, memoryMb: 4096, volumeLimitMb: 5120, createdAt: new Date().toISOString(), ...fields });
+
+test("snapshots: list, get, delete and create({ snapshotId }) routes", async () => {
+  const { pxxl, calls } = fake(({ url, method }) => {
+    if (method === "POST") return Response.json({ sandbox: sandbox({ template: "node" }) }, { status: 202 });
+    if (method === "DELETE") return Response.json({ message: "deleted" });
+    if (url.includes("/snapshots/snap_1")) return Response.json({ snapshot: snap({ status: "ready" }) });
+    return Response.json({ snapshots: [snap({ status: "ready" })] });
+  });
+  const all = await pxxl.sandboxes.snapshots.list();
+  assert.equal(all[0].id, "snap_1");
+  await pxxl.sandboxes.snapshots.list({ sandboxId: "sbx_1" });
+  assert.equal((await pxxl.sandboxes.snapshots.get("snap_1")).status, "ready");
+  await pxxl.sandboxes.snapshots.delete("snap_1");
+  await pxxl.sandboxes.create({ snapshotId: "snap_1" });
+  assert.deepEqual(calls.map((call) => `${call.method} ${call.url.replace(base, "")}`), [
+    "GET /sandboxes/snapshots?teamId=team_1",
+    "GET /sandboxes/snapshots?sandboxId=sbx_1&teamId=team_1",
+    "GET /sandboxes/snapshots/snap_1?teamId=team_1",
+    "DELETE /sandboxes/snapshots/snap_1?teamId=team_1",
+    "POST /sandboxes?teamId=team_1",
+  ]);
+  assert.deepEqual(calls[4].body, { snapshotId: "snap_1" });
+});
+
+test("sandbox.snapshot() polls until ready, wait: false returns at once, failed throws", async () => {
+  const statuses = ["creating", "creating", "ready"];
+  const { pxxl, calls } = fake(({ url, method }) => {
+    if (method === "POST") return Response.json({ snapshot: snap() }, { status: 202 });
+    if (url.includes("/snapshots/")) return Response.json({ snapshot: snap({ status: statuses.shift() || "ready" }) });
+    return Response.json({ sandbox: sandbox({ status: "running" }) });
+  });
+  const box = await pxxl.sandboxes.get("sbx_1");
+  const ready = await box.snapshot({ name: "deps", intervalMs: 1 });
+  assert.equal(ready.status, "ready");
+  assert.equal(calls[1].url, `${base}/sandboxes/sbx_1/snapshots?teamId=team_1`);
+  assert.deepEqual(calls[1].body, { name: "deps" });
+  assert.equal(calls.filter((call) => call.url.includes("/snapshots/snap_1")).length, 3);
+
+  const before = calls.length;
+  const pending = await box.snapshot({ wait: false });
+  assert.equal(pending.status, "creating");
+  assert.deepEqual(calls[before].body, {});
+  assert.equal(calls.length, before + 1);
+
+  const failing = fake(({ url, method }) => {
+    if (method === "POST") return Response.json({ snapshot: snap() }, { status: 202 });
+    if (url.includes("/snapshots/")) return Response.json({ snapshot: snap({ status: "failed", error: "disk full" }) });
+    return Response.json({ sandbox: sandbox({ status: "running" }) });
+  });
+  const bad = await failing.pxxl.sandboxes.get("sbx_1");
+  await assert.rejects(bad.snapshot({ intervalMs: 1 }), (error) => error instanceof SandboxSnapshotError && error.snapshot.status === "failed" && /disk full/.test(error.message));
+});
+
+test("CLI: sandbox snapshot, snapshots, snapshot-rm and create --snapshot", async () => {
+  const { createServer } = await import("node:http");
+  const { execFile } = await import("node:child_process");
+  const requests = [];
+  let polls = 0;
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    const path = req.url.replace(/^\/api\/v3/, "");
+    requests.push({ method: req.method, url: path, body: body ? JSON.parse(body) : undefined });
+    const url = new URL(path, "http://x");
+    const send = (status, value) => { res.writeHead(status, { "Content-Type": "application/json" }); res.end(JSON.stringify(value)); };
+    if (req.method === "POST" && url.pathname === "/sandboxes/sbx_1/snapshots") return send(202, { snapshot: snap({ name: JSON.parse(body).name || "auto" }) });
+    if (req.method === "DELETE" && url.pathname === "/sandboxes/snapshots/snap_busy") return send(409, { message: "This snapshot is still used by 2 sandboxes.", sandboxIds: ["sbx_a", "sbx_b"] });
+    if (req.method === "DELETE") return send(200, { message: "deleted" });
+    if (url.pathname === "/sandboxes/snapshots/snap_1") { polls += 1; return send(200, { snapshot: snap({ status: polls > 1 ? "ready" : "creating" }) }); }
+    if (url.pathname === "/sandboxes/snapshots") return send(200, { snapshots: [snap({ status: "ready" }), snap({ id: "snap_2", name: "fresh", status: "creating", sizeBytes: undefined, sizeMb: undefined })] });
+    if (req.method === "POST" && url.pathname === "/sandboxes") return send(202, { sandbox: sandbox() });
+    send(200, { sandbox: sandbox({ status: "running" }) });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const cli = new URL("../../../../dist/cli.js", import.meta.url).pathname;
+  const run = (args) => new Promise((resolve) => execFile(process.execPath, [cli, ...args], { env: { ...process.env, PXXL_API_URL: `http://127.0.0.1:${port}`, PXXL_API_KEY: "pxxl_test", NO_COLOR: "1" } }, (error, stdout, stderr) => resolve({ code: error ? error.code : 0, stdout, stderr })));
+  const last = () => requests[requests.length - 1];
+  try {
+    const taken = await run(["sandbox", "snapshot", "sbx_1", "--name", "deps"]);
+    assert.equal(taken.code, 0, taken.stderr);
+    assert.match(taken.stdout, /Snapshot deps snap_1 is ready \(50 MB\)/);
+    assert.match(taken.stdout, /pxxl sandbox create --snapshot snap_1/);
+    assert.ok(requests.some((request) => request.method === "POST" && request.url === "/sandboxes/sbx_1/snapshots" && request.body.name === "deps"));
+    assert.ok(polls >= 2);
+
+    polls = 0;
+    const quick = await run(["sandbox", "snapshot", "sbx_1", "--no-wait"]);
+    assert.equal(quick.code, 0, quick.stderr);
+    assert.match(quick.stdout, /is creating/);
+    assert.equal(polls, 0);
+
+    const listed = await run(["sandbox", "snapshots", "--sandbox", "sbx_1"]);
+    assert.equal(listed.code, 0, listed.stderr);
+    assert.match(listed.stdout, /ID\s+NAME\s+STATUS\s+SIZE\s+CREATED/);
+    assert.match(listed.stdout, /snap_1\s+deps\s+ready\s+50 MB/);
+    assert.match(listed.stdout, /snap_2\s+fresh\s+creating/);
+    assert.equal(last().url, "/sandboxes/snapshots?sandboxId=sbx_1");
+    const asJSON = await run(["sandbox", "snapshots", "ls", "--json"]);
+    assert.equal(JSON.parse(asJSON.stdout).snapshots.length, 2);
+    assert.equal(last().url, "/sandboxes/snapshots");
+
+    const removed = await run(["sandbox", "snapshot-rm", "snap_1", "--yes"]);
+    assert.equal(removed.code, 0, removed.stderr);
+    assert.deepEqual(last(), { method: "DELETE", url: "/sandboxes/snapshots/snap_1", body: undefined });
+    const busy = await run(["sandbox", "snapshots", "rm", "snap_busy", "--yes"]);
+    assert.notEqual(busy.code, 0);
+    assert.match(busy.stderr + busy.stdout, /still used by 2 sandboxes/);
+    assert.match(busy.stderr + busy.stdout, /sbx_a, sbx_b/);
+    const unconfirmed = await run(["sandbox", "snapshot-rm", "snap_1"]);
+    assert.notEqual(unconfirmed.code, 0);
+    assert.match(unconfirmed.stderr + unconfirmed.stdout, /--yes/);
+
+    assert.equal((await run(["sandbox", "create", "--snapshot", "snap_1"])).code, 0);
+    assert.deepEqual(last().body, { snapshotId: "snap_1" });
+    const help = await run(["sandbox", "--help"]);
+    assert.match(help.stdout, /pxxl sandbox snapshot/);
   } finally {
     server.close();
   }

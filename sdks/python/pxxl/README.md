@@ -98,6 +98,23 @@ locked.set_network("allow-all")
 
 New connections follow a change at once; open ones are not cut. An invalid entry raises `PxxlAPIError` (400).
 
+### Snapshots
+
+Save a running sandbox's home directory (global installs, dotfiles) and `/workspace`, then start new sandboxes from it. Memory and processes aren't kept. Plus keeps 5, Pro 25, Enterprise 100.
+
+```python
+sandbox.exec("pip install -r requirements.txt")
+snapshot = sandbox.snapshot(name="deps-installed")  # waits until ready (~5-15 s)
+copy = client.sandboxes.create(snapshot_id=snapshot["id"])  # template comes from the snapshot
+
+snapshots = client.sandboxes.snapshots.list()  # or sandbox_id=...
+client.sandboxes.snapshots.delete(snapshot["id"])  # PxxlAPIError 409 while sandboxes use it
+```
+
+`sandbox.snapshot(wait=False)` returns while it is still `creating`; a failed save raises `SandboxSnapshotError`.
+
+Default-size `node`, `python` and `base` sandboxes start in about 2 seconds from a warm pool.
+
 Set `PXXL_API_URL` to point the client at a Pxxl staging Gateway (`https://*.pxxl.app` only).
 
 ## Cron Jobs

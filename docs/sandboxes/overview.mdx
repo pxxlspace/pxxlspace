@@ -93,6 +93,23 @@ pxxl sandbox network demo --no-internet
 
 See [the CLI](/sandboxes/cli#network-policies), [the SDKs](/integrations/sdk/sandboxes#network-policies), and [the API](/integrations/api/sandboxes#network-policies).
 
+## Snapshots
+
+A snapshot saves a sandbox's home directory (global installs, dotfiles, caches) and `/workspace`. Memory and running processes aren't kept. Install your tools once, snapshot the sandbox, and start new sandboxes from the snapshot with everything already there. The new sandbox gets the snapshot's template.
+
+Take a snapshot of a running sandbox; saving takes about 5 to 15 seconds. Plus keeps 5 snapshots, Pro 25, and Enterprise 100. A snapshot that sandboxes still use can't be deleted.
+
+```bash
+pxxl sandbox snapshot demo --name deps-installed
+pxxl sandbox create --snapshot snap_123
+```
+
+See [the CLI](/sandboxes/cli#snapshots), [the SDKs](/integrations/sdk/sandboxes#snapshots), and [the API](/integrations/api/sandboxes#snapshots).
+
+## Fast starts
+
+Default-size `node`, `python`, and `base` sandboxes start in about 2 seconds: Pxxl keeps warm ones ready. Other templates and custom sizes start in a few seconds more. There's nothing to configure.
+
 ## Lifecycle
 
 ```mermaid

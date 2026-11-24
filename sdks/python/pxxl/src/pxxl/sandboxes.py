@@ -8,6 +8,8 @@ only (Plus and up). Use an API key scoped to ``all`` or ``sandbox``.
     result = sandbox.exec("npm test", on_output=lambda chunk: print(chunk, end=""))
     sandbox.files.write("/workspace/notes.txt", "hello")
     print(sandbox.preview_url)
+    snapshot = sandbox.snapshot(name="deps-installed")
+    copy = client.sandboxes.create(snapshot_id=snapshot["id"])
     sandbox.stop()
 """
 
@@ -96,9 +98,88 @@ class SandboxError(RuntimeError):
         self.sandbox = dict(sandbox)
 
 
+class SandboxSnapshotError(RuntimeError):
+    """A snapshot failed to save, or waiting for it gave up."""
+
+    def __init__(self, message: str, snapshot: Mapping[str, Any]):
+        super().__init__(message)
+        self.snapshot = dict(snapshot)
+
+
+class PxxlSandboxSnapshots:
+    """Saved copies of a sandbox's home directory (global installs, dotfiles) and
+    /workspace, to start new sandboxes from. Memory and processes are not kept.
+    Plus keeps 5, Pro 25, Enterprise 100.
+
+    Snapshot fields: id, name, template, version, status (creating, ready or
+    failed), error, sizeBytes, sizeMb, sourceSandboxId, cpus, memoryMb,
+    volumeLimitMb, createdAt, updatedAt."""
+
+    def __init__(self, sandboxes: "PxxlSandboxes") -> None:
+        self._sandboxes = sandboxes
+
+    def list(self, sandbox_id: str | None = None, team_id: str | None = None) -> list[dict[str, Any]]:
+        """Your snapshots; ``sandbox_id`` keeps those taken from one sandbox."""
+        query = f"?sandboxId={_esc(sandbox_id)}" if sandbox_id else ""
+        return self._sandboxes._call("GET", f"/snapshots{query}", None, team_id).get("snapshots") or []
+
+    def get(self, snapshot_id: str, team_id: str | None = None) -> dict[str, Any]:
+        return self._sandboxes._call("GET", f"/snapshots/{_esc(snapshot_id)}", None, team_id)["snapshot"]
+
+    def delete(self, snapshot_id: str, team_id: str | None = None) -> dict[str, Any]:
+        """Delete a snapshot. PxxlAPIError 409 while sandboxes still use it
+        (``error.details["sandboxIds"]`` lists them) or while it is still saving."""
+        return self._sandboxes._call("DELETE", f"/snapshots/{_esc(snapshot_id)}", None, team_id)
+
+    def create(
+        self,
+        sandbox_id: str,
+        name: str | None = None,
+        *,
+        wait: bool = True,
+        timeout: float = 300.0,
+        interval: float = 2.0,
+        team_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Snapshot a running sandbox (409 when it is not running, 403 over the
+        plan's limit). Waits until ready unless ``wait=False``; raises
+        SandboxSnapshotError if saving fails."""
+        snapshot = self._sandboxes._call("POST", f"/{_esc(sandbox_id)}/snapshots", {"name": name}, team_id)["snapshot"]
+        if not wait:
+            return snapshot
+        return self.wait_until_ready(snapshot, timeout=timeout, interval=interval, team_id=team_id)
+
+    def wait_until_ready(
+        self,
+        snapshot: Mapping[str, Any] | str,
+        *,
+        timeout: float = 300.0,
+        interval: float = 2.0,
+        team_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Poll until the snapshot is ready. Raises SandboxSnapshotError if it
+        fails or ``timeout`` seconds pass."""
+        current = self.get(snapshot, team_id) if isinstance(snapshot, str) else dict(snapshot)
+        deadline = time.monotonic() + timeout
+        while True:
+            status = current.get("status")
+            label = current.get("name") or current.get("id")
+            if status == "ready":
+                return current
+            if status == "failed":
+                error = current.get("error")
+                raise SandboxSnapshotError(f"pxxl: snapshot {label} failed" + (f": {error}" if error else ""), current)
+            if time.monotonic() >= deadline:
+                raise SandboxSnapshotError(f"pxxl: snapshot {label} is still {status}; gave up waiting", current)
+            time.sleep(interval)
+            current = self.get(str(current.get("id")), team_id)
+
+
 class PxxlSandboxes:
     def __init__(self, client: "PxxlClient") -> None:
         self._client = client
+        #: Saved sandboxes to start new ones from.
+        self.snapshots = PxxlSandboxSnapshots(self)
 
     def _path(self, suffix: str = "", team_id: str | None = None) -> str:
         team = team_id or self._client.team_id
@@ -126,6 +207,7 @@ class PxxlSandboxes:
         preview_access: str | None = None,
         labels: Mapping[str, str] | None = None,
         egress: Mapping[str, Any] | None = None,
+        snapshot_id: str | None = None,
         team_id: str | None = None,
     ) -> "Sandbox":
         """Create a sandbox. It starts as ``creating``; call ``wait_until_ready()`` for ``running``.
@@ -133,7 +215,9 @@ class PxxlSandboxes:
         ``template`` is base (Debian 13, the default), node, python, go, rust or bun.
         ``labels`` is up to 20 ``{key: value}`` pairs to find the sandbox by later.
         ``egress`` is the outbound network policy: ``{"mode": "deny-all"}`` or
-        ``{"allow": ["github.com", "*.npmjs.org"]}``; omitted means allow-all."""
+        ``{"allow": ["github.com", "*.npmjs.org"]}``; omitted means allow-all.
+        ``snapshot_id`` starts from a snapshot (its home directory and /workspace);
+        the template comes from the snapshot, so leave ``template`` out."""
         body = {
             "name": name,
             "template": template,
@@ -147,6 +231,7 @@ class PxxlSandboxes:
             "previewAccess": preview_access,
             "labels": dict(labels) if labels else None,
             "egress": _egress_body(egress),
+            "snapshotId": snapshot_id,
         }
         result = self._call("POST", "", body, team_id)
         return Sandbox(self, result["sandbox"], team_id)
@@ -520,6 +605,17 @@ class Sandbox:
         if isinstance(result.get("sandbox"), Mapping):
             self.info = dict(result["sandbox"])
         return result
+
+    def snapshot(self, name: str | None = None, wait: bool = True, *, timeout: float = 300.0, interval: float = 2.0) -> dict[str, Any]:
+        """Save the home directory and /workspace as a snapshot (the sandbox must
+        be running). Waits until it is ready unless ``wait=False``; raises
+        SandboxSnapshotError if saving fails. Start from it with
+        ``client.sandboxes.create(snapshot_id=snapshot["id"])``."""
+        return self._api.snapshots.create(self.id, name, wait=wait, timeout=timeout, interval=interval, team_id=self.team_id)
+
+    def snapshots(self) -> list[dict[str, Any]]:
+        """Snapshots taken from this sandbox."""
+        return self._api.snapshots.list(self.id, self.team_id)
 
     def set_labels(self, labels: Mapping[str, str]) -> "Sandbox":
         """Replace the labels (``{}`` clears them)."""

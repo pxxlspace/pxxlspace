@@ -21,6 +21,16 @@
   `egress=`, `sandbox.egress`, `set_network(mode, allow)`. CLI: `create --allow <domain|cidr>`
   (repeat) and `--no-internet`; `pxxl sandbox network <id>` shows or changes the policy with
   `--allow-all`, `--deny-all`/`--no-internet` or `--allow`.
+- Sandbox snapshots (Plus 5, Pro 25, Enterprise 100): `sandbox.snapshot({ name?, wait? })` saves
+  the home directory and `/workspace` and waits until ready (throws `SandboxSnapshotError` on
+  failure); `pxxl.sandboxes.snapshots.list({ sandboxId? })`, `.get(id)`, `.delete(id)`,
+  `.create(sandboxId, …)` and `.waitUntilReady()`; `create({ snapshotId })` starts from one (type
+  `SandboxSnapshot`). Python: `sandbox.snapshot(name=None, wait=True)`,
+  `client.sandboxes.snapshots.list/get/delete`, `create(snapshot_id=...)`. CLI:
+  `pxxl sandbox snapshot <id> [--name] [--no-wait]`, `pxxl sandbox snapshots [--sandbox <id>]`,
+  `snapshots get|rm <snapshotId>` (alias `snapshot-rm`; a 409 shows which sandboxes use it) and
+  `create --snapshot <snapshotId>`.
+- Sandbox fast starts: default-size Node, Python and base sandboxes start in about 2 seconds.
 - Sandbox processes: `sandbox.processes()` and `sandbox.kill(pid, signal)`; CLI `ps` and `kill`.
 - Binary sandbox files: `files.read(path, { binary: true })` returns bytes and `files.write()` takes
   a `Uint8Array`/`Buffer` (Python: `binary=True`, `bytes`); CLI `upload` and `download`, and

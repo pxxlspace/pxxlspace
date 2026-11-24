@@ -5,12 +5,18 @@ import os
 import unittest
 from unittest import mock
 
-from pxxl import PxxlAPIError, PxxlClient, Sandbox, SandboxError, resolve_api_base_url
+from pxxl import PxxlAPIError, PxxlClient, Sandbox, SandboxError, SandboxSnapshotError, resolve_api_base_url
 from pxxl import sandboxes as sandboxes_module
 
 
 def sandbox(**fields):
     base = {"id": "sbx_1", "name": "demo", "template": "node", "status": "creating", "domain": "demo.pxxl.click", "cpus": 2, "memoryMb": 4096, "hourlyUsd": 0.048}
+    base.update(fields)
+    return base
+
+
+def snapshot(**fields):
+    base = {"id": "snap_1", "name": "deps", "template": "node", "version": "26.13.1", "status": "creating", "error": None, "sizeBytes": 52428800, "sizeMb": 50, "sourceSandboxId": "sbx_1"}
     base.update(fields)
     return base
 
@@ -203,6 +209,72 @@ class SandboxTests(unittest.TestCase):
         failing, _ = self.client(lambda method, path: {"sandbox": sandbox(status="failed")})
         with self.assertRaises(SandboxError):
             Sandbox(failing.sandboxes, sandbox()).wait_until_ready(interval=0)
+
+    def test_snapshot_routes(self):
+        def handler(method, path):
+            if method == "POST":
+                return {"sandbox": sandbox()}
+            if method == "DELETE":
+                return {"message": "deleted"}
+            if path.startswith("/sandboxes/snapshots/snap_1"):
+                return {"snapshot": snapshot(status="ready")}
+            return {"snapshots": [snapshot(status="ready")]}
+
+        client, calls = self.client(handler)
+        self.assertEqual(client.sandboxes.snapshots.list()[0]["id"], "snap_1")
+        client.sandboxes.snapshots.list(sandbox_id="sbx_1")
+        self.assertEqual(client.sandboxes.snapshots.get("snap_1")["status"], "ready")
+        client.sandboxes.snapshots.delete("snap_1")
+        client.sandboxes.create(snapshot_id="snap_1")
+        self.assertEqual(
+            [f"{method} {path}" for method, path, _ in calls],
+            [
+                "GET /sandboxes/snapshots?teamId=team_1",
+                "GET /sandboxes/snapshots?sandboxId=sbx_1&teamId=team_1",
+                "GET /sandboxes/snapshots/snap_1?teamId=team_1",
+                "DELETE /sandboxes/snapshots/snap_1?teamId=team_1",
+                "POST /sandboxes?teamId=team_1",
+            ],
+        )
+        self.assertEqual(calls[4][2], {"snapshotId": "snap_1"})
+
+    def test_snapshot_waits_until_ready(self):
+        statuses = ["creating", "creating", "ready"]
+
+        def handler(method, path):
+            if method == "POST":
+                return {"snapshot": snapshot()}
+            return {"snapshot": snapshot(status=statuses.pop(0) if statuses else "ready")}
+
+        client, calls = self.client(handler)
+        box = Sandbox(client.sandboxes, sandbox(status="running"), "team_1")
+        ready = box.snapshot("deps", interval=0)
+        self.assertEqual(ready["status"], "ready")
+        self.assertEqual(calls[0], ("POST", "/sandboxes/sbx_1/snapshots?teamId=team_1", {"name": "deps"}))
+        self.assertEqual(len([call for call in calls if call[1].startswith("/sandboxes/snapshots/snap_1")]), 3)
+
+        before = len(calls)
+        pending = box.snapshot(wait=False)
+        self.assertEqual(pending["status"], "creating")
+        self.assertEqual(calls[before], ("POST", "/sandboxes/sbx_1/snapshots?teamId=team_1", {}))
+        self.assertEqual(len(calls), before + 1)
+
+        failing, _ = self.client(lambda method, path: {"snapshot": snapshot(status="creating" if method == "POST" else "failed", error="disk full")})
+        with self.assertRaisesRegex(SandboxSnapshotError, "disk full") as caught:
+            Sandbox(failing.sandboxes, sandbox(status="running")).snapshot(interval=0)
+        self.assertEqual(caught.exception.snapshot["status"], "failed")
+
+    def test_snapshot_delete_in_use(self):
+        body = json.dumps({"message": "This snapshot is still used by 2 sandboxes.", "sandboxIds": ["sbx_a", "sbx_b"]}).encode()
+
+        def handler(method, path):
+            raise PxxlAPIError(409, "This snapshot is still used by 2 sandboxes.", body)
+
+        client, _ = self.client(handler)
+        with self.assertRaises(PxxlAPIError) as caught:
+            client.sandboxes.snapshots.delete("snap_1")
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertEqual(caught.exception.details["sandboxIds"], ["sbx_a", "sbx_b"])
 
     def test_api_url_override(self):
         with mock.patch.dict(os.environ, {"PXXL_API_URL": "https://staging-gateway.pxxl.app"}):

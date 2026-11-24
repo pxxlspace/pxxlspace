@@ -177,6 +177,28 @@ New connections follow a change at once; open ones are not cut. CLI:
 `pxxl sandbox create --allow github.com --allow '*.npmjs.org'`, `--no-internet`, and
 `pxxl sandbox network <id> [--allow-all | --deny-all | --allow <entry>…]`.
 
+### Snapshots
+
+Save a running sandbox's home directory (global installs, dotfiles) and `/workspace`, then
+start new sandboxes from it. Memory and processes aren't kept. Plus keeps 5, Pro 25,
+Enterprise 100.
+
+```ts
+await sandbox.exec("npm install -g pnpm && pnpm install");
+const snapshot = await sandbox.snapshot({ name: "deps-installed" }); // waits until ready (~5-15 s)
+const copy = await pxxl.sandboxes.create({ snapshotId: snapshot.id }); // template comes from the snapshot
+
+const all = await pxxl.sandboxes.snapshots.list();                  // or { sandboxId }
+await pxxl.sandboxes.snapshots.delete(snapshot.id);                 // 409 while sandboxes use it
+```
+
+`snapshot({ wait: false })` returns while it is still `creating`; a failed save throws
+`SandboxSnapshotError`. CLI: `pxxl sandbox snapshot <id> [--name n] [--no-wait]`,
+`pxxl sandbox snapshots [--sandbox <id>]`, `pxxl sandbox snapshots rm <snapshotId>` and
+`pxxl sandbox create --snapshot <snapshotId>`.
+
+Default-size `node`, `python` and `base` sandboxes start in about 2 seconds from a warm pool.
+
 From the CLI: `pxxl sandbox --help`.
 
 ## Cron jobs

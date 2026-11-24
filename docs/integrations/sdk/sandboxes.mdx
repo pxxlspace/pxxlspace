@@ -152,6 +152,49 @@ Choose what a sandbox can reach. Leave `egress` out for the whole internet, bloc
 
 New connections follow a change at once; open connections are not cut. `egressApplied` is `false` for a sandbox created before network policies: the change applies at its next start. An invalid entry (a private range, an internal name, more than 64 entries, an empty allowlist) is a `PxxlAPIError` with status 400; 409 means the server can't enforce policies.
 
+## Snapshots
+
+Save a running sandbox's home directory (global installs, dotfiles) and `/workspace`, then start new sandboxes from it with the installs already done. Memory and running processes aren't kept. `snapshot()` waits until the snapshot is ready (about 5 to 15 seconds) unless you pass `wait: false`, and throws `SandboxSnapshotError` if saving fails.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    await sandbox.exec("npm install -g pnpm && pnpm install");
+    const snapshot = await sandbox.snapshot({ name: "deps-installed" });
+    console.log(snapshot.status, snapshot.sizeMb); // "ready" 182
+
+    // The template comes from the snapshot.
+    const copy = await pxxl.sandboxes.create({ snapshotId: snapshot.id });
+    await copy.waitUntilReady();
+
+    const all = await pxxl.sandboxes.snapshots.list();
+    const mine = await pxxl.sandboxes.snapshots.list({ sandboxId: sandbox.id });
+    await pxxl.sandboxes.snapshots.delete(snapshot.id); // 409 while sandboxes use it
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    sandbox.exec("pip install -r requirements.txt")
+    snapshot = sandbox.snapshot(name="deps-installed")
+    print(snapshot["status"], snapshot["sizeMb"])  # ready 182
+
+    # The template comes from the snapshot.
+    copy = client.sandboxes.create(snapshot_id=snapshot["id"])
+    copy.wait_until_ready()
+
+    everything = client.sandboxes.snapshots.list()
+    mine = client.sandboxes.snapshots.list(sandbox_id=sandbox.id)
+    client.sandboxes.snapshots.delete(snapshot["id"])  # 409 while sandboxes use it
+    ```
+  </Tab>
+</Tabs>
+
+The sandbox must be running (409 otherwise), and your plan keeps a set number of snapshots: Plus 5, Pro 25, Enterprise 100 (403 over it). Deleting a snapshot that sandboxes still use is a 409 whose `details.sandboxIds` lists them. With `wait: false` (`wait=False`), poll with `pxxl.sandboxes.snapshots.waitUntilReady(snapshot)` or `get(id)`. See the [snapshot object](/integrations/api/sandboxes#snapshots).
+
+## Fast starts
+
+Default-size `node`, `python`, and `base` sandboxes start from a warm pool in about 2 seconds, so `waitUntilReady()` usually returns almost at once. Nothing to configure.
+
 ## Background processes
 
 Start a server or watcher with `background`, see it in the process list, and stop it with a signal.
@@ -227,6 +270,8 @@ Write bytes and they go base64-encoded; read with `binary` to get bytes back. St
 | Delete | `sandbox.delete()` | `sandbox.delete()` | `{ message }` |
 | Update | `sandbox.update({ name?, autoStopMinutes?, previewAccess?, labels?, egress? })` | `sandbox.update(name=, auto_stop_minutes=, preview_access=, labels=, egress=)` | The sandbox |
 | Network policy | `sandbox.setNetwork({ mode?, allow? })` | `sandbox.set_network(mode=None, allow=None)` | `{ sandbox, egressApplied, message? }` |
+| Snapshot | `sandbox.snapshot({ name?, wait?, timeoutMs?, intervalMs? })` | `sandbox.snapshot(name=None, wait=True, timeout=300, interval=2)` | The snapshot. Waits until `ready` unless `wait` is false; throws `SandboxSnapshotError` on `failed` |
+| Its snapshots | `sandbox.snapshots()` | `sandbox.snapshots()` | The snapshots taken from this sandbox |
 | Auto-stop | `sandbox.setAutoStop(minutes)` | `sandbox.set_auto_stop(minutes)` | The sandbox |
 | Labels | `sandbox.setLabels(labels)` | `sandbox.set_labels(labels)` | The sandbox. Replaces all labels |
 | Cost | `sandbox.usage()` | `sandbox.usage()` | `{ hourlyUsd, billedUsd, unbilledUsd, ledger }` |
@@ -244,8 +289,13 @@ Read fields from the handle: `id`, `name`, `status`, `template`, `labels`, `egre
 | Get | `pxxl.sandboxes.get(id)` | `client.sandboxes.get(id)` | A `Sandbox` |
 | Templates | `pxxl.sandboxes.templates()` | `client.sandboxes.templates()` | `[{ id, label, description, version }]` |
 | Pricing | `pxxl.sandboxes.pricing()` | `client.sandboxes.pricing()` | Rates, sizes, templates, plan limits |
+| List snapshots | `pxxl.sandboxes.snapshots.list({ sandboxId? })` | `client.sandboxes.snapshots.list(sandbox_id=None)` | `SandboxSnapshot[]` |
+| Get a snapshot | `pxxl.sandboxes.snapshots.get(id)` | `client.sandboxes.snapshots.get(id)` | A `SandboxSnapshot` |
+| Delete a snapshot | `pxxl.sandboxes.snapshots.delete(id)` | `client.sandboxes.snapshots.delete(id)` | `{ message }` |
+| Snapshot by sandbox ID | `pxxl.sandboxes.snapshots.create(sandboxId, { name?, wait? })` | `client.sandboxes.snapshots.create(sandbox_id, name=None, wait=True)` | The snapshot |
+| Wait for a snapshot | `pxxl.sandboxes.snapshots.waitUntilReady(snapshotOrId, { timeoutMs?, intervalMs? })` | `client.sandboxes.snapshots.wait_until_ready(snapshot_or_id, timeout=, interval=)` | The ready snapshot |
 
-Create options: `name`, `template` (`base`, `node`, `python`, `go`, `rust`, `bun`; see [templates](/sandboxes/overview#templates)), `size` (`micro`, `small`, `medium`, `large`), `cpus`, `memoryMb`, `diskGb` (`2`, `5`, `10`), `autoStopMinutes` (`0` to `1440`), `env`, `sourceRepository`, `previewAccess`, `labels`, `egress` (`{ mode?, allow? }`), and `teamId`. Python takes the same options in snake case. `template` defaults to `base` (Debian 13).
+Create options: `name`, `template` (`base`, `node`, `python`, `go`, `rust`, `bun`; see [templates](/sandboxes/overview#templates)), `size` (`micro`, `small`, `medium`, `large`), `cpus`, `memoryMb`, `diskGb` (`2`, `5`, `10`), `autoStopMinutes` (`0` to `1440`), `env`, `sourceRepository`, `previewAccess`, `labels`, `egress` (`{ mode?, allow? }`), `snapshotId` (start from a [snapshot](#snapshots); the template comes from it), and `teamId`. Python takes the same options in snake case. `template` defaults to `base` (Debian 13).
 
 `pxxl.sandboxes` also has ID-based methods, such as `exec(id, command)` and `readFile(id, path)`, if you don't want a handle.
 
