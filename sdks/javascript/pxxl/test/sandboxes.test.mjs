@@ -152,3 +152,37 @@ test("waitUntilReady polls until running and throws on failed", async () => {
   const bad = await failing.pxxl.sandboxes.create();
   await assert.rejects(bad.waitUntilReady({ intervalMs: 1 }), (error) => error instanceof SandboxError && error.sandbox.status === "failed");
 });
+
+test("CLI: sandbox exec streams output and exits with the command's code", async () => {
+  const { createServer } = await import("node:http");
+  const { execFile } = await import("node:child_process");
+  const requests = [];
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    requests.push({ method: req.method, url: req.url, accept: req.headers.accept, body });
+    if (req.url.endsWith("/exec")) {
+      res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+      res.write(`${JSON.stringify({ type: "output", data: "built\n" })}\n`);
+      return res.end(`${JSON.stringify({ type: "exit", exitCode: 3, timedOut: false })}\n`);
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ sandbox: sandbox({ status: "running" }) }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const cli = new URL("../../../../dist/cli.js", import.meta.url).pathname;
+  const run = (args) => new Promise((resolve) => execFile(process.execPath, [cli, ...args], { env: { ...process.env, PXXL_API_URL: `http://127.0.0.1:${port}`, PXXL_API_KEY: "pxxl_test", NO_COLOR: "1" } }, (error, stdout, stderr) => resolve({ code: error ? error.code : 0, stdout, stderr })));
+  try {
+    const result = await run(["sandbox", "exec", "sbx_1", "--", "npm", "run", "build", "--help"]);
+    assert.equal(result.stdout, "built\n");
+    assert.equal(result.code, 3);
+    const exec = requests.find((request) => request.url.endsWith("/exec"));
+    assert.equal(exec.accept, "application/x-ndjson");
+    assert.deepEqual(JSON.parse(exec.body), { command: "npm run build --help" });
+    const help = await run(["sandbox", "--help"]);
+    assert.match(help.stdout, /pxxl sandbox exec/);
+  } finally {
+    server.close();
+  }
+});

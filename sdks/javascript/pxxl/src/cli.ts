@@ -12,6 +12,7 @@ import { promisify } from "node:util";
 import { checkCommand, toolsCommand, toolsHelp, tunnelCommand, webhookCommand } from "./cli-tools.js";
 import { resellerCommand, resellerHelp } from "./cli-reseller.js";
 import { serversCommand, serversHelp } from "./cli-servers.js";
+import { sandboxCommand, sandboxHelp } from "./cli-sandboxes.js";
 import { setupCommand, setupHelp } from "./cli-setup.js";
 import {
   cacheCommand, cancelCommand, curlCommand, devCommand, envCommand, errorsCommand, healthCommand, lifecycleCommand, linkCommand, logLines,
@@ -212,6 +213,13 @@ ${bold("Servers")}
   ${cyan("pxxl servers restart|logs")} --app x Act on a server or one app
   ${cyan("pxxl servers run")} <op>             Run an operation (pxxl servers ops)
 
+${bold("Sandboxes")}
+  ${cyan("pxxl sandbox create")} --wait        An isolated Linux sandbox, billed per second
+  ${cyan("pxxl sandbox exec")} <id> -- <cmd>   Run a command (streams, exits with its code)
+  ${cyan("pxxl sandbox files|read|write")}     Files in /workspace
+  ${cyan("pxxl sandbox start|stop|delete")}    Resume, pause ($0) or delete
+  ${cyan("pxxl sandbox pricing")}              Rates, sizes and plan limits
+
 ${bold("Tunnels & Webhooks")}
   ${cyan("pxxl tunnel")} <port>                Share a local app at a public HTTPS URL (WebSockets too)
   ${cyan("pxxl tunnel list|create|connect|rotate|delete")}
@@ -225,11 +233,13 @@ ${bold("Tunnels & Webhooks")}
 ${bold("Environment")}
   ${dim("PXXL_API_KEY")} overrides stored credentials.
   ${dim("PXXL_TEAM_ID")} overrides the selected spaceship/team for scoped commands.
+  ${dim("PXXL_API_URL")} points the CLI at another Pxxl Gateway (https://*.pxxl.app), such as staging.
   Pass ${dim("--json")} to print raw API responses for scripting.
 `;
 
 const commandHelps: Record<string, string> = {
   servers: serversHelp,
+  sandbox: sandboxHelp,
   setup: setupHelp,
   tunnel: toolsHelp.tunnel,
   webhook: toolsHelp.webhook,
@@ -464,6 +474,9 @@ const helpAliases: Record<string, string> = {
   servers: "servers",
   server: "servers",
   byos: "servers",
+  sandbox: "sandbox",
+  sandboxes: "sandbox",
+  sbx: "sandbox",
   webhook: "webhook",
   webhooks: "webhook",
   hooks: "webhook",
@@ -492,6 +505,12 @@ async function main() {
     if (command !== "reseller") args.shift();
     if (isHelpRequest(args)) return print(resellerHelp);
     return resellerCommand(args);
+  }
+  if (command === "sandbox" || command === "sandboxes" || command === "sbx") {
+    // Only flags before `--` are ours: `pxxl sandbox exec x -- grep --help` runs grep.
+    const own = args.includes("--") ? args.slice(0, args.indexOf("--")) : args;
+    if (own.some((arg) => arg === "--help" || arg === "-h") || own[0] === "help") return print(sandboxHelp);
+    return sandboxCommand(sandboxClient, platformCtx, args);
   }
   if (isHelpRequest(args)) return print(commandHelp(command));
 
@@ -1906,6 +1925,11 @@ async function authedClient(): Promise<Pxxl> {
   const config = await readAuthConfig();
   if (!config.apiKey) throw new Error("Run `pxxl login --api-key <key>` or set PXXL_API_KEY.");
   return new Pxxl({ apiKey: config.apiKey, teamId: config.selectedTeamId });
+}
+
+/** Pricing is public and sent without a key; everything else needs one. */
+async function sandboxClient(needsKey: boolean): Promise<Pxxl> {
+  return needsKey ? authedClient() : new Pxxl();
 }
 
 const platformCtx: PlatformContext = {
