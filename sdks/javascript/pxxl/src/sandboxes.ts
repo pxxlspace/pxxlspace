@@ -33,6 +33,34 @@ export type SandboxLabelFilter = Record<string, string | true>;
 export type SandboxSignal = "TERM" | "KILL" | "INT" | "HUP";
 export type SandboxSize = "micro" | "small" | "medium" | "large" | (string & {});
 
+/**
+ * Outbound network policy. allow-all: the public internet (the default).
+ * deny-all: no outbound connections, DNS refused. allowlist: only the
+ * domains and public IPv4 addresses/CIDRs in `allow`.
+ */
+export type SandboxEgressMode = "allow-all" | "deny-all" | "allowlist";
+/** A sandbox's egress (outbound network) policy, as the API returns it. */
+export interface SandboxEgress {
+  mode: SandboxEgressMode;
+  /**
+   * Up to 64 entries: `github.com` (exact), `*.npmjs.org` (any subdomain),
+   * or a public IPv4 address/CIDR like `140.82.112.0/20`.
+   */
+  allow: string[];
+}
+/**
+ * A policy to set. `mode` may be left out when `allow` has entries (that
+ * means allowlist); `{ mode: "allow-all" }` and `{ mode: "deny-all" }` need no list.
+ */
+export type EgressPolicy = { mode?: SandboxEgressMode; allow?: string[] };
+/** What setNetwork() returns. `egressApplied: false` means it applies at the next start. */
+export interface SandboxNetworkResult {
+  sandbox: SandboxInfo;
+  egressApplied: boolean;
+  /** Set when the change waits for the next start. */
+  message?: string;
+}
+
 export interface SandboxInfo {
   id: string;
   name: string;
@@ -57,6 +85,8 @@ export interface SandboxInfo {
   lastActivityAt?: string | null;
   createdAt?: string;
   labels?: SandboxLabels;
+  /** Outbound network policy. */
+  egress?: SandboxEgress;
   [key: string]: unknown;
 }
 
@@ -81,6 +111,8 @@ export interface CreateSandboxOptions {
   sourceRepository?: string;
   /** Up to 20 `key: value` labels to find the sandbox by later. */
   labels?: SandboxLabels;
+  /** Outbound network policy; omitted means allow-all. `{ allow: [...] }` is an allowlist. */
+  egress?: EgressPolicy;
   teamId?: string;
 }
 
@@ -90,6 +122,8 @@ export interface UpdateSandboxOptions {
   previewAccess?: "public" | "private";
   /** Replaces all labels; `{}` clears them. */
   labels?: SandboxLabels;
+  /** Replaces the outbound network policy. Use setNetwork() to learn whether it applied right away. */
+  egress?: EgressPolicy;
 }
 
 /** One process inside the sandbox, from `ps`. */
@@ -324,6 +358,16 @@ export class PxxlSandboxes {
   async update(id: string, input: UpdateSandboxOptions, teamId = this.defaultTeamId): Promise<SandboxInfo> {
     return (await this.call<{ sandbox: SandboxInfo }>("PATCH", `/${enc(id)}`, input, teamId)).sandbox;
   }
+  /**
+   * Change the outbound network policy. New connections follow it at once;
+   * open ones are not cut. `egressApplied: false` (with a `message`) means it
+   * applies at the next start. 400 for invalid entries, 409 when the server
+   * cannot enforce policies.
+   */
+  async setNetwork(id: string, egress: EgressPolicy, teamId = this.defaultTeamId): Promise<SandboxNetworkResult> {
+    const result = await this.call<{ sandbox: SandboxInfo; egressApplied?: boolean; message?: string }>("PATCH", `/${enc(id)}`, { egress }, teamId);
+    return { sandbox: result.sandbox, egressApplied: result.egressApplied !== false, ...(result.message ? { message: result.message } : {}) };
+  }
   async start(id: string, teamId = this.defaultTeamId): Promise<SandboxInfo | undefined> {
     return (await this.call<{ sandbox?: SandboxInfo }>("POST", `/${enc(id)}/start`, undefined, teamId)).sandbox;
   }
@@ -456,6 +500,8 @@ export class Sandbox {
   get status(): SandboxStatus { return this.data.status; }
   get template(): SandboxTemplate { return this.data.template; }
   get labels(): SandboxLabels { return this.data.labels || {}; }
+  /** The outbound network policy (allow-all when the API did not say). */
+  get egress(): SandboxEgress { return this.data.egress || { mode: "allow-all", allow: [] }; }
   get domain(): string | undefined { return this.data.domain || undefined; }
   /** The public URL of the app on $PORT (3000) inside the sandbox. */
   get previewUrl(): string | undefined {
@@ -545,6 +591,16 @@ export class Sandbox {
   setAutoStop(minutes: number) { return this.update({ autoStopMinutes: minutes }); }
   /** Replace the labels (`{}` clears them). */
   setLabels(labels: SandboxLabels) { return this.update({ labels }); }
+  /**
+   * Change the outbound network policy: `{ mode: "deny-all" }`,
+   * `{ allow: ["github.com", "*.npmjs.org"] }` or `{ mode: "allow-all" }`.
+   * `egressApplied: false` means it applies at the next start.
+   */
+  async setNetwork(policy: EgressPolicy): Promise<SandboxNetworkResult> {
+    const result = await this.api.setNetwork(this.id, policy, this.teamId);
+    if (result.sandbox) this.data = result.sandbox;
+    return result;
+  }
   /** Processes running in the sandbox (pid, ppid, elapsed seconds, CPU %, memory, command). */
   processes() { return this.api.processes(this.id, this.teamId); }
   /** Signal a process (TERM by default; KILL, INT or HUP). */

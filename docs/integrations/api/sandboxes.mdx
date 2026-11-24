@@ -18,7 +18,7 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
 | `GET` | `/sandboxes/summary` | `teamId?` | `{ data }`: counts, cost, runway and hints. See [summary](#account-summary) |
 | `POST` | `/sandboxes` | See [create](#create-a-sandbox) | `202` with `{ sandbox }` |
 | `GET` | `/sandboxes/{id}` | None | `{ sandbox }` |
-| `PATCH` | `/sandboxes/{id}` | `name?`, `autoStopMinutes?`, `previewAccess?`, `labels?` | `{ sandbox }` |
+| `PATCH` | `/sandboxes/{id}` | `name?`, `autoStopMinutes?`, `previewAccess?`, `labels?`, `egress?` | `{ sandbox }`, plus `egressApplied` and `message?` when `egress` is set |
 | `POST` | `/sandboxes/{id}/preview-link` | None | `{ url, access, expiresAt? }`. Private previews get a 12-hour token in `url` |
 | `POST` | `/sandboxes/{id}/exec` | `command`, `workdir?`, `timeoutSeconds?`, `background?` | `{ exitCode, output, timedOut, truncated, durationMs }`, or an NDJSON stream |
 | `GET` | `/sandboxes/{id}/files` | `path?` | `{ files }` |
@@ -57,7 +57,8 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
   "stoppedAt": null,
   "lastActivityAt": "2026-11-24T09:12:00Z",
   "createdAt": "2026-11-24T08:59:40Z",
-  "labels": { "team": "payments", "env": "ci" }
+  "labels": { "team": "payments", "env": "ci" },
+  "egress": { "mode": "allowlist", "allow": ["github.com", "*.npmjs.org"] }
 }
 ```
 
@@ -79,6 +80,10 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
 
 <ResponseField name="labels" type="object">
   The sandbox's labels, as `{ "key": "value" }`. Empty when it has none.
+</ResponseField>
+
+<ResponseField name="egress" type="object">
+  The outbound network policy: `mode` is `allow-all`, `deny-all`, or `allowlist`, and `allow` lists the allowed domains and CIDRs. See [network policies](#network-policies).
 </ResponseField>
 
 ## Get pricing
@@ -194,6 +199,10 @@ curl "https://server.pxxl.app/api/v3/sandboxes?label=team:payments&label=env" \
   Up to 20 labels, as `{ "key": "value" }`. Keys match `^[a-z0-9][a-z0-9_.-]{0,62}$`. Values are one line, up to 256 characters.
 </ParamField>
 
+<ParamField body="egress" type="object">
+  The outbound network policy, `{ "mode": "...", "allow": [...] }`. Left out, the sandbox reaches the whole internet. With `allow` entries and no `mode`, it is an allowlist. See [network policies](#network-policies).
+</ParamField>
+
 ```bash
 curl --request POST https://server.pxxl.app/api/v3/sandboxes \
   --header "Authorization: Bearer $PXXL_API_KEY" \
@@ -220,7 +229,7 @@ The sandbox starts as `creating`. Poll `GET /sandboxes/{id}` until `status` is `
 
 `GET /sandboxes/{id}` returns `{ sandbox }`.
 
-`PATCH /sandboxes/{id}` changes the name, auto-stop, preview access, or labels. `labels` replaces all of them; `{}` clears them.
+`PATCH /sandboxes/{id}` changes the name, auto-stop, preview access, labels, or [network policy](#network-policies). `labels` replaces all of them; `{}` clears them.
 
 ```bash
 curl --request PATCH https://server.pxxl.app/api/v3/sandboxes/sbx_123 \
@@ -228,6 +237,40 @@ curl --request PATCH https://server.pxxl.app/api/v3/sandboxes/sbx_123 \
   --header "Content-Type: application/json" \
   --data '{"autoStopMinutes":0,"labels":{"team":"payments","env":"staging"}}'
 ```
+
+## Network policies
+
+`egress` controls the sandbox's outbound connections.
+
+| `mode` | What the sandbox can reach |
+| --- | --- |
+| `allow-all` | The public internet. The default. |
+| `deny-all` | Nothing. Outbound connections are blocked and DNS is refused. |
+| `allowlist` | Only the entries in `allow`. |
+
+`allow` entries are domains (`github.com` matches exactly, `*.npmjs.org` matches any subdomain) or public IPv4 addresses and CIDRs, up to 64.
+
+Set it on create, or change it with `PATCH`:
+
+```bash
+curl --request PATCH https://server.pxxl.app/api/v3/sandboxes/sbx_123 \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"egress":{"mode":"allowlist","allow":["registry.npmjs.org","*.github.com","140.82.112.0/20"]}}'
+```
+
+**Response**
+
+```json
+{ "sandbox": { "id": "sbx_123", "egress": { "mode": "allowlist", "allow": ["registry.npmjs.org", "*.github.com", "140.82.112.0/20"] } }, "egressApplied": true }
+```
+
+New connections follow the policy at once; connections already open are not cut. `egressApplied` is `false` for a sandbox created before network policies, with a `message`: the policy applies at its next start.
+
+| Status | Reason |
+| --- | --- |
+| `400` | An invalid entry: a private or reserved range, an internal name, a malformed domain, more than 64 entries, or an empty allowlist. `message` says which. |
+| `409` | The server can't enforce network policies for this sandbox. |
 
 ## Run a command
 

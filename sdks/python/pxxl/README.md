@@ -81,6 +81,23 @@ sandbox.start()
 sandbox.delete()
 ```
 
+### Network policies
+
+A sandbox reaches the whole internet by default. Limit it to an allowlist of domains (`github.com`, `*.npmjs.org`) and public IPv4 CIDRs, or cut it off:
+
+```python
+locked = client.sandboxes.create(template="python", egress={"allow": ["pypi.org", "files.pythonhosted.org"]})
+print(locked.egress)  # {"mode": "allowlist", "allow": ["pypi.org", "files.pythonhosted.org"]}
+
+result = locked.set_network("deny-all")  # no outbound connections, no DNS
+if not result["egressApplied"]:
+    print(result["message"])  # older sandboxes: applies at the next start
+locked.set_network(allow=["*.pythonhosted.org", "pypi.org"])  # replaces the list
+locked.set_network("allow-all")
+```
+
+New connections follow a change at once; open ones are not cut. An invalid entry raises `PxxlAPIError` (400).
+
 Set `PXXL_API_URL` to point the client at a Pxxl staging Gateway (`https://*.pxxl.app` only).
 
 ## Cron Jobs

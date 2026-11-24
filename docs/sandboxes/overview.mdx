@@ -72,6 +72,27 @@ Give a sandbox up to 20 `key: value` labels, such as `team: payments` or `run: c
 
 Set labels when you create a sandbox, replace them with `PATCH /sandboxes/{id}`, and filter the list with `GET /sandboxes?label=team:payments`. Several `label` parameters must all match; `label=team` matches any value of `team`.
 
+## Network policies
+
+Each sandbox has an egress policy for outbound connections:
+
+| Mode | What the sandbox can reach |
+| --- | --- |
+| `allow-all` | The public internet. The default. |
+| `deny-all` | Nothing. Outbound connections are blocked and DNS is refused. |
+| `allowlist` | Only the entries in `allow`. |
+
+Allowlist entries are domains (`github.com` matches exactly, `*.npmjs.org` matches any subdomain) or public IPv4 addresses and CIDRs (`140.82.112.0/20`), up to 64. Private and reserved ranges and internal names are refused.
+
+Set the policy when you create a sandbox, or change it with `PATCH /sandboxes/{id}` while it runs. New connections follow the new policy at once; connections already open are not cut. A sandbox created before network policies picks up a change at its next start.
+
+```bash
+pxxl sandbox create --template node --allow registry.npmjs.org --allow github.com
+pxxl sandbox network demo --no-internet
+```
+
+See [the CLI](/sandboxes/cli#network-policies), [the SDKs](/integrations/sdk/sandboxes#network-policies), and [the API](/integrations/api/sandboxes#network-policies).
+
 ## Lifecycle
 
 ```mermaid

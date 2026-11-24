@@ -15,6 +15,12 @@
   `pxxl sandbox templates`.
 - Sandbox labels: `create({ labels })`, `list({ labels })` filters, `sandbox.setLabels()`; CLI
   `--label key=value` on `create`, `list` and `update`. Python: `labels=`, `set_labels()`.
+- Sandbox network policies: `create({ egress: { mode?, allow? } })`, `sandbox.egress`,
+  `sandbox.setNetwork({ mode?, allow? })` and `pxxl.sandboxes.setNetwork(id, policy)` returning
+  `{ sandbox, egressApplied, message? }` (types `SandboxEgress`, `EgressPolicy`). Python:
+  `egress=`, `sandbox.egress`, `set_network(mode, allow)`. CLI: `create --allow <domain|cidr>`
+  (repeat) and `--no-internet`; `pxxl sandbox network <id>` shows or changes the policy with
+  `--allow-all`, `--deny-all`/`--no-internet` or `--allow`.
 - Sandbox processes: `sandbox.processes()` and `sandbox.kill(pid, signal)`; CLI `ps` and `kill`.
 - Binary sandbox files: `files.read(path, { binary: true })` returns bytes and `files.write()` takes
   a `Uint8Array`/`Buffer` (Python: `binary=True`, `bytes`); CLI `upload` and `download`, and

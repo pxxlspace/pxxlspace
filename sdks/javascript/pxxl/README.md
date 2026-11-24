@@ -158,6 +158,25 @@ await sandbox.start();  // resume
 await sandbox.delete();
 ```
 
+### Network policies
+
+A sandbox reaches the whole internet by default. Limit it to an allowlist of domains
+(`github.com`, `*.npmjs.org`) and public IPv4 CIDRs, or cut it off:
+
+```ts
+const locked = await pxxl.sandboxes.create({ template: "node", egress: { allow: ["registry.npmjs.org", "github.com"] } });
+console.log(locked.egress); // { mode: "allowlist", allow: ["registry.npmjs.org", "github.com"] }
+
+const { egressApplied, message } = await locked.setNetwork({ mode: "deny-all" }); // no outbound, no DNS
+if (!egressApplied) console.log(message); // older sandboxes: applies at the next start
+await locked.setNetwork({ allow: ["*.npmjs.org"] }); // replaces the list
+await locked.setNetwork({ mode: "allow-all" });
+```
+
+New connections follow a change at once; open ones are not cut. CLI:
+`pxxl sandbox create --allow github.com --allow '*.npmjs.org'`, `--no-internet`, and
+`pxxl sandbox network <id> [--allow-all | --deny-all | --allow <entry>…]`.
+
 From the CLI: `pxxl sandbox --help`.
 
 ## Cron jobs

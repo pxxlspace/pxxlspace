@@ -123,6 +123,44 @@ class SandboxTests(unittest.TestCase):
         box.set_labels({})
         self.assertEqual(calls[3][2], {"labels": {}})
 
+    def test_egress(self):
+        state = {"calls": None}
+
+        def handler(method, path):
+            body = state["calls"][-1][2] or {}
+            if method == "PATCH" and body.get("egress", {}).get("mode") == "deny-all":
+                return {"sandbox": sandbox(egress={"mode": "deny-all", "allow": []}), "egressApplied": False, "message": "Applies at the next start."}
+            if method == "PATCH":
+                egress = body["egress"]
+                return {"sandbox": sandbox(egress={"mode": egress.get("mode", "allowlist"), "allow": egress.get("allow", [])}), "egressApplied": True}
+            return {"sandbox": sandbox(egress={"mode": "allowlist", "allow": ["github.com", "*.npmjs.org"]})}
+
+        client, calls = self.client(handler)
+        state["calls"] = calls
+        box = client.sandboxes.create(template="node", egress={"allow": ["github.com", "*.npmjs.org"]})
+        self.assertEqual(calls[0], ("POST", "/sandboxes?teamId=team_1", {"template": "node", "egress": {"allow": ["github.com", "*.npmjs.org"]}}))
+        self.assertEqual(box.egress, {"mode": "allowlist", "allow": ["github.com", "*.npmjs.org"]})
+
+        result = box.set_network("deny-all")
+        self.assertEqual(calls[1], ("PATCH", "/sandboxes/sbx_1?teamId=team_1", {"egress": {"mode": "deny-all"}}))
+        self.assertFalse(result["egressApplied"])
+        self.assertEqual(result["message"], "Applies at the next start.")
+        self.assertEqual(box.egress["mode"], "deny-all")
+
+        result = client.sandboxes.set_network("sbx_1", allow=["pypi.org", "140.82.112.0/20"])
+        self.assertEqual(calls[2][2], {"egress": {"allow": ["pypi.org", "140.82.112.0/20"]}})
+        self.assertTrue(result["egressApplied"])
+
+        box.update(egress={"mode": "allow-all"})
+        self.assertEqual(calls[3][2], {"egress": {"mode": "allow-all"}})
+        self.assertEqual(box.egress, {"mode": "allow-all", "allow": []})
+
+        self.assertEqual(Sandbox(client.sandboxes, sandbox()).egress, {"mode": "allow-all", "allow": []})
+        with self.assertRaises(ValueError):
+            box.set_network("everything")
+        with self.assertRaises(ValueError):
+            box.set_network()
+
     def test_processes_and_kill(self):
         def handler(method, path):
             if "/processes/" in path:

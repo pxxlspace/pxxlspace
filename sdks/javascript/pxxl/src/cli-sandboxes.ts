@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { PxxlAPIError, resolvePxxlAPIBaseURL, type Pxxl, type Sandbox, type SandboxInfo, type SandboxPricing, type SandboxSignal, type SandboxTemplateInfo } from "./index.js";
+import { PxxlAPIError, resolvePxxlAPIBaseURL, type EgressPolicy, type Pxxl, type Sandbox, type SandboxEgress, type SandboxInfo, type SandboxPricing, type SandboxSignal, type SandboxTemplateInfo } from "./index.js";
 import type { PlatformContext } from "./cli-platform.js";
 
 // `pxxl sandbox`: isolated Linux sandboxes, billed per second from the wallet.
@@ -69,7 +69,7 @@ export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes
   ${cyan("pxxl sandbox create")} [--wait]            Create one
       --name <name>  --template base|node|python|go|rust|bun  --size micro|small|medium|large
       --disk 2|5|10  --auto-stop <minutes, 0 = never>  --env KEY=VALUE (repeat)  --repo owner/repo
-      --label key=value (repeat)
+      --label key=value (repeat)  --allow <domain|cidr> (repeat; only these)  --no-internet
   ${cyan("pxxl sandbox templates")}                  Templates and their runtime versions
   ${cyan("pxxl sandbox get")} <sandbox>              Status, size, labels, preview URL and cost
   ${cyan("pxxl sandbox exec")} <sandbox> -- <command…>
@@ -89,6 +89,9 @@ export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes
   ${cyan("pxxl sandbox delete")} <sandbox> [--yes]   Delete it and its /workspace
   ${cyan("pxxl sandbox update")} <sandbox> [--name x] [--auto-stop <minutes>] [--label key=value…] [--clear-labels]
                                           --label replaces all labels
+  ${cyan("pxxl sandbox network")} <sandbox>          Show the outbound network policy, or change it:
+      --allow-all  |  --deny-all (--no-internet)  |  --allow <domain|cidr> (repeat; replaces the list)
+      Entries: github.com (exact), *.npmjs.org (any subdomain), public IPv4 or CIDR. Up to 64.
   ${cyan("pxxl sandbox usage")} <sandbox>            What it has cost so far
   ${cyan("pxxl sandbox summary")}                     Running now, spend this month, wallet runway, hints
   ${cyan("pxxl sandbox preview")} <sandbox>          A link to the preview (12-hour token when private)
@@ -100,7 +103,7 @@ export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes
 <sandbox> is an id or a name. Add --team <id> for a spaceship's sandboxes and --json for raw API output.
 Sandboxes are on Plus and above. $0.012 per vCPU-hour and $0.006 per GB-hour of memory, 10 GB disk included.`;
 
-const VALUE_FLAGS = new Set(["--name", "--template", "--size", "--disk", "--auto-stop", "--env", "-e", "--cpus", "--memory", "--repo", "--team", "--file", "--content", "--workdir", "-w", "--timeout", "--path", "--label", "-l", "--signal", "-s"]);
+const VALUE_FLAGS = new Set(["--name", "--template", "--size", "--disk", "--auto-stop", "--env", "-e", "--cpus", "--memory", "--repo", "--team", "--file", "--content", "--workdir", "-w", "--timeout", "--path", "--label", "-l", "--signal", "-s", "--allow"]);
 
 /** Flags and positionals before `--`, and everything after it. */
 function parse(args: string[]) {
@@ -167,6 +170,7 @@ function printSandbox(info: SandboxInfo) {
     ["Disk", info.diskGb ? `${info.diskGb} GB` : info.volumeLimitMb ? memory(info.volumeLimitMb) : ""],
     ["Price", info.hourlyUsd !== undefined ? `${usd(info.hourlyUsd)}/hour while running, $0 while paused` : ""],
     ["Auto-stop", autoStop(info.autoStopMinutes)],
+    ["Network", info.egress ? networkText(info.egress) : ""],
     ["Billed", info.billedUsd !== undefined ? `${usd(info.billedUsd)}${Number(info.unbilledUsd) > 0 ? dim(` + ${usd(info.unbilledUsd)} not yet billed`) : ""}` : ""],
     ["Started", ago(info.startedAt)],
     ["Last activity", ago(info.lastActivityAt)],
@@ -203,6 +207,31 @@ function parseLabels(pairs: string[], allowBare = false): Record<string, string 
   }
   return labels;
 }
+/** "internet", "no internet" or "only github.com, *.npmjs.org". */
+export const networkText = (egress?: Partial<SandboxEgress>) => {
+  const mode = egress?.mode || "allow-all";
+  if (mode === "deny-all") return "no internet (deny-all)";
+  if (mode === "allowlist") return `only ${(egress?.allow || []).join(", ") || "nothing"} (allowlist)`;
+  return "internet (allow-all)";
+};
+
+/**
+ * The egress policy the flags ask for, or undefined. `--allow` (repeat) is an
+ * allowlist; `--no-internet`/`--deny-all` blocks everything; `--allow-all` opens it.
+ */
+export function egressFromFlags(allow: string[], has: (name: string) => boolean, allowAllFlag = false): EgressPolicy | undefined {
+  const entries = allow.flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean);
+  const deny = has("--no-internet") || has("--deny-all");
+  const open = allowAllFlag && has("--allow-all");
+  const chosen = [entries.length > 0, deny, open].filter(Boolean).length;
+  if (chosen > 1) throw new Error(`Pick one of ${allowAllFlag ? "--allow-all, " : ""}--no-internet/--deny-all or --allow <entry>.`);
+  if (allow.length && !entries.length) throw new Error("--allow needs a domain or IPv4 CIDR, like github.com or *.npmjs.org");
+  if (deny) return { mode: "deny-all", allow: [] };
+  if (open) return { mode: "allow-all", allow: [] };
+  if (entries.length) return { mode: "allowlist", allow: entries };
+  return undefined;
+}
+
 const labelText = (labels?: Record<string, string>) => Object.entries(labels || {}).map(([key, value]) => `${key}=${value}`).join(", ");
 
 /** A command that shows the template's runtime, for the hint after create. */
@@ -385,6 +414,7 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
       sourceRepository: options.flag("--repo"),
       previewAccess: options.has("--private") ? "private" : undefined,
       labels: labelsFlag(),
+      egress: egressFromFlags(options.all("--allow"), options.has),
       teamId,
     });
     if (!asJSON) done(`Created ${bold(box.name || box.id)} ${dim(box.id)}`);
@@ -536,6 +566,22 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     if (name === undefined && minutes === undefined && !previewAccess && !labels) throw new Error("Usage: pxxl sandbox update <sandbox> [--name x] [--auto-stop <minutes>] [--private | --public] [--label key=value…] [--clear-labels]");
     await box.update({ name, autoStopMinutes: minutes, previewAccess, labels });
     return asJSON ? json({ sandbox: box.info }) : done(`Updated ${box.name || label}${minutes !== undefined ? `: auto-stop ${autoStop(minutes)}` : ""}${previewAccess ? `: preview ${previewAccess}` : ""}${labels ? `: labels ${labelText(labels) || "cleared"}` : ""}`);
+  }
+
+  if (sub === "network" || sub === "net" || sub === "egress" || sub === "firewall") {
+    const policy = egressFromFlags(options.all("--allow"), options.has, true);
+    if (!policy) {
+      if (asJSON) return json({ egress: box.egress });
+      print(`${bold(label)}  ${networkText(box.egress)}`);
+      if (box.egress.mode === "allowlist") for (const entry of box.egress.allow) print(`  ${entry}`);
+      return print(dim(`\nChange it: pxxl sandbox network ${box.name || box.id} --allow-all | --no-internet | --allow <domain|cidr>…`));
+    }
+    const result = await box.setNetwork(policy);
+    if (asJSON) return json(result);
+    done(`Network for ${label}: ${networkText(result.sandbox?.egress || policy)}`);
+    if (!result.egressApplied) print(yellow(result.message || "This applies the next time the sandbox starts."));
+    else print(dim("New connections follow it now; open connections are not cut."));
+    return;
   }
 
   if (sub === "preview" || sub === "open") {

@@ -38,6 +38,7 @@ Run code in an isolated sandbox, billed per second and $0 while paused:
 ```bash
 pxxl sandbox create --name demo --template node --wait
 pxxl sandbox exec demo -- npm test                      # streams, exits with the test's exit code
+pxxl sandbox network demo --allow registry.npmjs.org    # outbound: only npm (or --no-internet)
 pxxl sandbox stop demo
 ```
 

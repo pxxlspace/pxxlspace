@@ -25,6 +25,8 @@ pxxl sandbox create --name demo --template node --size small --label team=paymen
 | `--env KEY=VALUE` | Environment variable. Repeat for more. |
 | `--repo owner/repo` | Clone a GitHub repository into `/workspace`. |
 | `--label key=value` | Label. Repeat for more, up to 20. |
+| `--allow <domain\|cidr>` | Allow outbound connections only to this domain or IPv4 CIDR. Repeat for more. See [network policies](#network-policies). |
+| `--no-internet` | Block all outbound connections. |
 | `--wait` | Wait until the sandbox is running. |
 
 ## Run commands
@@ -87,12 +89,29 @@ pxxl sandbox delete demo --yes  # deletes /workspace too
 
 `delete` asks first in a terminal. In scripts, pass `--yes`.
 
+## Network policies
+
+A sandbox reaches the whole internet unless you say otherwise. `pxxl sandbox network` shows the policy; add a flag to change it.
+
+```bash
+pxxl sandbox create --name ci --template node --allow registry.npmjs.org --allow github.com
+pxxl sandbox create --name offline --no-internet
+
+pxxl sandbox network ci                                    # show the policy
+pxxl sandbox network ci --allow '*.npmjs.org' --allow pypi.org   # replaces the list
+pxxl sandbox network ci --deny-all                         # or --no-internet
+pxxl sandbox network ci --allow-all
+```
+
+Entries are domains (`github.com` exactly, `*.npmjs.org` any subdomain) or public IPv4 addresses and CIDRs, up to 64. Changes apply to new connections at once; open connections are not cut. For a sandbox created before network policies, the CLI says the change applies at its next start.
+
 ## Inspect
 
 | Command | What it shows |
 | --- | --- |
 | `pxxl sandbox list` | Every sandbox with status, size, price, auto-stop, labels, and preview URL, then what's running and this month's spend. `--label key=value` (repeatable) keeps only sandboxes with every label; `--label key` matches any value. |
-| `pxxl sandbox get <sandbox>` | One sandbox in detail. |
+| `pxxl sandbox get <sandbox>` | One sandbox in detail, including its network policy. |
+| `pxxl sandbox network <sandbox>` | The outbound network policy. |
 | `pxxl sandbox usage <sandbox>` | Billed and not-yet-billed cost, and each run. |
 | `pxxl sandbox logs <sandbox>` | Provisioning events and recent output. |
 | `pxxl sandbox ps <sandbox>` | Processes with pid, parent, running time, CPU, memory, and command. |

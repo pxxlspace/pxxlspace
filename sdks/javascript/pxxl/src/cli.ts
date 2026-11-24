@@ -219,6 +219,7 @@ ${bold("Sandboxes")}
   ${cyan("pxxl sandbox files|read|write")}     Files in /workspace
   ${cyan("pxxl sandbox upload|download")}      Copy files in and out (binary-safe)
   ${cyan("pxxl sandbox ps|kill")}              Processes inside a sandbox
+  ${cyan("pxxl sandbox network")} <id>         Outbound network: all, none or an allowlist
   ${cyan("pxxl sandbox start|stop|delete")}    Resume, pause ($0) or delete
   ${cyan("pxxl sandbox templates")}            base, node, python, go, rust, bun and their versions
   ${cyan("pxxl sandbox pricing")}              Rates, sizes and plan limits

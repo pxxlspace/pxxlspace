@@ -306,3 +306,91 @@ test("CLI: sandbox upload, download, ps, kill and list --label", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("egress on create, setNetwork and update({ egress })", async () => {
+  const { pxxl, calls } = fake(({ method, body }) => {
+    if (method === "PATCH" && body.egress?.mode === "deny-all") return Response.json({ sandbox: sandbox({ egress: { mode: "deny-all", allow: [] } }), egressApplied: false, message: "Applies at the next start." });
+    if (method === "PATCH") return Response.json({ sandbox: sandbox({ egress: { mode: body.egress.mode || "allowlist", allow: body.egress.allow || [] } }), egressApplied: true });
+    return Response.json({ sandbox: sandbox({ egress: { mode: "allowlist", allow: ["github.com", "*.npmjs.org"] } }) }, { status: 202 });
+  });
+  const box = await pxxl.sandboxes.create({ template: "node", egress: { allow: ["github.com", "*.npmjs.org"] } });
+  assert.deepEqual(calls[0].body, { template: "node", egress: { allow: ["github.com", "*.npmjs.org"] } });
+  assert.deepEqual(box.egress, { mode: "allowlist", allow: ["github.com", "*.npmjs.org"] });
+
+  const blocked = await box.setNetwork({ mode: "deny-all" });
+  assert.equal(calls[1].method, "PATCH");
+  assert.equal(calls[1].url, `${base}/sandboxes/sbx_1?teamId=team_1`);
+  assert.deepEqual(calls[1].body, { egress: { mode: "deny-all" } });
+  assert.equal(blocked.egressApplied, false);
+  assert.equal(blocked.message, "Applies at the next start.");
+  assert.equal(box.egress.mode, "deny-all");
+
+  const opened = await pxxl.sandboxes.setNetwork("sbx_1", { mode: "allow-all" });
+  assert.deepEqual(calls[2].body, { egress: { mode: "allow-all" } });
+  assert.equal(opened.egressApplied, true);
+  assert.equal(opened.message, undefined);
+
+  await box.update({ egress: { mode: "allowlist", allow: ["1.2.3.0/24"] } });
+  assert.deepEqual(calls[3].body, { egress: { mode: "allowlist", allow: ["1.2.3.0/24"] } });
+  assert.deepEqual(box.egress, { mode: "allowlist", allow: ["1.2.3.0/24"] });
+
+  const plain = new Sandbox(pxxl.sandboxes, sandbox());
+  assert.deepEqual(plain.egress, { mode: "allow-all", allow: [] });
+});
+
+test("CLI: create --allow/--no-internet and sandbox network", async () => {
+  const { createServer } = await import("node:http");
+  const { execFile } = await import("node:child_process");
+  const requests = [];
+  let pending = false;
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    const path = req.url.replace(/^\/api\/v3/, "");
+    requests.push({ method: req.method, url: path, body: body ? JSON.parse(body) : undefined });
+    res.writeHead(200, { "Content-Type": "application/json" });
+    if (req.method === "POST") return res.end(JSON.stringify({ sandbox: sandbox({ egress: JSON.parse(body).egress }) }));
+    if (req.method === "PATCH") {
+      const egress = JSON.parse(body).egress;
+      return res.end(JSON.stringify({ sandbox: sandbox({ status: "running", egress }), egressApplied: !pending, ...(pending ? { message: "This sandbox predates network policies; the policy applies at its next start." } : {}) }));
+    }
+    res.end(JSON.stringify({ sandbox: sandbox({ status: "running", egress: { mode: "allowlist", allow: ["github.com", "*.npmjs.org"] } }) }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const cli = new URL("../../../../dist/cli.js", import.meta.url).pathname;
+  const run = (args) => new Promise((resolve) => execFile(process.execPath, [cli, ...args], { env: { ...process.env, PXXL_API_URL: `http://127.0.0.1:${port}`, PXXL_API_KEY: "pxxl_test", NO_COLOR: "1" } }, (error, stdout, stderr) => resolve({ code: error ? error.code : 0, stdout, stderr })));
+  const last = () => requests[requests.length - 1];
+  try {
+    assert.equal((await run(["sandbox", "create", "--template", "node", "--allow", "github.com", "--allow=*.npmjs.org"])).code, 0);
+    assert.deepEqual(last().body.egress, { mode: "allowlist", allow: ["github.com", "*.npmjs.org"] });
+    assert.equal((await run(["sandbox", "create", "--no-internet"])).code, 0);
+    assert.deepEqual(last().body.egress, { mode: "deny-all", allow: [] });
+    assert.equal((await run(["sandbox", "create"])).code, 0);
+    assert.equal(last().body.egress, undefined);
+    const both = await run(["sandbox", "create", "--no-internet", "--allow", "github.com"]);
+    assert.notEqual(both.code, 0);
+
+    const shown = await run(["sandbox", "network", "sbx_1"]);
+    assert.equal(shown.code, 0);
+    assert.match(shown.stdout, /only github\.com, \*\.npmjs\.org \(allowlist\)/);
+    assert.equal(last().method, "GET");
+
+    const denied = await run(["sandbox", "network", "sbx_1", "--deny-all"]);
+    assert.equal(denied.code, 0);
+    assert.deepEqual(last(), { method: "PATCH", url: "/sandboxes/sbx_1", body: { egress: { mode: "deny-all", allow: [] } } });
+    assert.match(denied.stdout, /no internet/);
+    await run(["sandbox", "network", "sbx_1", "--allow-all"]);
+    assert.deepEqual(last().body, { egress: { mode: "allow-all", allow: [] } });
+    pending = true;
+    const listed = await run(["sandbox", "network", "sbx_1", "--allow", "pypi.org", "--allow", "140.82.112.0/20"]);
+    assert.deepEqual(last().body, { egress: { mode: "allowlist", allow: ["pypi.org", "140.82.112.0/20"] } });
+    assert.match(listed.stdout, /applies at its next start/);
+    const conflict = await run(["sandbox", "network", "sbx_1", "--allow-all", "--no-internet"]);
+    assert.notEqual(conflict.code, 0);
+    const help = await run(["sandbox", "--help"]);
+    assert.match(help.stdout, /pxxl sandbox network/);
+  } finally {
+    server.close();
+  }
+});

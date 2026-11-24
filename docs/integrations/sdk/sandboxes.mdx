@@ -112,6 +112,46 @@ Labels are up to 20 `key: value` pairs. Filter the list by them, and replace the
   </Tab>
 </Tabs>
 
+## Network policies
+
+Choose what a sandbox can reach. Leave `egress` out for the whole internet, block everything with `deny-all`, or pass an `allow` list of domains (`github.com`, `*.npmjs.org`) and public IPv4 CIDRs.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const sandbox = await pxxl.sandboxes.create({
+      template: "node",
+      egress: { allow: ["registry.npmjs.org", "github.com"] }, // allowlist
+    });
+    console.log(sandbox.egress); // { mode: "allowlist", allow: [...] }
+
+    const result = await sandbox.setNetwork({ mode: "deny-all" });
+    if (!result.egressApplied) console.log(result.message); // applies at the next start
+
+    await sandbox.setNetwork({ allow: ["*.npmjs.org", "pypi.org"] }); // replaces the list
+    await sandbox.setNetwork({ mode: "allow-all" });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    sandbox = client.sandboxes.create(
+        template="node",
+        egress={"allow": ["registry.npmjs.org", "github.com"]},  # allowlist
+    )
+    print(sandbox.egress)  # {"mode": "allowlist", "allow": [...]}
+
+    result = sandbox.set_network("deny-all")
+    if not result["egressApplied"]:
+        print(result["message"])  # applies at the next start
+
+    sandbox.set_network(allow=["*.npmjs.org", "pypi.org"])  # replaces the list
+    sandbox.set_network("allow-all")
+    ```
+  </Tab>
+</Tabs>
+
+New connections follow a change at once; open connections are not cut. `egressApplied` is `false` for a sandbox created before network policies: the change applies at its next start. An invalid entry (a private range, an internal name, more than 64 entries, an empty allowlist) is a `PxxlAPIError` with status 400; 409 means the server can't enforce policies.
+
 ## Background processes
 
 Start a server or watcher with `background`, see it in the process list, and stop it with a signal.
@@ -185,14 +225,15 @@ Write bytes and they go base64-encoded; read with `binary` to get bytes back. St
 | Start or resume | `sandbox.start()`, `sandbox.resume()` | `sandbox.start()`, `sandbox.resume()` | The sandbox |
 | Pause | `sandbox.stop()`, `sandbox.pause()` | `sandbox.stop()`, `sandbox.pause()` | The sandbox |
 | Delete | `sandbox.delete()` | `sandbox.delete()` | `{ message }` |
-| Update | `sandbox.update({ name?, autoStopMinutes?, previewAccess?, labels? })` | `sandbox.update(name=, auto_stop_minutes=, preview_access=, labels=)` | The sandbox |
+| Update | `sandbox.update({ name?, autoStopMinutes?, previewAccess?, labels?, egress? })` | `sandbox.update(name=, auto_stop_minutes=, preview_access=, labels=, egress=)` | The sandbox |
+| Network policy | `sandbox.setNetwork({ mode?, allow? })` | `sandbox.set_network(mode=None, allow=None)` | `{ sandbox, egressApplied, message? }` |
 | Auto-stop | `sandbox.setAutoStop(minutes)` | `sandbox.set_auto_stop(minutes)` | The sandbox |
 | Labels | `sandbox.setLabels(labels)` | `sandbox.set_labels(labels)` | The sandbox. Replaces all labels |
 | Cost | `sandbox.usage()` | `sandbox.usage()` | `{ hourlyUsd, billedUsd, unbilledUsd, ledger }` |
 | Logs | `sandbox.logs()` | `sandbox.logs()` | `{ events, logs }` |
 | Terminal URL | `sandbox.terminalTicket()` | `sandbox.terminal_ticket()` | `{ wsUrl, ... }` |
 
-Read fields from the handle: `id`, `name`, `status`, `template`, `labels`, `domain`, `hourlyUsd`, `isRunning`, `isPaused`, and `info` for the full [sandbox object](/integrations/api/sandboxes#the-sandbox-object). In Python, `info` is a dict and the flags are `is_running` and `is_paused`. Fields reflect the last fetch; call `refresh()` for current ones.
+Read fields from the handle: `id`, `name`, `status`, `template`, `labels`, `egress`, `domain`, `hourlyUsd`, `isRunning`, `isPaused`, and `info` for the full [sandbox object](/integrations/api/sandboxes#the-sandbox-object). In Python, `info` is a dict and the flags are `is_running` and `is_paused`. Fields reflect the last fetch; call `refresh()` for current ones.
 
 ## The sandboxes resource
 
@@ -204,7 +245,7 @@ Read fields from the handle: `id`, `name`, `status`, `template`, `labels`, `doma
 | Templates | `pxxl.sandboxes.templates()` | `client.sandboxes.templates()` | `[{ id, label, description, version }]` |
 | Pricing | `pxxl.sandboxes.pricing()` | `client.sandboxes.pricing()` | Rates, sizes, templates, plan limits |
 
-Create options: `name`, `template` (`base`, `node`, `python`, `go`, `rust`, `bun`; see [templates](/sandboxes/overview#templates)), `size` (`micro`, `small`, `medium`, `large`), `cpus`, `memoryMb`, `diskGb` (`2`, `5`, `10`), `autoStopMinutes` (`0` to `1440`), `env`, `sourceRepository`, `previewAccess`, `labels`, and `teamId`. Python takes the same options in snake case. `template` defaults to `base` (Debian 13).
+Create options: `name`, `template` (`base`, `node`, `python`, `go`, `rust`, `bun`; see [templates](/sandboxes/overview#templates)), `size` (`micro`, `small`, `medium`, `large`), `cpus`, `memoryMb`, `diskGb` (`2`, `5`, `10`), `autoStopMinutes` (`0` to `1440`), `env`, `sourceRepository`, `previewAccess`, `labels`, `egress` (`{ mode?, allow? }`), and `teamId`. Python takes the same options in snake case. `template` defaults to `base` (Debian 13).
 
 `pxxl.sandboxes` also has ID-based methods, such as `exec(id, command)` and `readFile(id, path)`, if you don't want a handle.
 

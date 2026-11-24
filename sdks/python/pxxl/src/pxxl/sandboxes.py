@@ -19,7 +19,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import TYPE_CHECKING, Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, List, Literal, Mapping, Sequence, TypedDict
 
 if TYPE_CHECKING:
     from .client import PxxlClient
@@ -34,6 +34,44 @@ def _esc(value: str) -> str:
 TEMPLATES = ("base", "node", "python", "go", "rust", "bun")
 #: Signals ``kill()`` can send.
 SIGNALS = ("TERM", "KILL", "INT", "HUP")
+#: Egress (outbound network) modes. allow-all: the public internet (the default);
+#: deny-all: no outbound connections, DNS refused; allowlist: only the ``allow`` entries.
+EGRESS_MODES = ("allow-all", "deny-all", "allowlist")
+
+EgressMode = Literal["allow-all", "deny-all", "allowlist"]
+
+
+class SandboxEgress(TypedDict):
+    """A sandbox's outbound network policy, as the API returns it.
+
+    ``allow`` holds up to 64 entries: ``github.com`` (exact), ``*.npmjs.org``
+    (any subdomain) or a public IPv4 address/CIDR like ``140.82.112.0/20``."""
+
+    mode: EgressMode
+    allow: List[str]
+
+
+def egress_policy(mode: str | None = None, allow: Sequence[str] | None = None) -> dict[str, Any]:
+    """The ``egress`` body for create/update. ``mode`` may be left out when
+    ``allow`` has entries (that means allowlist)."""
+    if mode is not None and mode not in EGRESS_MODES:
+        raise ValueError(f"pxxl: egress mode must be one of {', '.join(EGRESS_MODES)}")
+    if isinstance(allow, str):
+        allow = [allow]
+    body: dict[str, Any] = {}
+    if mode is not None:
+        body["mode"] = mode
+    if allow is not None:
+        body["allow"] = [str(entry) for entry in allow]
+    if not body:
+        raise ValueError("pxxl: pass an egress mode or allow entries")
+    return body
+
+
+def _egress_body(egress: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if egress is None:
+        return None
+    return egress_policy(egress.get("mode"), egress.get("allow"))
 
 
 def _label_query(labels: Mapping[str, Any] | None) -> str:
@@ -87,12 +125,15 @@ class PxxlSandboxes:
         source_repository: str | None = None,
         preview_access: str | None = None,
         labels: Mapping[str, str] | None = None,
+        egress: Mapping[str, Any] | None = None,
         team_id: str | None = None,
     ) -> "Sandbox":
         """Create a sandbox. It starts as ``creating``; call ``wait_until_ready()`` for ``running``.
 
         ``template`` is base (Debian 13, the default), node, python, go, rust or bun.
-        ``labels`` is up to 20 ``{key: value}`` pairs to find the sandbox by later."""
+        ``labels`` is up to 20 ``{key: value}`` pairs to find the sandbox by later.
+        ``egress`` is the outbound network policy: ``{"mode": "deny-all"}`` or
+        ``{"allow": ["github.com", "*.npmjs.org"]}``; omitted means allow-all."""
         body = {
             "name": name,
             "template": template,
@@ -105,6 +146,7 @@ class PxxlSandboxes:
             "sourceRepository": source_repository,
             "previewAccess": preview_access,
             "labels": dict(labels) if labels else None,
+            "egress": _egress_body(egress),
         }
         result = self._call("POST", "", body, team_id)
         return Sandbox(self, result["sandbox"], team_id)
@@ -150,11 +192,37 @@ class PxxlSandboxes:
         auto_stop_minutes: int | None = None,
         preview_access: str | None = None,
         labels: Mapping[str, str] | None = None,
+        egress: Mapping[str, Any] | None = None,
         team_id: str | None = None,
     ) -> dict[str, Any]:
-        """Change fields. ``labels`` replaces all labels (``{}`` clears them)."""
-        body = {"name": name, "autoStopMinutes": auto_stop_minutes, "previewAccess": preview_access, "labels": dict(labels) if labels is not None else None}
+        """Change fields. ``labels`` replaces all labels (``{}`` clears them);
+        ``egress`` replaces the network policy (use ``set_network`` to learn
+        whether it applied right away)."""
+        body = {
+            "name": name,
+            "autoStopMinutes": auto_stop_minutes,
+            "previewAccess": preview_access,
+            "labels": dict(labels) if labels is not None else None,
+            "egress": _egress_body(egress),
+        }
         return self._call("PATCH", f"/{_esc(sandbox_id)}", body, team_id)["sandbox"]
+
+    def set_network(
+        self,
+        sandbox_id: str,
+        mode: str | None = None,
+        allow: Sequence[str] | None = None,
+        *,
+        team_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Change the outbound network policy: ``{sandbox, egressApplied, message?}``.
+
+        New connections follow it at once; open ones are not cut. ``egressApplied``
+        False means it applies at the next start (``message`` says so). Raises
+        PxxlAPIError 400 for invalid entries, 409 when policies can't be enforced."""
+        result = self._call("PATCH", f"/{_esc(sandbox_id)}", {"egress": egress_policy(mode, allow)}, team_id)
+        result["egressApplied"] = result.get("egressApplied") is not False
+        return result
 
     def preview_link(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
         """``{url, access, expiresAt?}``: private previews get a 12-hour token in the URL."""
@@ -348,6 +416,12 @@ class Sandbox:
         return dict(self.info.get("labels") or {})
 
     @property
+    def egress(self) -> SandboxEgress:
+        """The outbound network policy (allow-all when the API did not say)."""
+        egress = self.info.get("egress") or {}
+        return {"mode": egress.get("mode") or "allow-all", "allow": list(egress.get("allow") or [])}
+
+    @property
     def domain(self) -> str | None:
         return self.info.get("domain") or None
 
@@ -421,9 +495,31 @@ class Sandbox:
         """Delete the sandbox and its /workspace. Cannot be undone."""
         return self._api.delete(self.id, self.team_id)
 
-    def update(self, *, name: str | None = None, auto_stop_minutes: int | None = None, preview_access: str | None = None, labels: Mapping[str, str] | None = None) -> "Sandbox":
-        self.info = self._api.update(self.id, name=name, auto_stop_minutes=auto_stop_minutes, preview_access=preview_access, labels=labels, team_id=self.team_id)
+    def update(
+        self,
+        *,
+        name: str | None = None,
+        auto_stop_minutes: int | None = None,
+        preview_access: str | None = None,
+        labels: Mapping[str, str] | None = None,
+        egress: Mapping[str, Any] | None = None,
+    ) -> "Sandbox":
+        self.info = self._api.update(self.id, name=name, auto_stop_minutes=auto_stop_minutes, preview_access=preview_access, labels=labels, egress=egress, team_id=self.team_id)
         return self
+
+    def set_network(self, mode: str | None = None, allow: Sequence[str] | None = None) -> dict[str, Any]:
+        """Change the outbound network policy.
+
+            sandbox.set_network("deny-all")
+            sandbox.set_network(allow=["github.com", "*.npmjs.org"])
+            sandbox.set_network("allow-all")
+
+        Returns ``{sandbox, egressApplied, message?}``; ``egressApplied`` False
+        means it applies at the next start."""
+        result = self._api.set_network(self.id, mode, allow, team_id=self.team_id)
+        if isinstance(result.get("sandbox"), Mapping):
+            self.info = dict(result["sandbox"])
+        return result
 
     def set_labels(self, labels: Mapping[str, str]) -> "Sandbox":
         """Replace the labels (``{}`` clears them)."""
