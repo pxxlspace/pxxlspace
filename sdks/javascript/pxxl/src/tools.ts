@@ -160,8 +160,31 @@ export class PxxlTunnels {
 
   private open(tunnel: Tunnel, options: TunnelOptions) {
     const url = this.client.apiURL(`/cli/tools/tunnels/${enc(tunnel.id)}/connect`).replace(/^http/, "ws");
-    return new TunnelConnection({ ...options, url, headers: this.client.authHeaders(), userAgent: "pxxl-js-tunnel" });
+    const os = tunnelClientOS();
+    const headers = { ...this.client.authHeaders(), ...(os.name ? { "X-Pxxl-Client-OS": os.name } : {}) };
+    return new TunnelConnection({ ...options, url, headers, userAgent: os.platform ? `pxxl-js-tunnel (${os.platform}; ${os.arch})` : "pxxl-js-tunnel" });
   }
+}
+
+/**
+ * The machine a tunnel runs on, so the dashboard can show its logo: the
+ * platform and architecture, and on Linux the distribution's name from
+ * /etc/os-release ("Ubuntu 24.04.1 LTS"). Empty outside Node.
+ */
+function tunnelClientOS(): { platform: string; arch: string; name: string } {
+  if (typeof process === "undefined" || !process.platform) return { platform: "", arch: "", name: "" };
+  const platform = process.platform;
+  let name = platform === "darwin" ? "macOS" : platform === "win32" ? "Windows" : "";
+  if (platform === "linux") {
+    try {
+      const fs = (process as unknown as { getBuiltinModule?: (id: string) => { readFileSync: (path: string, encoding: string) => string } }).getBuiltinModule?.("fs");
+      const release = fs?.readFileSync("/etc/os-release", "utf8") ?? "";
+      name = /^PRETTY_NAME="?([^"\n]+)"?/m.exec(release)?.[1]?.trim() || "Linux";
+    } catch {
+      name = "Linux";
+    }
+  }
+  return { platform, arch: process.arch, name: name.slice(0, 60) };
 }
 
 function defaultTunnelName(target: URL): string {
