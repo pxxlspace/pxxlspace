@@ -80,6 +80,7 @@ export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes
   ${cyan("pxxl sandbox delete")} <sandbox> [--yes]   Delete it and its /workspace
   ${cyan("pxxl sandbox update")} <sandbox> [--name x] [--auto-stop <minutes>]
   ${cyan("pxxl sandbox usage")} <sandbox>            What it has cost so far
+  ${cyan("pxxl sandbox summary")}                     Running now, spend this month, wallet runway, hints
   ${cyan("pxxl sandbox logs")} <sandbox>             Provisioning events and container output
   ${cyan("pxxl sandbox terminal")} <sandbox>         Interactive shell (Ctrl-] disconnects); --url prints the WebSocket URL
   ${cyan("pxxl sandbox pricing")}                    Rates, sizes and plan limits
@@ -267,6 +268,10 @@ async function terminal(box: Sandbox, printOnly: boolean, asJSON: boolean) {
   });
 }
 
+function printHints(hints?: { message: string }[]) {
+  for (const hint of hints ?? []) print(`${cyan("›")} ${hint.message}`);
+}
+
 /** Run `pxxl sandbox …`. `getClient(false)` may return a client without an API key (for pricing). */
 export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<Pxxl>, ctx: PlatformContext, args: string[]) {
   const [sub = "list", ...rest] = args;
@@ -290,6 +295,17 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     })]);
     const usage = result.usage;
     if (usage) print(dim(`\n${usage.runningCount} running · ${usd(usage.hourlyBurnUsd)}/hour now · ${usd(usage.monthToDateUsd)} this month`));
+    printHints((result as { hints?: { message: string }[] }).hints);
+    return;
+  }
+
+  if (sub === "summary" || sub === "status") {
+    const summary = await pxxl.sandboxes.summary({ teamId });
+    if (asJSON) return json(summary);
+    print(`${bold("Sandboxes")}  ${summary.running} running · ${summary.paused} paused · ${usd(summary.hourlyBurnUsd)}/hour now`);
+    print(`This month  ${usd(summary.monthToDateUsd)} · ${summary.vcpuHoursMonth} vCPU-h · ${summary.gbHoursMonth} GB-h · ${summary.storageGb} GB reserved`);
+    print(`Wallet      ${usd(summary.walletUsd)}${summary.runwayHours != null ? ` · lasts ~${summary.runwayHours} h at this rate` : ""}`);
+    printHints(summary.hints);
     return;
   }
 

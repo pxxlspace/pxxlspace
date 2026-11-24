@@ -14,7 +14,8 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
 | Method | Path | Body or parameters | Returns |
 | --- | --- | --- | --- |
 | `GET` | `/sandboxes/pricing` | None. Public, no key needed. | Rates, sizes, templates, and plan limits |
-| `GET` | `/sandboxes` | `teamId?` | `{ sandboxes, usage, pricing }` |
+| `GET` | `/sandboxes` | `teamId?` | `{ sandboxes, usage, hints, pricing }` |
+| `GET` | `/sandboxes/summary` | `teamId?` | `{ data }`: counts, cost, runway and hints. See [summary](#account-summary) |
 | `POST` | `/sandboxes` | See [create](#create-a-sandbox) | `202` with `{ sandbox }` |
 | `GET` | `/sandboxes/{id}` | None | `{ sandbox }` |
 | `PATCH` | `/sandboxes/{id}` | `name?`, `autoStopMinutes?` | `{ sandbox }` |
@@ -27,6 +28,7 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
 | `DELETE` | `/sandboxes/{id}` | None | `{ message }` |
 | `GET` | `/sandboxes/{id}/logs` | None | `{ events, logs }` |
 | `GET` | `/sandboxes/{id}/usage` | None | `{ hourlyUsd, billedUsd, unbilledUsd, ledger }` |
+| `GET` | `/sandboxes/{id}/analytics` | `timeframe?` (`24h`, `7d`, `30d`) | Preview URL traffic: requests, visitors, bandwidth |
 | `POST` | `/sandboxes/{id}/terminal/ticket` | None | `{ wsUrl, ticket, expiresIn, sessionId }` |
 
 ## The sandbox object
@@ -300,6 +302,50 @@ curl "https://server.pxxl.app/api/v3/sandboxes/sbx_123/file?path=/workspace/inde
   "ledger": [{ "startedAt": "2026-11-24T09:00:00Z", "endedAt": "2026-11-24T09:15:00Z", "seconds": 900, "amountUsd": 0.012 }]
 }
 ```
+
+## Account summary
+
+`GET /sandboxes/summary` is the account at a glance. The dashboard, the CLI (`pxxl sandbox summary`) and the AI agent all read it.
+
+```json
+{
+  "success": true,
+  "data": {
+    "total": 3, "running": 1, "paused": 2,
+    "hourlyBurnUsd": 0.048, "unbilledUsd": 0.0123, "monthToDateUsd": 1.84,
+    "vcpuHoursMonth": 38.2, "gbHoursMonth": 76.4, "storageGb": 20,
+    "walletUsd": 4.2, "runwayHours": 87.3,
+    "daily": [{ "date": "2026-11-24", "spendUsd": 0.8 }],
+    "recent": [{ "id": "cemw7goh6mpautp0jc6w1odnd", "name": "api-test", "status": "running", "hourlyUsd": 0.048 }],
+    "hints": [
+      { "kind": "idle", "sandboxId": "cemw7goh6mpautp0jc6w1odnd", "action": "stop", "message": "api-test has been idle for 25m. Stop it to save $0.048 an hour; its files are kept." }
+    ]
+  }
+}
+```
+
+- `runwayHours` is how long the wallet lasts at the current burn. It's `null` when nothing is running.
+- `storageGb` is the disk reserved by your sandboxes, paused ones included.
+- Hints:
+  - `idle` means a running sandbox has had no activity for 15 minutes or more.
+  - `runway` means the wallet covers less than 2 hours of the running sandboxes.
+
+## Preview analytics
+
+`GET /sandboxes/{id}/analytics?timeframe=24h` returns traffic to the sandbox's preview URL: requests, unique visitors, bandwidth and status codes over time. It has the same shape as a project's traffic analytics.
+
+## Alerts
+
+Pxxl notifies whoever pays for the sandbox: you, or the spaceship owner for a team sandbox. Alerts appear in the dashboard and as push notifications, and the ones that need action also arrive by email. Each alert is sent at most once a day per sandbox.
+
+| When | Dashboard | Email |
+| --- | --- | --- |
+| A sandbox is paused because the wallet ran low | Yes | Yes |
+| The wallet covers less than 2 hours of the running sandboxes | Yes | Yes |
+| A sandbox couldn't be created or restarted (nothing is charged) | Yes | Yes |
+| A sandbox stopped after its idle timeout | Yes | No |
+
+Wallet lines for sandbox usage read like `Sandbox api-test · 2 vCPU · 4 GB · 3h 12m`.
 
 ## Terminal
 

@@ -97,6 +97,10 @@ Every sandbox pauses itself after it's idle for `autoStopMinutes` (default 60, u
 - Files are text, up to 2 MB each. List a directory, read a file, or write one.
 - The terminal gives you an interactive shell over a WebSocket. It's available when terminals are enabled for your account.
 
+## Costs at a glance
+
+`pxxl sandbox summary` (or `GET /sandboxes/summary`) shows what's running, the cost per hour right now, spend this month, and how long your wallet lasts. The dashboard suggests stopping sandboxes that have been idle for 15 minutes. It warns you, and emails you, before the wallet runs out. Preview URL traffic shows up in the sandbox's Analytics tab.
+
 ## Next steps
 
 <CardGroup cols={2}>

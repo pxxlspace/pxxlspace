@@ -157,6 +157,20 @@ export interface SandboxTerminalTicket {
 }
 
 /** waitUntilReady() saw the sandbox fail, or gave up waiting. */
+export type SandboxHint = { kind: "idle" | "runway" | string; sandboxId?: string; message: string; action?: "stop" | "top_up" | string };
+
+export type SandboxSummary = {
+  total: number; running: number; paused: number;
+  hourlyBurnUsd: number; unbilledUsd: number; monthToDateUsd: number;
+  vcpuHoursMonth: number; gbHoursMonth: number; storageGb: number;
+  walletUsd: number; runwayHours: number | null;
+  daily: { date: string; spendUsd: number }[];
+  recent: SandboxInfo[];
+  hints: SandboxHint[];
+};
+
+export type SandboxAnalytics = { success?: boolean; sandboxId: string; domain: string; timeframe: string; data: Record<string, unknown> };
+
 export class SandboxError extends Error {
   constructor(message: string, readonly sandbox: SandboxInfo) {
     super(message);
@@ -210,6 +224,15 @@ export class PxxlSandboxes {
   /** Rates, sizes, templates and plan limits. Public: no API key needed. */
   pricing(): Promise<SandboxPricing> { return this.client.request<SandboxPricing>("/sandboxes/pricing"); }
 
+  /**
+   * The account at a glance: running and paused counts, $/hour now, spend,
+   * vCPU-hours and GB-hours this month, reserved storage, wallet runway and
+   * hints (idle sandboxes worth stopping, a wallet about to run out).
+   */
+  async summary(input: { teamId?: string } = {}): Promise<SandboxSummary> {
+    return (await this.call<{ data: SandboxSummary }>("GET", "/summary", undefined, input.teamId ?? this.defaultTeamId)).data;
+  }
+
   /** The sandbox's current JSON. */
   async info(id: string, teamId = this.defaultTeamId): Promise<SandboxInfo> {
     return (await this.call<{ sandbox: SandboxInfo }>("GET", `/${enc(id)}`, undefined, teamId)).sandbox;
@@ -226,6 +249,10 @@ export class PxxlSandboxes {
   delete(id: string, teamId = this.defaultTeamId) { return this.call<Record<string, unknown>>("DELETE", `/${enc(id)}`, undefined, teamId); }
   logs(id: string, teamId = this.defaultTeamId) { return this.call<SandboxLogs>("GET", `/${enc(id)}/logs`, undefined, teamId); }
   usage(id: string, teamId = this.defaultTeamId) { return this.call<SandboxUsage>("GET", `/${enc(id)}/usage`, undefined, teamId); }
+  /** Preview URL traffic (requests, visitors, bandwidth) for 24h, 7d or 30d. */
+  analytics(id: string, timeframe: "24h" | "7d" | "30d" = "24h", teamId = this.defaultTeamId) {
+    return this.call<SandboxAnalytics>("GET", `/${enc(id)}/analytics?timeframe=${timeframe}`, undefined, teamId);
+  }
   /** A short-lived WebSocket URL for an interactive shell (only when terminals are enabled). */
   terminalTicket(id: string, teamId = this.defaultTeamId) { return this.call<SandboxTerminalTicket>("POST", `/${enc(id)}/terminal/ticket`, undefined, teamId); }
 
@@ -402,6 +429,7 @@ export class Sandbox {
   /** Pause after this many idle minutes (0-1440; 0 = never). */
   setAutoStop(minutes: number) { return this.update({ autoStopMinutes: minutes }); }
   usage() { return this.api.usage(this.id, this.teamId); }
+  analytics(timeframe: "24h" | "7d" | "30d" = "24h") { return this.api.analytics(this.id, timeframe, this.teamId); }
   logs() { return this.api.logs(this.id, this.teamId); }
   terminalTicket() { return this.api.terminalTicket(this.id, this.teamId); }
 

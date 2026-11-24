@@ -100,6 +100,11 @@ class PxxlSandboxes:
         """Rates, sizes, templates and plan limits."""
         return self._client._request("GET", "/sandboxes/pricing")
 
+    def summary(self, team_id: str | None = None) -> dict[str, Any]:
+        """Running/paused counts, $/hour now, this month's spend, vCPU-hours,
+        GB-hours, reserved storage, wallet runway and hints."""
+        return self._call("GET", "/summary", None, team_id)["data"]
+
     # Low-level calls by id
 
     def info(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
@@ -122,6 +127,10 @@ class PxxlSandboxes:
 
     def usage(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
         return self._call("GET", f"/{_esc(sandbox_id)}/usage", None, team_id)
+
+    def analytics(self, sandbox_id: str, timeframe: str = "24h", team_id: str | None = None) -> dict[str, Any]:
+        """Preview URL traffic for 24h, 7d or 30d."""
+        return self._call("GET", f"/{_esc(sandbox_id)}/analytics?timeframe={timeframe}", None, team_id)
 
     def terminal_ticket(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
         """A short-lived WebSocket URL (``wsUrl``) for an interactive shell."""
@@ -346,6 +355,9 @@ class Sandbox:
 
     def usage(self) -> dict[str, Any]:
         return self._api.usage(self.id, self.team_id)
+
+    def analytics(self, timeframe: str = "24h") -> dict[str, Any]:
+        return self._api.analytics(self.id, timeframe, self.team_id)
 
     def logs(self) -> dict[str, Any]:
         return self._api.logs(self.id, self.team_id)
