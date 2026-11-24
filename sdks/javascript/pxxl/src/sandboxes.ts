@@ -60,8 +60,10 @@ export interface CreateSandboxOptions {
   cpus?: number;
   /** Custom memory in MB instead of a size. */
   memoryMb?: number;
-  /** 2, 5 or 10 (default 10, included in the price). */
+  /** 2, 5 or 10 GB (default 5; up to 10 included in the price). */
   diskGb?: number;
+  /** "public" (default): anyone with the preview URL. "private": only links from previewLink(). */
+  previewAccess?: "public" | "private";
   /** 0-1440; default 60; 0 = never pause on idle. */
   autoStopMinutes?: number;
   env?: Record<string, string>;
@@ -77,10 +79,16 @@ export interface SandboxExecOptions {
   timeoutSeconds?: number;
   /** Stream output as it is produced (NDJSON). Called once per output chunk. */
   onOutput?: (chunk: string) => void;
+  /** Start detached (a dev server, a watcher) and return at once with its pid and log file. */
+  background?: boolean;
   signal?: AbortSignal;
 }
 
 export interface SandboxExecResult {
+  /** Set for background commands: the process and where its output goes. */
+  background?: boolean;
+  pid?: number;
+  logFile?: string;
   exitCode: number;
   output: string;
   timedOut: boolean;
@@ -237,7 +245,11 @@ export class PxxlSandboxes {
   async info(id: string, teamId = this.defaultTeamId): Promise<SandboxInfo> {
     return (await this.call<{ sandbox: SandboxInfo }>("GET", `/${enc(id)}`, undefined, teamId)).sandbox;
   }
-  async update(id: string, input: { name?: string; autoStopMinutes?: number }, teamId = this.defaultTeamId): Promise<SandboxInfo> {
+  /** The URL to open the preview. For a private preview it carries a 12-hour token. */
+  previewLink(id: string, teamId = this.defaultTeamId) {
+    return this.call<{ url: string; access: "public" | "private"; expiresAt?: string }>("POST", `/${enc(id)}/preview-link`, undefined, teamId);
+  }
+  async update(id: string, input: { name?: string; autoStopMinutes?: number; previewAccess?: "public" | "private" }, teamId = this.defaultTeamId): Promise<SandboxInfo> {
     return (await this.call<{ sandbox: SandboxInfo }>("PATCH", `/${enc(id)}`, input, teamId)).sandbox;
   }
   async start(id: string, teamId = this.defaultTeamId): Promise<SandboxInfo | undefined> {
@@ -273,8 +285,12 @@ export class PxxlSandboxes {
    * (NDJSON); without it the call returns once the command ends.
    */
   async exec(id: string, command: string, options: SandboxExecOptions = {}, teamId = this.defaultTeamId): Promise<SandboxExecResult> {
-    const body = JSON.stringify({ command, workdir: options.workdir, timeoutSeconds: options.timeoutSeconds });
+    const body = JSON.stringify({ command, workdir: options.workdir, timeoutSeconds: options.timeoutSeconds, background: options.background || undefined });
     const path = this.path(`/${enc(id)}/exec`, teamId);
+    if (options.background) {
+      const started = await this.client.request<{ background: boolean; pid: number; logFile: string }>(path, { method: "POST", body, signal: options.signal });
+      return { ...started, exitCode: 0, output: "", timedOut: false };
+    }
     if (!options.onOutput) return this.client.request<SandboxExecResult>(path, { method: "POST", body, signal: options.signal });
 
     const response = await this.client.rawRequest(path, { method: "POST", body, signal: options.signal, headers: { Accept: "application/x-ndjson" } });
@@ -422,7 +438,11 @@ export class Sandbox {
   /** Delete the sandbox and its /workspace. Cannot be undone. */
   delete() { return this.api.delete(this.id, this.teamId); }
 
-  async update(input: { name?: string; autoStopMinutes?: number }): Promise<this> {
+  /** A link that opens the preview (with a 12-hour token when the preview is private). */
+  previewLink() { return this.api.previewLink(this.id, this.teamId); }
+  /** Make the preview URL public or private. */
+  setPreviewAccess(access: "public" | "private") { return this.update({ previewAccess: access }); }
+  async update(input: { name?: string; autoStopMinutes?: number; previewAccess?: "public" | "private" }): Promise<this> {
     this.data = await this.api.update(this.id, input, this.teamId);
     return this;
   }

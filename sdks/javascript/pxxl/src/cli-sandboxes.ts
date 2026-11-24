@@ -81,6 +81,8 @@ export const sandboxHelp = `${bold("pxxl sandbox")} – isolated Linux sandboxes
   ${cyan("pxxl sandbox update")} <sandbox> [--name x] [--auto-stop <minutes>]
   ${cyan("pxxl sandbox usage")} <sandbox>            What it has cost so far
   ${cyan("pxxl sandbox summary")}                     Running now, spend this month, wallet runway, hints
+  ${cyan("pxxl sandbox preview")} <sandbox>          A link to the preview (12-hour token when private)
+      create/update take --private or --public; exec takes --background
   ${cyan("pxxl sandbox logs")} <sandbox>             Provisioning events and container output
   ${cyan("pxxl sandbox terminal")} <sandbox>         Interactive shell (Ctrl-] disconnects); --url prints the WebSocket URL
   ${cyan("pxxl sandbox pricing")}                    Rates, sizes and plan limits
@@ -326,6 +328,7 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
       autoStopMinutes: options.integer("--auto-stop"),
       env: Object.keys(env).length ? env : undefined,
       sourceRepository: options.flag("--repo"),
+      previewAccess: options.has("--private") ? "private" : undefined,
       teamId,
     });
     if (!asJSON) done(`Created ${bold(box.name || box.id)} ${dim(box.id)}`);
@@ -352,6 +355,11 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
     if (!command) throw new Error("Usage: pxxl sandbox exec <sandbox> -- <command…>");
     const timeout = options.integer("--timeout");
     const workdir = options.flag("--workdir", "-w");
+    if (options.has("--background")) {
+      const started = await box.exec(command, { workdir, background: true });
+      if (asJSON) return json(started);
+      return done(`Started in the background (pid ${started.pid}). Output: ${started.logFile}\n  ${dim(`pxxl sandbox exec ${box.id} -- tail -n 50 ${started.logFile}`)}`);
+    }
     if (asJSON) {
       const result = await box.exec(command, { workdir, timeoutSeconds: timeout });
       json(result);
@@ -423,9 +431,18 @@ export async function sandboxCommand(getClient: (needsKey: boolean) => Promise<P
   if (sub === "update" || sub === "set" || sub === "rename" || sub === "auto-stop") {
     const name = options.flag("--name") || (sub === "rename" ? more[0] : undefined);
     const minutes = options.integer("--auto-stop") ?? (sub === "auto-stop" && more[0] !== undefined ? Number(more[0]) : undefined);
-    if (name === undefined && minutes === undefined) throw new Error("Usage: pxxl sandbox update <sandbox> [--name x] [--auto-stop <minutes>]");
-    await box.update({ name, autoStopMinutes: minutes });
-    return asJSON ? json({ sandbox: box.info }) : done(`Updated ${box.name || label}${minutes !== undefined ? `: auto-stop ${autoStop(minutes)}` : ""}`);
+    const previewAccess = options.has("--private") ? "private" : options.has("--public") ? "public" : undefined;
+    if (name === undefined && minutes === undefined && !previewAccess) throw new Error("Usage: pxxl sandbox update <sandbox> [--name x] [--auto-stop <minutes>] [--private | --public]");
+    await box.update({ name, autoStopMinutes: minutes, previewAccess });
+    return asJSON ? json({ sandbox: box.info }) : done(`Updated ${box.name || label}${minutes !== undefined ? `: auto-stop ${autoStop(minutes)}` : ""}${previewAccess ? `: preview ${previewAccess}` : ""}`);
+  }
+
+  if (sub === "preview" || sub === "open") {
+    const link = await box.previewLink();
+    if (asJSON) return json(link);
+    print(link.url);
+    if (link.access === "private") print(dim(`Private preview: this link works for 12 hours${link.expiresAt ? ` (until ${link.expiresAt})` : ""}.`));
+    return;
   }
 
   if (sub === "usage" || sub === "cost") {

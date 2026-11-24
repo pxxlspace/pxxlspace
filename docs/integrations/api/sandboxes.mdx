@@ -18,8 +18,9 @@ All paths are relative to `https://server.pxxl.app/api/v3`.
 | `GET` | `/sandboxes/summary` | `teamId?` | `{ data }`: counts, cost, runway and hints. See [summary](#account-summary) |
 | `POST` | `/sandboxes` | See [create](#create-a-sandbox) | `202` with `{ sandbox }` |
 | `GET` | `/sandboxes/{id}` | None | `{ sandbox }` |
-| `PATCH` | `/sandboxes/{id}` | `name?`, `autoStopMinutes?` | `{ sandbox }` |
-| `POST` | `/sandboxes/{id}/exec` | `command`, `workdir?`, `timeoutSeconds?` | `{ exitCode, output, timedOut, truncated, durationMs }`, or an NDJSON stream |
+| `PATCH` | `/sandboxes/{id}` | `name?`, `autoStopMinutes?`, `previewAccess?` | `{ sandbox }` |
+| `POST` | `/sandboxes/{id}/preview-link` | None | `{ url, access, expiresAt? }`. Private previews get a 12-hour token in `url` |
+| `POST` | `/sandboxes/{id}/exec` | `command`, `workdir?`, `timeoutSeconds?`, `background?` | `{ exitCode, output, timedOut, truncated, durationMs }`, or an NDJSON stream |
 | `GET` | `/sandboxes/{id}/files` | `path?` | `{ files }` |
 | `GET` | `/sandboxes/{id}/file` | `path` | `{ path, content }` |
 | `PUT` | `/sandboxes/{id}/file` | `path`, `content` | The saved file |
@@ -329,6 +330,33 @@ curl "https://server.pxxl.app/api/v3/sandboxes/sbx_123/file?path=/workspace/inde
 - Hints:
   - `idle` means a running sandbox has had no activity for 15 minutes or more.
   - `runway` means the wallet covers less than 2 hours of the running sandboxes.
+
+## Private previews
+
+Every sandbox has a preview URL. Set `previewAccess` when you create the sandbox, or later with `PATCH`:
+
+- `public` (the default): anyone with the URL can open it.
+- `private`: the URL answers `401` unless the browser comes through a link from `POST /sandboxes/{id}/preview-link`.
+
+```bash
+curl -X PATCH "https://server.pxxl.app/api/v3/sandboxes/$ID" \
+  -H "Authorization: Bearer $PXXL_API_KEY" -H "Content-Type: application/json" \
+  -d '{"previewAccess":"private"}'
+curl -X POST "https://server.pxxl.app/api/v3/sandboxes/$ID/preview-link" -H "Authorization: Bearer $PXXL_API_KEY"
+# { "url": "https://sandbox-api-test-1a2b3c.pxxlspace.cv/?pxxl_preview_token=…", "access": "private", "expiresAt": "…" }
+```
+
+The link works for 12 hours. Opening it sets a cookie for that preview host only and removes the token from the address. Your app never sees the token or the cookie.
+
+## Background commands
+
+Add `"background": true` to start a long-running process, such as a dev server or a watcher, without waiting for it to finish:
+
+```json
+{ "command": "npm run dev -- --port $PORT", "background": true }
+```
+
+The response comes back at once with `{ "background": true, "pid": 46, "logFile": "/tmp/pxxl-bg/1795542369859626457.log" }`. The process keeps running until the sandbox stops. Read its output with another exec, for example `tail -n 50 <logFile>`.
 
 ## Preview analytics
 

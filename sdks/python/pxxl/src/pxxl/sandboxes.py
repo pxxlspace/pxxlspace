@@ -68,6 +68,7 @@ class PxxlSandboxes:
         auto_stop_minutes: int | None = None,
         env: Mapping[str, str] | None = None,
         source_repository: str | None = None,
+        preview_access: str | None = None,
         team_id: str | None = None,
     ) -> "Sandbox":
         """Create a sandbox. It starts as ``creating``; call ``wait_until_ready()`` for ``running``."""
@@ -81,6 +82,7 @@ class PxxlSandboxes:
             "autoStopMinutes": auto_stop_minutes,
             "env": dict(env) if env else None,
             "sourceRepository": source_repository,
+            "previewAccess": preview_access,
         }
         result = self._call("POST", "", body, team_id)
         return Sandbox(self, result["sandbox"], team_id)
@@ -110,8 +112,12 @@ class PxxlSandboxes:
     def info(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
         return self._call("GET", f"/{_esc(sandbox_id)}", None, team_id)["sandbox"]
 
-    def update(self, sandbox_id: str, *, name: str | None = None, auto_stop_minutes: int | None = None, team_id: str | None = None) -> dict[str, Any]:
-        return self._call("PATCH", f"/{_esc(sandbox_id)}", {"name": name, "autoStopMinutes": auto_stop_minutes}, team_id)["sandbox"]
+    def update(self, sandbox_id: str, *, name: str | None = None, auto_stop_minutes: int | None = None, preview_access: str | None = None, team_id: str | None = None) -> dict[str, Any]:
+        return self._call("PATCH", f"/{_esc(sandbox_id)}", {"name": name, "autoStopMinutes": auto_stop_minutes, "previewAccess": preview_access}, team_id)["sandbox"]
+
+    def preview_link(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
+        """``{url, access, expiresAt?}``: private previews get a 12-hour token in the URL."""
+        return self._call("POST", f"/{_esc(sandbox_id)}/preview-link", None, team_id)
 
     def start(self, sandbox_id: str, team_id: str | None = None) -> dict[str, Any]:
         return self._call("POST", f"/{_esc(sandbox_id)}/start", None, team_id)
@@ -155,13 +161,17 @@ class PxxlSandboxes:
         workdir: str | None = None,
         timeout_seconds: int | None = None,
         on_output: Callable[[str], None] | None = None,
+        background: bool = False,
         team_id: str | None = None,
     ) -> dict[str, Any]:
         """Run a shell command: ``{exitCode, output, timedOut, truncated, durationMs}``.
 
-        With ``on_output`` the output streams (NDJSON) and the callback gets each chunk."""
+        With ``on_output`` the output streams (NDJSON) and the callback gets each chunk.
+        With ``background=True`` it starts detached and returns ``{background, pid, logFile}``."""
         body = {"command": command, "workdir": workdir, "timeoutSeconds": timeout_seconds}
         path = self._path(f"/{_esc(sandbox_id)}/exec", team_id)
+        if background:
+            return self._client._request("POST", path, json_body=dict(body, background=True))
         if on_output is None:
             return self._client._request("POST", path, json_body=body)
         return self._exec_stream(path, body, on_output, timeout_seconds)
@@ -320,8 +330,9 @@ class Sandbox:
         workdir: str | None = None,
         timeout_seconds: int | None = None,
         on_output: Callable[[str], None] | None = None,
+        background: bool = False,
     ) -> dict[str, Any]:
-        return self._api.exec(self.id, command, workdir=workdir, timeout_seconds=timeout_seconds, on_output=on_output, team_id=self.team_id)
+        return self._api.exec(self.id, command, workdir=workdir, timeout_seconds=timeout_seconds, on_output=on_output, background=background, team_id=self.team_id)
 
     def _apply(self, result: Mapping[str, Any]) -> "Sandbox":
         if isinstance(result.get("sandbox"), Mapping):
@@ -345,9 +356,16 @@ class Sandbox:
         """Delete the sandbox and its /workspace. Cannot be undone."""
         return self._api.delete(self.id, self.team_id)
 
-    def update(self, *, name: str | None = None, auto_stop_minutes: int | None = None) -> "Sandbox":
-        self.info = self._api.update(self.id, name=name, auto_stop_minutes=auto_stop_minutes, team_id=self.team_id)
+    def update(self, *, name: str | None = None, auto_stop_minutes: int | None = None, preview_access: str | None = None) -> "Sandbox":
+        self.info = self._api.update(self.id, name=name, auto_stop_minutes=auto_stop_minutes, preview_access=preview_access, team_id=self.team_id)
         return self
+
+    def set_preview_access(self, access: str) -> "Sandbox":
+        """``"public"`` or ``"private"``."""
+        return self.update(preview_access=access)
+
+    def preview_link(self) -> dict[str, Any]:
+        return self._api.preview_link(self.id, self.team_id)
 
     def set_auto_stop(self, minutes: int) -> "Sandbox":
         """Pause after this many idle minutes (0-1440; 0 = never)."""
