@@ -1,0 +1,138 @@
+---
+title: "Sandboxes"
+description: "Create sandboxes, run commands, and manage files from the Node.js and Python SDKs."
+---
+
+[Sandboxes](/sandboxes/overview) are in the Node.js and Python SDKs. In Go and Rust, call the [sandbox routes](/integrations/api/sandboxes) with the [raw request method](/integrations/sdk/errors-raw-requests).
+
+Use an API key scoped to `all` or `sandbox` with `read_write`. The client's `teamId` applies to every sandbox call.
+
+## Create and use a sandbox
+
+`create()` returns a `Sandbox` handle. The sandbox starts as `creating`, so wait for it before running commands.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    import { Pxxl } from "@pxxlapp/pxxl";
+
+    const pxxl = new Pxxl({ apiKey: process.env.PXXL_API_KEY });
+
+    const sandbox = await pxxl.sandboxes.create({
+      name: "agent-run-42",
+      template: "node",
+      size: "small",
+      autoStopMinutes: 15,
+      env: { NODE_ENV: "development" },
+    });
+    await sandbox.waitUntilReady({ timeoutMs: 120_000 });
+
+    await sandbox.files.write("/workspace/index.js", "console.log(6 * 7)");
+    const result = await sandbox.exec("node index.js");
+    console.log(result.exitCode, result.output); // 0 "42\n"
+
+    await sandbox.stop();
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+    from pxxl import PxxlClient
+
+    client = PxxlClient(api_key=os.environ["PXXL_API_KEY"])
+
+    sandbox = client.sandboxes.create(
+        name="agent-run-42",
+        template="python",
+        size="small",
+        auto_stop_minutes=15,
+        env={"APP_ENV": "dev"},
+    )
+    sandbox.wait_until_ready(timeout=120)
+
+    sandbox.files.write("/workspace/main.py", "print(6 * 7)")
+    result = sandbox.exec("python main.py")
+    print(result["exitCode"], result["output"])  # 0 "42\n"
+
+    sandbox.stop()
+    ```
+  </Tab>
+</Tabs>
+
+## Stream command output
+
+Pass a callback to get output as it's produced. The call still resolves with the exit code once the command ends. If the Gateway answers with plain JSON instead of a stream, the callback gets the whole output once.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const { exitCode, timedOut } = await sandbox.exec("npm install && npm test", {
+      workdir: "/workspace/app",
+      timeoutSeconds: 300,
+      onOutput: (chunk) => process.stdout.write(chunk),
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = sandbox.exec(
+        "pip install -r requirements.txt && pytest",
+        workdir="/workspace/app",
+        timeout_seconds=300,
+        on_output=lambda chunk: print(chunk, end=""),
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## The sandbox handle
+
+| Operation | Node.js | Python | Returns |
+| --- | --- | --- | --- |
+| Run a command | `sandbox.exec(command, { workdir?, timeoutSeconds?, onOutput? })` | `sandbox.exec(command, workdir=, timeout_seconds=, on_output=)` | `{ exitCode, output, timedOut, truncated, durationMs }` |
+| Read a file | `sandbox.files.read(path)` | `sandbox.files.read(path)` | The text content |
+| Read with metadata | `sandbox.files.get(path)` | `sandbox.files.get(path)` | `{ path, content, ... }` |
+| Write a file | `sandbox.files.write(path, content)` | `sandbox.files.write(path, content)` | The saved file |
+| List files | `sandbox.files.list(path?)` | `sandbox.files.list(path=None)` | `[{ path, name, type, size, depth }]` |
+| Preview URL | `sandbox.previewUrl`, `await sandbox.getPreviewUrl()` | `sandbox.preview_url`, `sandbox.get_preview_url()` | `https://<domain>` |
+| Wait until running | `sandbox.waitUntilReady({ timeoutMs?, intervalMs? })` | `sandbox.wait_until_ready(timeout=, interval=)` | The sandbox. Throws `SandboxError` on `failed` or timeout |
+| Refresh | `sandbox.refresh()` | `sandbox.refresh()` | The sandbox with fresh fields |
+| Start or resume | `sandbox.start()`, `sandbox.resume()` | `sandbox.start()`, `sandbox.resume()` | The sandbox |
+| Pause | `sandbox.stop()`, `sandbox.pause()` | `sandbox.stop()`, `sandbox.pause()` | The sandbox |
+| Delete | `sandbox.delete()` | `sandbox.delete()` | `{ message }` |
+| Rename or auto-stop | `sandbox.update({ name?, autoStopMinutes? })` | `sandbox.update(name=, auto_stop_minutes=)` | The sandbox |
+| Auto-stop | `sandbox.setAutoStop(minutes)` | `sandbox.set_auto_stop(minutes)` | The sandbox |
+| Cost | `sandbox.usage()` | `sandbox.usage()` | `{ hourlyUsd, billedUsd, unbilledUsd, ledger }` |
+| Logs | `sandbox.logs()` | `sandbox.logs()` | `{ events, logs }` |
+| Terminal URL | `sandbox.terminalTicket()` | `sandbox.terminal_ticket()` | `{ wsUrl, ... }` |
+
+Read fields from the handle: `id`, `name`, `status`, `template`, `domain`, `hourlyUsd`, `isRunning`, `isPaused`, and `info` for the full [sandbox object](/integrations/api/sandboxes#the-sandbox-object). In Python, `info` is a dict and the flags are `is_running` and `is_paused`. Fields reflect the last fetch; call `refresh()` for current ones.
+
+## The sandboxes resource
+
+| Operation | Node.js | Python | Returns |
+| --- | --- | --- | --- |
+| Create | `pxxl.sandboxes.create(options)` | `client.sandboxes.create(**options)` | A `Sandbox` |
+| List | `pxxl.sandboxes.list({ teamId? })` | `client.sandboxes.list(team_id=None)` | `{ sandboxes: Sandbox[], usage, pricing }` |
+| Get | `pxxl.sandboxes.get(id)` | `client.sandboxes.get(id)` | A `Sandbox` |
+| Pricing | `pxxl.sandboxes.pricing()` | `client.sandboxes.pricing()` | Rates, sizes, templates, plan limits |
+
+Create options: `name`, `template` (`base`, `node`, `python`, `html`, `php`), `size` (`micro`, `small`, `medium`, `large`), `cpus`, `memoryMb`, `diskGb` (`2`, `5`, `10`), `autoStopMinutes` (`0` to `1440`), `env`, `sourceRepository`, and `teamId`. Python takes the same options in snake case.
+
+`pxxl.sandboxes` also has ID-based methods, such as `exec(id, command)` and `readFile(id, path)`, if you don't want a handle.
+
+## Errors
+
+API errors throw `PxxlAPIError` in both SDKs, with the HTTP status. A plan or wallet problem has `upgradeRequired` (`upgrade_required` in Python) set. See [errors](/integrations/sdk/errors-raw-requests).
+
+```ts
+import { SandboxError, isPlanGateError } from "@pxxlapp/pxxl";
+
+try {
+  await sandbox.waitUntilReady();
+} catch (error) {
+  if (error instanceof SandboxError) console.error(error.sandbox.status, await sandbox.logs());
+  else if (isPlanGateError(error)) console.error("Upgrade to Plus or top up your wallet");
+  else throw error;
+}
+```

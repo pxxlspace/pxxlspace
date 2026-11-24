@@ -1,0 +1,127 @@
+---
+title: "Sandboxes quickstart"
+sidebarTitle: "Quickstart"
+description: "Create a sandbox, run a command, write a file, and open its preview URL."
+---
+
+You need a Plus, Pro, or Enterprise plan and at least $0.25 in your [wallet](/account/wallet).
+
+## Create an API key
+
+In [account settings](/account/settings), create an API key with the scope **`sandbox`** (or `all`) and the permission **`read_write`**. Store it as `PXXL_API_KEY`.
+
+```bash
+export PXXL_API_KEY=pxxl_...
+```
+
+A `read` key can list and inspect sandboxes but can't create, run commands, or change anything.
+
+## Create a sandbox and run a command
+
+<Tabs>
+  <Tab title="Node.js">
+    ```bash
+    npm install @pxxlapp/pxxl
+    ```
+
+    ```ts
+    import { Pxxl } from "@pxxlapp/pxxl";
+
+    const pxxl = new Pxxl({ apiKey: process.env.PXXL_API_KEY });
+
+    const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small", autoStopMinutes: 30 });
+    await sandbox.waitUntilReady();
+
+    await sandbox.files.write(
+      "/workspace/server.js",
+      "require('http').createServer((_, res) => res.end('hello from a sandbox')).listen(process.env.PORT)",
+    );
+
+    const { exitCode } = await sandbox.exec("node --version", {
+      onOutput: (chunk) => process.stdout.write(chunk),
+    });
+
+    await sandbox.exec("nohup node server.js > server.log 2>&1 &");
+    console.log(sandbox.previewUrl); // https://<domain>
+
+    await sandbox.stop(); // $0 while paused, /workspace is kept
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```bash
+    pip install pxxl
+    ```
+
+    ```python
+    import os
+    from pxxl import PxxlClient
+
+    client = PxxlClient(api_key=os.environ["PXXL_API_KEY"])
+
+    sandbox = client.sandboxes.create(template="python", size="small", auto_stop_minutes=30)
+    sandbox.wait_until_ready()
+
+    sandbox.files.write("/workspace/main.py", "print('hello from a sandbox')")
+    result = sandbox.exec("python main.py", on_output=lambda chunk: print(chunk, end=""))
+    print(result["exitCode"], sandbox.preview_url)
+
+    sandbox.stop()
+    ```
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    npm install -g @pxxlapp/pxxl
+    pxxl login --api-key $PXXL_API_KEY
+
+    pxxl sandbox create --name demo --template node --size small --wait
+    pxxl sandbox exec demo -- node --version
+    echo "console.log('hi')" | pxxl sandbox write demo /workspace/hi.js
+    pxxl sandbox exec demo -- node hi.js
+    pxxl sandbox stop demo
+    ```
+
+    `pxxl sandbox exec` streams output and exits with the command's exit code, so you can use it in scripts and CI.
+  </Tab>
+  <Tab title="curl">
+    ```bash
+    # Create
+    curl --request POST https://server.pxxl.app/api/v3/sandboxes \
+      --header "Authorization: Bearer $PXXL_API_KEY" \
+      --header "Content-Type: application/json" \
+      --data '{"name":"demo","template":"node","size":"small"}'
+
+    # Poll until "status": "running"
+    curl https://server.pxxl.app/api/v3/sandboxes/sbx_123 \
+      --header "Authorization: Bearer $PXXL_API_KEY"
+
+    # Run a command
+    curl --request POST https://server.pxxl.app/api/v3/sandboxes/sbx_123/exec \
+      --header "Authorization: Bearer $PXXL_API_KEY" \
+      --header "Content-Type: application/json" \
+      --data '{"command":"node --version"}'
+
+    # Pause
+    curl --request POST https://server.pxxl.app/api/v3/sandboxes/sbx_123/stop \
+      --header "Authorization: Bearer $PXXL_API_KEY"
+    ```
+  </Tab>
+</Tabs>
+
+## Serve a preview
+
+Anything listening on `$PORT` (3000) inside the sandbox is served at the sandbox's `previewUrl`. Start your server in the background so `exec` returns:
+
+```bash
+pxxl sandbox exec demo -- 'nohup npm run dev -- --port $PORT > dev.log 2>&1 &'
+pxxl sandbox get demo   # shows the preview URL
+```
+
+## Clean up
+
+A sandbox pauses itself after `autoStopMinutes` of inactivity (60 by default), and a paused sandbox costs nothing. Delete it when you no longer need `/workspace`:
+
+```bash
+pxxl sandbox delete demo --yes
+```
+
+See [pricing and limits](/sandboxes/overview#pricing).

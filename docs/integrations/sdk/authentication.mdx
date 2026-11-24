@@ -26,7 +26,7 @@ Each SDK has a few extra options:
 | Python | `timeout` | Request timeout in seconds, default `60.0` |
 | Rust | `.with_base_url(url)` | Send requests to another API base URL |
 
-In Node.js, the `baseUrl` option is ignored. To test against a staging or local Gateway, set the `PXXL_API_URL` environment variable instead. It accepts only an `https://` host under `pxxl.app` or `localhost`, so your key is never sent anywhere else.
+In Node.js and Python, set the `PXXL_API_URL` environment variable to test against a staging or local Gateway (the Node.js `baseUrl` option is ignored). The `pxxl` CLI reads it too. It accepts only an `https://` host under `pxxl.app` or `localhost`, so your key is never sent anywhere else.
 
 ## Create a client
 

@@ -313,6 +313,26 @@ See [Webhooks](/tools/webhooks).
 
 `[server]` is an id, name, or hostname. Leave it out if you have one server. See [Servers](/servers/overview).
 
+## Sandboxes
+
+| Command | What it does |
+| --- | --- |
+| `pxxl sandbox list` | Your sandboxes, what's running, and this month's spend. |
+| `pxxl sandbox create` | Create one. `--name`, `--template`, `--size`, `--disk`, `--auto-stop`, `--env KEY=VALUE` (repeat), `--repo`, `--wait`. |
+| `pxxl sandbox get <sandbox>` | Status, size, preview URL, and cost. |
+| `pxxl sandbox exec <sandbox> -- <command>` | Run a command. Streams output and exits with its exit code. `--workdir`, `--timeout`. |
+| `pxxl sandbox files <sandbox> [path]` | List files. |
+| `pxxl sandbox read <sandbox> <path>` | Print a file. |
+| `pxxl sandbox write <sandbox> <path>` | Write a file from `--file`, `--content`, or stdin. |
+| `pxxl sandbox start\|stop <sandbox>` | Resume or pause. `start --wait` waits until it's running. |
+| `pxxl sandbox delete <sandbox> --yes` | Delete it and its `/workspace`. |
+| `pxxl sandbox update <sandbox>` | `--name`, `--auto-stop <minutes>`. |
+| `pxxl sandbox usage\|logs <sandbox>` | Cost so far, or provisioning events and output. |
+| `pxxl sandbox terminal <sandbox>` | Interactive shell. `--url` prints the WebSocket URL. |
+| `pxxl sandbox pricing` | Rates, sizes, and plan limits. |
+
+`<sandbox>` is an id or a name. See [Sandboxes CLI](/sandboxes/cli).
+
 ## Billing and invoices
 
 | Command | What it does |

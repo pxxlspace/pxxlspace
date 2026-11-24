@@ -1,0 +1,311 @@
+---
+title: "Sandboxes API"
+description: "Create sandboxes, run commands, read and write files, and pause, resume, or delete them."
+---
+
+[Sandboxes](/sandboxes/overview) are isolated Linux workspaces billed per second from your wallet. These routes need a key scoped to `all` or `sandbox`. `GET` routes need `read`; everything else needs `read_write`. Sandboxes are on Plus, Pro, and Enterprise; other plans get `402`.
+
+Pass `?teamId=` to work with a team's sandboxes. A team-scoped key only sees its team's sandboxes.
+
+All paths are relative to `https://server.pxxl.app/api/v3`.
+
+## Endpoints
+
+| Method | Path | Body or parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/sandboxes/pricing` | None. Public, no key needed. | Rates, sizes, templates, and plan limits |
+| `GET` | `/sandboxes` | `teamId?` | `{ sandboxes, usage, pricing }` |
+| `POST` | `/sandboxes` | See [create](#create-a-sandbox) | `202` with `{ sandbox }` |
+| `GET` | `/sandboxes/{id}` | None | `{ sandbox }` |
+| `PATCH` | `/sandboxes/{id}` | `name?`, `autoStopMinutes?` | `{ sandbox }` |
+| `POST` | `/sandboxes/{id}/exec` | `command`, `workdir?`, `timeoutSeconds?` | `{ exitCode, output, timedOut, truncated, durationMs }`, or an NDJSON stream |
+| `GET` | `/sandboxes/{id}/files` | `path?` | `{ files }` |
+| `GET` | `/sandboxes/{id}/file` | `path` | `{ path, content }` |
+| `PUT` | `/sandboxes/{id}/file` | `path`, `content` | The saved file |
+| `POST` | `/sandboxes/{id}/start` | None. Alias `/resume`. | `{ sandbox }` |
+| `POST` | `/sandboxes/{id}/stop` | None. Alias `/pause`. | `{ sandbox }` |
+| `DELETE` | `/sandboxes/{id}` | None | `{ message }` |
+| `GET` | `/sandboxes/{id}/logs` | None | `{ events, logs }` |
+| `GET` | `/sandboxes/{id}/usage` | None | `{ hourlyUsd, billedUsd, unbilledUsd, ledger }` |
+| `POST` | `/sandboxes/{id}/terminal/ticket` | None | `{ wsUrl, ticket, expiresIn, sessionId }` |
+
+## The sandbox object
+
+```json
+{
+  "id": "sbx_123",
+  "name": "demo",
+  "template": "node",
+  "status": "running",
+  "domain": "demo-a1b2.pxxl.click",
+  "previewUrl": "https://demo-a1b2.pxxl.click",
+  "size": "small",
+  "cpus": 2,
+  "memoryMb": 4096,
+  "diskGb": 10,
+  "volumeLimitMb": 10240,
+  "hourlyUsd": 0.048,
+  "autoStopMinutes": 60,
+  "billedUsd": 0.1234,
+  "unbilledUsd": 0.0021,
+  "startedAt": "2026-11-24T09:00:00Z",
+  "stoppedAt": null,
+  "lastActivityAt": "2026-11-24T09:12:00Z",
+  "createdAt": "2026-11-24T08:59:40Z"
+}
+```
+
+<ResponseField name="status" type="string">
+  `creating`, `running`, `paused` (you stopped it), `paused_idle` (auto-stop), `paused_low_balance` (wallet ran low), or `failed`. Treat the older `stopped` and `paused_insufficient_points` as paused.
+</ResponseField>
+
+<ResponseField name="previewUrl" type="string">
+  Public URL of the app listening on `$PORT` (3000) inside the sandbox.
+</ResponseField>
+
+<ResponseField name="hourlyUsd" type="number">
+  What the sandbox costs per hour while running. Paused sandboxes cost nothing.
+</ResponseField>
+
+<ResponseField name="billedUsd" type="number">
+  Charged to your wallet so far. `unbilledUsd` is the running time not yet charged.
+</ResponseField>
+
+## Get pricing
+
+`GET /sandboxes/pricing`
+
+Public. No API key needed.
+
+```bash
+curl https://server.pxxl.app/api/v3/sandboxes/pricing
+```
+
+```json
+{
+  "currency": "USD",
+  "vcpuHourUsd": 0.012,
+  "gbHourUsd": 0.006,
+  "diskIncludedGb": 10,
+  "diskOptionsGb": [2, 5, 10],
+  "minimumBalanceUsd": 0.25,
+  "billing": "per_second",
+  "sizes": [
+    { "id": "micro", "label": "Micro", "cpus": 1, "memoryMb": 1024, "hourlyUsd": 0.018 },
+    { "id": "small", "label": "Small", "cpus": 2, "memoryMb": 4096, "hourlyUsd": 0.048 },
+    { "id": "medium", "label": "Medium", "cpus": 4, "memoryMb": 8192, "hourlyUsd": 0.096 },
+    { "id": "large", "label": "Large", "cpus": 8, "memoryMb": 16384, "hourlyUsd": 0.192 }
+  ],
+  "templates": [
+    { "id": "base", "label": "Base", "description": "..." },
+    { "id": "node", "label": "Node.js", "description": "..." }
+  ],
+  "plans": {
+    "plus": { "maxRunning": 3, "maxTotal": 10, "maxCpus": 4, "maxMemoryMb": 8192 },
+    "pro": { "maxRunning": 10, "maxTotal": 25, "maxCpus": 8, "maxMemoryMb": 16384 },
+    "enterprise": { "maxRunning": 50, "maxTotal": 100, "maxCpus": 8, "maxMemoryMb": 16384 }
+  }
+}
+```
+
+## List sandboxes
+
+`GET /sandboxes`
+
+```bash
+curl https://server.pxxl.app/api/v3/sandboxes \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+```json
+{
+  "sandboxes": [{ "id": "sbx_123", "name": "demo", "status": "running", "hourlyUsd": 0.048 }],
+  "usage": { "monthToDateUsd": 1.23, "runningCount": 1, "hourlyBurnUsd": 0.048 },
+  "pricing": { "vcpuHourUsd": 0.012, "gbHourUsd": 0.006 }
+}
+```
+
+`usage.hourlyBurnUsd` is what everything running right now costs per hour.
+
+## Create a sandbox
+
+`POST /sandboxes`
+
+<ParamField body="name" type="string">
+  Shown in the dashboard and usable in the CLI instead of the ID. Generated when left out.
+</ParamField>
+
+<ParamField body="template" type="string" default="base">
+  `base`, `node`, `python`, `html`, or `php`.
+</ParamField>
+
+<ParamField body="size" type="string">
+  `micro` (1 vCPU, 1 GB), `small` (2 vCPU, 4 GB), `medium` (4 vCPU, 8 GB), or `large` (8 vCPU, 16 GB).
+</ParamField>
+
+<ParamField body="cpus" type="number">
+  Custom vCPUs instead of a size. Your plan sets the maximum.
+</ParamField>
+
+<ParamField body="memoryMb" type="number">
+  Custom memory in MB instead of a size.
+</ParamField>
+
+<ParamField body="diskGb" type="number" default="10">
+  `2`, `5`, or `10`. Included in the price.
+</ParamField>
+
+<ParamField body="autoStopMinutes" type="number" default="60">
+  Pause after this many idle minutes, `0` to `1440`. `0` means never.
+</ParamField>
+
+<ParamField body="env" type="object">
+  Environment variables, as `{ "KEY": "value" }`.
+</ParamField>
+
+<ParamField body="sourceRepository" type="string">
+  A GitHub repository, `owner/repo`, to clone into `/workspace`.
+</ParamField>
+
+```bash
+curl --request POST https://server.pxxl.app/api/v3/sandboxes \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"name":"demo","template":"node","size":"small","autoStopMinutes":30,"env":{"NODE_ENV":"development"}}'
+```
+
+**Response** `202`
+
+```json
+{ "sandbox": { "id": "sbx_123", "name": "demo", "status": "creating", "hourlyUsd": 0.048 } }
+```
+
+The sandbox starts as `creating`. Poll `GET /sandboxes/{id}` until `status` is `running` (usually a few seconds), or `failed`.
+
+| Status | Reason |
+| --- | --- |
+| `402` | Sandboxes need Plus or higher, or your wallet has less than $0.25. |
+| `409` | You reached your plan's running or total limit, or asked for a size above your plan's maximum. |
+
+## Get or update a sandbox
+
+`GET /sandboxes/{id}` returns `{ sandbox }`.
+
+`PATCH /sandboxes/{id}` changes the name or auto-stop:
+
+```bash
+curl --request PATCH https://server.pxxl.app/api/v3/sandboxes/sbx_123 \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"autoStopMinutes":0}'
+```
+
+## Run a command
+
+`POST /sandboxes/{id}/exec`
+
+The sandbox must be `running`, or you get `409`.
+
+<ParamField body="command" type="string" required>
+  A shell command, such as `npm install && npm test`.
+</ParamField>
+
+<ParamField body="workdir" type="string" default="/workspace">
+  Directory to run it in.
+</ParamField>
+
+<ParamField body="timeoutSeconds" type="number">
+  At most `300`. The command is stopped and `timedOut` is `true` when it runs longer.
+</ParamField>
+
+```bash
+curl --request POST https://server.pxxl.app/api/v3/sandboxes/sbx_123/exec \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"command":"node --version"}'
+```
+
+```json
+{ "exitCode": 0, "output": "v22.11.0\n", "timedOut": false, "truncated": false, "durationMs": 41 }
+```
+
+`output` holds stdout and stderr together. Very long output is cut and `truncated` is `true`.
+
+### Stream output
+
+Send `Accept: application/x-ndjson` to get output as it's produced, one JSON object per line:
+
+```bash
+curl --no-buffer --request POST https://server.pxxl.app/api/v3/sandboxes/sbx_123/exec \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --header "Accept: application/x-ndjson" \
+  --data '{"command":"npm install"}'
+```
+
+```json
+{"type":"output","data":"added 120 packages in 4s\n"}
+{"type":"exit","exitCode":0,"timedOut":false,"durationMs":4210}
+```
+
+The last line is `exit`, or `error` with a `message` if the command couldn't run.
+
+## Files
+
+Paths are inside the sandbox. Files are text, up to 2 MB.
+
+| Method | Path | Parameters | Returns |
+| --- | --- | --- | --- |
+| `GET` | `/sandboxes/{id}/files` | `path?` (default `/workspace`) | `{ files: [{ path, name, type, size, depth }] }` |
+| `GET` | `/sandboxes/{id}/file` | `path` | `{ path, content }` |
+| `PUT` | `/sandboxes/{id}/file` | Body: `path`, `content` | The saved file |
+
+```bash
+curl --request PUT https://server.pxxl.app/api/v3/sandboxes/sbx_123/file \
+  --header "Authorization: Bearer $PXXL_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"path":"/workspace/index.js","content":"console.log(42)\n"}'
+
+curl "https://server.pxxl.app/api/v3/sandboxes/sbx_123/file?path=/workspace/index.js" \
+  --header "Authorization: Bearer $PXXL_API_KEY"
+```
+
+`type` is `file` or `directory`.
+
+## Start, stop, and delete
+
+| Method | Path | What it does |
+| --- | --- | --- |
+| `POST` | `/sandboxes/{id}/start` | Start or resume. Needs $0.25 in your wallet. Alias `/resume`. |
+| `POST` | `/sandboxes/{id}/stop` | Pause. Billing stops and `/workspace` is kept. Alias `/pause`. |
+| `DELETE` | `/sandboxes/{id}` | Delete the sandbox and its `/workspace`. This can't be undone. |
+
+## Logs and usage
+
+`GET /sandboxes/{id}/logs` returns provisioning events and the container's recent output:
+
+```json
+{ "events": [{ "type": "created", "message": "Sandbox created", "createdAt": "2026-11-24T08:59:40Z" }], "logs": "..." }
+```
+
+`GET /sandboxes/{id}/usage` returns what the sandbox has cost:
+
+```json
+{
+  "hourlyUsd": 0.048,
+  "billedUsd": 0.1234,
+  "unbilledUsd": 0.0021,
+  "ledger": [{ "startedAt": "2026-11-24T09:00:00Z", "endedAt": "2026-11-24T09:15:00Z", "seconds": 900, "amountUsd": 0.012 }]
+}
+```
+
+## Terminal
+
+`POST /sandboxes/{id}/terminal/ticket` returns a short-lived `wsUrl` for an interactive shell. Connect to it within `expiresIn` seconds. It works once.
+
+| Direction | Message |
+| --- | --- |
+| You send | `{"type":"input","data":"ls\n"}`, `{"type":"resize","cols":120,"rows":40}`, `{"type":"close"}` |
+| You receive | `{"type":"output","data":"..."}`, `{"type":"status","shell":"bash","cwd":"/workspace"}`, `{"type":"closed"}`, `{"type":"error","data":"..."}` |
+
+The terminal is available when terminals are enabled for your account. Otherwise this route returns `403`. `pxxl sandbox terminal <id>` connects for you.
