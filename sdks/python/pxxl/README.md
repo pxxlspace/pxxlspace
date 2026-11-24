@@ -59,6 +59,23 @@ client.reseller.set_dns_record("example.cv", "A", "@", "203.0.113.10")
 client.reseller.set_nameservers("example.cv", ["ns1.example.net", "ns2.example.net"])
 ```
 
+## Sandboxes
+
+Isolated Linux workspaces for agents, tests and previews (Plus plan and up), billed per second from your wallet while running and $0 while paused. Use an API key scoped to `all` or `sandbox`.
+
+```python
+sandbox = client.sandboxes.create(template="python", size="small", auto_stop_minutes=30)
+sandbox.wait_until_ready()
+sandbox.files.write("/workspace/main.py", "print('hello')")
+result = sandbox.exec("python main.py", on_output=lambda chunk: print(chunk, end=""))
+print(result["exitCode"], sandbox.preview_url)
+sandbox.stop()    # paused: $0, /workspace kept
+sandbox.start()
+sandbox.delete()
+```
+
+Set `PXXL_API_URL` to point the client at a Pxxl staging Gateway (`https://*.pxxl.app` only).
+
 ## Cron Jobs
 
 ```python
