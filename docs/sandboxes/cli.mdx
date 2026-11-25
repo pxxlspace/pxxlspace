@@ -1,0 +1,164 @@
+---
+title: "Sandboxes CLI"
+sidebarTitle: "CLI"
+description: "Create sandboxes, run commands, move files, and open a shell with pxxl sandbox."
+---
+
+`pxxl sandbox` (or `pxxl sandboxes`) manages [sandboxes](/sandboxes/overview) from your terminal. Sign in first with `pxxl login --api-key <key>`, using a key scoped to `all` or `sandbox`.
+
+Wherever a command takes `<sandbox>`, pass its id or its name. Add `--team <id>` for a team's sandboxes and `--json` for the raw API response.
+
+## Create
+
+```bash
+pxxl sandbox create --name demo --template node --size small --label team=payments --wait
+```
+
+| Flag | What it does |
+| --- | --- |
+| `--name <name>` | Name. Generated when left out. |
+| `--template <id>` | `base` (Debian 13, the default), `node`, `python`, `go`, `rust`, or `bun`. `pxxl sandbox templates` lists them with their versions. |
+| `--size <size>` | `micro`, `small`, `medium`, or `large`. |
+| `--cpus <n>`, `--memory <mb>` | Custom size instead of `--size`. |
+| `--disk <gb>` | `2`, `5`, or `10` (default). |
+| `--auto-stop <minutes>` | Pause after this many idle minutes. `0` means never. Default 60. |
+| `--env KEY=VALUE` | Environment variable. Repeat for more. |
+| `--repo owner/repo` | Clone a GitHub repository into `/workspace`. |
+| `--label key=value` | Label. Repeat for more, up to 20. |
+| `--allow <domain\|cidr>` | Allow outbound connections only to this domain or IPv4 CIDR. Repeat for more. See [network policies](#network-policies). |
+| `--no-internet` | Block all outbound connections. |
+| `--snapshot <snapshotId>` | Start from a [snapshot](#snapshots). The template comes from the snapshot. |
+| `--wait` | Wait until the sandbox is running. |
+
+## Run commands
+
+```bash
+pxxl sandbox exec demo -- npm install
+pxxl sandbox exec demo --workdir /workspace/app --timeout 300 -- npm test
+pxxl sandbox exec demo -- 'cd app && npm run build'
+```
+
+Everything after `--` is the command. Output streams as it's produced, and `pxxl` exits with the command's exit code (`124` if it timed out), so it works in scripts and CI:
+
+```bash
+pxxl sandbox exec demo -- npm test || echo "tests failed"
+```
+
+Several words after `--` are joined with spaces and run by the sandbox's shell. Quote the command to keep `&&`, `|`, or `$VARS` away from your local shell.
+
+Add `--background` to start a server or watcher without waiting for it. It prints the pid and the log file.
+
+## Processes
+
+```bash
+pxxl sandbox exec demo --background -- 'npm run dev -- --port $PORT'
+pxxl sandbox ps demo
+# PID  PPID  TIME  CPU   MEMORY  COMMAND
+# 63   1     5s    1.1%  2.8 MB  sh -c npm run dev -- --port 3000
+pxxl sandbox kill demo 63
+pxxl sandbox kill demo 63 --signal KILL
+```
+
+`kill` sends `TERM` by default. `--signal` takes `TERM`, `KILL`, `INT`, or `HUP`.
+
+## Files
+
+```bash
+pxxl sandbox files demo                      # /workspace
+pxxl sandbox files demo /workspace/src
+pxxl sandbox read demo /workspace/package.json
+pxxl sandbox write demo /workspace/.env.local --file .env.local
+echo "hello" | pxxl sandbox write demo /workspace/hello.txt
+pxxl sandbox write demo /workspace/note.txt --content "hi"
+pxxl sandbox upload demo logo.png /workspace/public/logo.png
+pxxl sandbox download demo /workspace/dist/app.tar.gz
+pxxl sandbox download demo /workspace/out.png - > out.png
+```
+
+Files are up to 2 MB. `upload`, `download`, `write --file`, and piped input copy the bytes exactly, so images and archives arrive intact. `upload` puts the file in `/workspace` under its own name when you leave out the remote path; `download` saves to the current directory, or to stdout with `-`. `read` prints text.
+
+## Start, stop, and delete
+
+```bash
+pxxl sandbox stop demo          # pause: $0, /workspace kept
+pxxl sandbox start demo --wait  # resume
+pxxl sandbox update demo --auto-stop 0
+pxxl sandbox update demo --label team=payments --label env=ci   # replaces all labels
+pxxl sandbox update demo --clear-labels
+pxxl sandbox delete demo --yes  # deletes /workspace too
+```
+
+`delete` asks first in a terminal. In scripts, pass `--yes`.
+
+## Network policies
+
+A sandbox reaches the whole internet unless you say otherwise. `pxxl sandbox network` shows the policy; add a flag to change it.
+
+```bash
+pxxl sandbox create --name ci --template node --allow registry.npmjs.org --allow github.com
+pxxl sandbox create --name offline --no-internet
+
+pxxl sandbox network ci                                    # show the policy
+pxxl sandbox network ci --allow '*.npmjs.org' --allow pypi.org   # replaces the list
+pxxl sandbox network ci --deny-all                         # or --no-internet
+pxxl sandbox network ci --allow-all
+```
+
+Entries are domains (`github.com` exactly, `*.npmjs.org` any subdomain) or public IPv4 addresses and CIDRs, up to 64. Changes apply to new connections at once; open connections are not cut. For a sandbox created before network policies, the CLI says the change applies at its next start.
+
+## Snapshots
+
+Save a running sandbox's home directory (global installs, dotfiles) and `/workspace`, then start new sandboxes from it. Memory and running processes aren't kept.
+
+```bash
+pxxl sandbox exec demo -- npm install -g pnpm
+pxxl sandbox snapshot demo --name deps-installed   # waits until ready, about 5-15 s
+pxxl sandbox create --snapshot snap_123 --wait     # same template, installs already there
+
+pxxl sandbox snapshots                             # ID, NAME, STATUS, SIZE, CREATED
+pxxl sandbox snapshots --sandbox demo              # only the ones taken from demo
+pxxl sandbox snapshots get snap_123
+pxxl sandbox snapshots rm snap_123 --yes           # or: pxxl sandbox snapshot-rm snap_123
+```
+
+| Command | What it does |
+| --- | --- |
+| `pxxl sandbox snapshot <sandbox>` | Snapshot a running sandbox. `--name <name>`; `--no-wait` returns while it's still `creating`. |
+| `pxxl sandbox snapshots` | Your snapshots. `--sandbox <sandbox>` keeps the ones taken from it. |
+| `pxxl sandbox snapshots get <snapshotId>` | One snapshot in detail. |
+| `pxxl sandbox snapshots rm <snapshotId>` | Delete it. Asks first in a terminal; pass `--yes` in scripts. Alias `pxxl sandbox snapshot-rm`. |
+
+Plus keeps 5 snapshots, Pro 25, and Enterprise 100. A snapshot that sandboxes still use can't be deleted: the CLI prints the API's message and the sandbox IDs using it.
+
+## Fast starts
+
+Default-size `node`, `python`, and `base` sandboxes start in about 2 seconds from a warm pool, so `create --wait` is quick. There's nothing to set.
+
+## Inspect
+
+| Command | What it shows |
+| --- | --- |
+| `pxxl sandbox list` | Every sandbox with status, size, price, auto-stop, labels, and preview URL, then what's running and this month's spend. `--label key=value` (repeatable) keeps only sandboxes with every label; `--label key` matches any value. |
+| `pxxl sandbox get <sandbox>` | One sandbox in detail, including its network policy. |
+| `pxxl sandbox network <sandbox>` | The outbound network policy. |
+| `pxxl sandbox usage <sandbox>` | Billed and not-yet-billed cost, and each run. |
+| `pxxl sandbox logs <sandbox>` | Provisioning events and recent output. |
+| `pxxl sandbox ps <sandbox>` | Processes with pid, parent, running time, CPU, memory, and command. |
+| `pxxl sandbox templates` | Templates and their runtime versions. Works without signing in. |
+| `pxxl sandbox pricing` | Rates, sizes, templates with versions, and plan limits. Works without signing in. |
+
+## Terminal
+
+```bash
+pxxl sandbox terminal demo
+```
+
+Opens an interactive shell in the sandbox. Press **Ctrl-]** to disconnect. `--url` prints the one-time WebSocket URL instead, for another client. The terminal is available when terminals are enabled for your account.
+
+## Use a staging Gateway
+
+Set `PXXL_API_URL` to send the CLI to another Pxxl Gateway. Only `https://` hosts under `pxxl.app` and `localhost` are accepted.
+
+```bash
+PXXL_API_URL=https://staging-gateway.pxxl.app pxxl sandbox list
+```

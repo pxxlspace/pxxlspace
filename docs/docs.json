@@ -89,6 +89,14 @@
             ]
           },
           {
+            "group": "Sandboxes",
+            "pages": [
+              "sandboxes/overview",
+              "sandboxes/quickstart",
+              "sandboxes/cli"
+            ]
+          },
+          {
             "group": "Servers",
             "pages": [
               "servers/overview",
@@ -174,6 +182,7 @@
               "integrations/sdk/databases",
               "integrations/sdk/cron-jobs",
               "integrations/sdk/analytics-teams",
+              "integrations/sdk/sandboxes",
               "integrations/sdk/servers-tools",
               "integrations/sdk/mcp",
               "integrations/sdk/errors-raw-requests",
@@ -193,6 +202,7 @@
               "integrations/api/databases",
               "integrations/api/cron-jobs",
               "integrations/api/analytics-teams",
+              "integrations/api/sandboxes",
               "integrations/api/servers-tools",
               "integrations/api/mcp"
             ]

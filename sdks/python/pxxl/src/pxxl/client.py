@@ -14,12 +14,30 @@ from typing import TYPE_CHECKING, Any, BinaryIO, Mapping
 
 if TYPE_CHECKING:
     from .reseller import PxxlReseller
+    from .sandboxes import PxxlSandboxes
 
 PXXL_API_BASE_URL = "https://server.pxxl.app/api/v3"
 PXXL_MCP_ENDPOINT = "https://mcp.pxxl.app/mcp"
 PXXL_MCP_PROTOCOL_VERSION = "2025-06-18"
 MAX_DEPLOY_FILES = 12000
 MAX_DEPLOY_SOURCE_BYTES = 220 * 1024 * 1024
+
+
+def resolve_api_base_url() -> str:
+    """The API base URL. PXXL_API_URL may point the SDK at a Pxxl staging Gateway
+    (https://*.pxxl.app) or a local one for testing; any other host is refused so
+    an API key is never sent elsewhere."""
+    raw = os.environ.get("PXXL_API_URL", "").strip()
+    if not raw:
+        return PXXL_API_BASE_URL
+    url = urllib.parse.urlsplit(raw)
+    host = (url.hostname or "").lower()
+    pxxl_host = url.scheme == "https" and (host == "pxxl.app" or host.endswith(".pxxl.app"))
+    local_host = url.scheme in ("http", "https") and host in ("localhost", "127.0.0.1", "::1")
+    if not pxxl_host and not local_host:
+        raise ValueError("pxxl: PXXL_API_URL must be an https://*.pxxl.app Gateway or localhost")
+    base = f"{url.scheme}://{url.netloc}{url.path.rstrip('/')}"
+    return base if base.endswith("/api/v3") else base + "/api/v3"
 
 
 class PxxlAPIError(RuntimeError):
@@ -57,7 +75,7 @@ class PxxlClient:
         if not self.api_key:
             raise ValueError("pxxl: api_key is required")
         self.team_id = (self.team_id or "").strip() or None
-        self.base_url = PXXL_API_BASE_URL
+        self.base_url = resolve_api_base_url()
         self._mcp_request_id = 0
 
     @property
@@ -66,6 +84,13 @@ class PxxlClient:
         from .reseller import PxxlReseller
 
         return PxxlReseller(self)
+
+    @property
+    def sandboxes(self) -> "PxxlSandboxes":
+        """Isolated Linux sandboxes, billed per second from your wallet (Plus and up)."""
+        from .sandboxes import PxxlSandboxes
+
+        return PxxlSandboxes(self)
 
     def request(
         self,

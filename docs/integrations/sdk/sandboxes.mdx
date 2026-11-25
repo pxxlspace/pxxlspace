@@ -1,0 +1,316 @@
+---
+title: "Sandboxes"
+description: "Create sandboxes, run commands, and manage files from the Node.js and Python SDKs."
+---
+
+[Sandboxes](/sandboxes/overview) are in the Node.js and Python SDKs. In Go and Rust, call the [sandbox routes](/integrations/api/sandboxes) with the [raw request method](/integrations/sdk/errors-raw-requests).
+
+Use an API key scoped to `all` or `sandbox` with `read_write`. The client's `teamId` applies to every sandbox call.
+
+## Create and use a sandbox
+
+`create()` returns a `Sandbox` handle. The sandbox starts as `creating`, so wait for it before running commands.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    import { Pxxl } from "@pxxlapp/pxxl";
+
+    const pxxl = new Pxxl({ apiKey: process.env.PXXL_API_KEY });
+
+    const sandbox = await pxxl.sandboxes.create({
+      name: "agent-run-42",
+      template: "node",
+      size: "small",
+      autoStopMinutes: 15,
+      env: { NODE_ENV: "development" },
+      labels: { team: "payments", run: "42" },
+    });
+    await sandbox.waitUntilReady({ timeoutMs: 120_000 });
+
+    await sandbox.files.write("/workspace/index.js", "console.log(6 * 7)");
+    const result = await sandbox.exec("node index.js");
+    console.log(result.exitCode, result.output); // 0 "42\n"
+
+    await sandbox.stop();
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import os
+    from pxxl import PxxlClient
+
+    client = PxxlClient(api_key=os.environ["PXXL_API_KEY"])
+
+    sandbox = client.sandboxes.create(
+        name="agent-run-42",
+        template="python",
+        size="small",
+        auto_stop_minutes=15,
+        env={"APP_ENV": "dev"},
+        labels={"team": "payments", "run": "42"},
+    )
+    sandbox.wait_until_ready(timeout=120)
+
+    sandbox.files.write("/workspace/main.py", "print(6 * 7)")
+    result = sandbox.exec("python main.py")
+    print(result["exitCode"], result["output"])  # 0 "42\n"
+
+    sandbox.stop()
+    ```
+  </Tab>
+</Tabs>
+
+## Stream command output
+
+Pass a callback to get output as it's produced. The call still resolves with the exit code once the command ends. If the Gateway answers with plain JSON instead of a stream, the callback gets the whole output once.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const { exitCode, timedOut } = await sandbox.exec("npm install && npm test", {
+      workdir: "/workspace/app",
+      timeoutSeconds: 300,
+      onOutput: (chunk) => process.stdout.write(chunk),
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = sandbox.exec(
+        "pip install -r requirements.txt && pytest",
+        workdir="/workspace/app",
+        timeout_seconds=300,
+        on_output=lambda chunk: print(chunk, end=""),
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## Labels
+
+Labels are up to 20 `key: value` pairs. Filter the list by them, and replace them on a handle.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const { sandboxes } = await pxxl.sandboxes.list({ labels: { team: "payments" } });
+    const anyRun = await pxxl.sandboxes.list({ labels: { run: true } }); // any value of "run"
+
+    await sandbox.setLabels({ team: "payments", stage: "done" }); // replaces all labels
+    console.log(sandbox.labels);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    sandboxes = client.sandboxes.list(labels={"team": "payments"})["sandboxes"]
+    any_run = client.sandboxes.list(labels={"run": True})  # any value of "run"
+
+    sandbox.set_labels({"team": "payments", "stage": "done"})  # replaces all labels
+    print(sandbox.labels)
+    ```
+  </Tab>
+</Tabs>
+
+## Network policies
+
+Choose what a sandbox can reach. Leave `egress` out for the whole internet, block everything with `deny-all`, or pass an `allow` list of domains (`github.com`, `*.npmjs.org`) and public IPv4 CIDRs.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const sandbox = await pxxl.sandboxes.create({
+      template: "node",
+      egress: { allow: ["registry.npmjs.org", "github.com"] }, // allowlist
+    });
+    console.log(sandbox.egress); // { mode: "allowlist", allow: [...] }
+
+    const result = await sandbox.setNetwork({ mode: "deny-all" });
+    if (!result.egressApplied) console.log(result.message); // applies at the next start
+
+    await sandbox.setNetwork({ allow: ["*.npmjs.org", "pypi.org"] }); // replaces the list
+    await sandbox.setNetwork({ mode: "allow-all" });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    sandbox = client.sandboxes.create(
+        template="node",
+        egress={"allow": ["registry.npmjs.org", "github.com"]},  # allowlist
+    )
+    print(sandbox.egress)  # {"mode": "allowlist", "allow": [...]}
+
+    result = sandbox.set_network("deny-all")
+    if not result["egressApplied"]:
+        print(result["message"])  # applies at the next start
+
+    sandbox.set_network(allow=["*.npmjs.org", "pypi.org"])  # replaces the list
+    sandbox.set_network("allow-all")
+    ```
+  </Tab>
+</Tabs>
+
+New connections follow a change at once; open connections are not cut. `egressApplied` is `false` for a sandbox created before network policies: the change applies at its next start. An invalid entry (a private range, an internal name, more than 64 entries, an empty allowlist) is a `PxxlAPIError` with status 400; 409 means the server can't enforce policies.
+
+## Snapshots
+
+Save a running sandbox's home directory (global installs, dotfiles) and `/workspace`, then start new sandboxes from it with the installs already done. Memory and running processes aren't kept. `snapshot()` waits until the snapshot is ready (about 5 to 15 seconds) unless you pass `wait: false`, and throws `SandboxSnapshotError` if saving fails.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    await sandbox.exec("npm install -g pnpm && pnpm install");
+    const snapshot = await sandbox.snapshot({ name: "deps-installed" });
+    console.log(snapshot.status, snapshot.sizeMb); // "ready" 182
+
+    // The template comes from the snapshot.
+    const copy = await pxxl.sandboxes.create({ snapshotId: snapshot.id });
+    await copy.waitUntilReady();
+
+    const all = await pxxl.sandboxes.snapshots.list();
+    const mine = await pxxl.sandboxes.snapshots.list({ sandboxId: sandbox.id });
+    await pxxl.sandboxes.snapshots.delete(snapshot.id); // 409 while sandboxes use it
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    sandbox.exec("pip install -r requirements.txt")
+    snapshot = sandbox.snapshot(name="deps-installed")
+    print(snapshot["status"], snapshot["sizeMb"])  # ready 182
+
+    # The template comes from the snapshot.
+    copy = client.sandboxes.create(snapshot_id=snapshot["id"])
+    copy.wait_until_ready()
+
+    everything = client.sandboxes.snapshots.list()
+    mine = client.sandboxes.snapshots.list(sandbox_id=sandbox.id)
+    client.sandboxes.snapshots.delete(snapshot["id"])  # 409 while sandboxes use it
+    ```
+  </Tab>
+</Tabs>
+
+The sandbox must be running (409 otherwise), and your plan keeps a set number of snapshots: Plus 5, Pro 25, Enterprise 100 (403 over it). Deleting a snapshot that sandboxes still use is a 409 whose `details.sandboxIds` lists them. With `wait: false` (`wait=False`), poll with `pxxl.sandboxes.snapshots.waitUntilReady(snapshot)` or `get(id)`. See the [snapshot object](/integrations/api/sandboxes#snapshots).
+
+## Fast starts
+
+Default-size `node`, `python`, and `base` sandboxes start from a warm pool in about 2 seconds, so `waitUntilReady()` usually returns almost at once. Nothing to configure.
+
+## Background processes
+
+Start a server or watcher with `background`, see it in the process list, and stop it with a signal.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    const { pid, logFile } = await sandbox.exec("python3 -m http.server 3000", { background: true });
+
+    for (const proc of await sandbox.processes()) {
+      console.log(proc.pid, proc.cpuPercent, proc.memoryKb, proc.command);
+    }
+
+    await sandbox.kill(pid!);         // TERM
+    await sandbox.kill(pid!, "KILL"); // or KILL, INT, HUP
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    started = sandbox.exec("python3 -m http.server 3000", background=True)
+
+    for proc in sandbox.processes():
+        print(proc["pid"], proc["cpuPercent"], proc["memoryKb"], proc["command"])
+
+    sandbox.kill(started["pid"])          # TERM
+    sandbox.kill(started["pid"], "KILL")  # or KILL, INT, HUP
+    ```
+  </Tab>
+</Tabs>
+
+`kill()` throws `PxxlAPIError` with status `404` when there's no such process.
+
+## Binary files
+
+Write bytes and they go base64-encoded; read with `binary` to get bytes back. Strings are written as text.
+
+<Tabs>
+  <Tab title="Node.js">
+    ```ts
+    import { readFile, writeFile } from "node:fs/promises";
+
+    await sandbox.files.write("/workspace/logo.png", await readFile("logo.png")); // Buffer or Uint8Array
+    const png = await sandbox.files.read("/workspace/logo.png", { binary: true }); // Buffer in Node, Uint8Array elsewhere
+    await writeFile("copy.png", png);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    with open("logo.png", "rb") as f:
+        sandbox.files.write("/workspace/logo.png", f.read())  # bytes
+
+    png = sandbox.files.read("/workspace/logo.png", binary=True)  # bytes
+    ```
+  </Tab>
+</Tabs>
+
+## The sandbox handle
+
+| Operation | Node.js | Python | Returns |
+| --- | --- | --- | --- |
+| Run a command | `sandbox.exec(command, { workdir?, timeoutSeconds?, onOutput?, background? })` | `sandbox.exec(command, workdir=, timeout_seconds=, on_output=, background=)` | `{ exitCode, output, timedOut, truncated, durationMs }`, or `{ background, pid, logFile }` |
+| List processes | `sandbox.processes()` | `sandbox.processes()` | `[{ pid, ppid, elapsedSeconds, cpuPercent, memoryKb, command }]` |
+| Signal a process | `sandbox.kill(pid, signal?)` | `sandbox.kill(pid, signal="TERM")` | `{ pid, signal }` |
+| Read a file | `sandbox.files.read(path, { binary? })` | `sandbox.files.read(path, binary=False)` | The text content, or bytes with `binary` |
+| Read with metadata | `sandbox.files.get(path, { encoding? })` | `sandbox.files.get(path, encoding=None)` | `{ path, content, encoding? }` |
+| Write a file | `sandbox.files.write(path, content)` | `sandbox.files.write(path, content)` | The saved file. A string is text; `Uint8Array`, `Buffer`, or `bytes` go as binary |
+| List files | `sandbox.files.list(path?)` | `sandbox.files.list(path=None)` | `[{ path, name, type, size, depth }]` |
+| Preview URL | `sandbox.previewUrl`, `await sandbox.getPreviewUrl()` | `sandbox.preview_url`, `sandbox.get_preview_url()` | `https://<domain>` |
+| Wait until running | `sandbox.waitUntilReady({ timeoutMs?, intervalMs? })` | `sandbox.wait_until_ready(timeout=, interval=)` | The sandbox. Throws `SandboxError` on `failed` or timeout |
+| Refresh | `sandbox.refresh()` | `sandbox.refresh()` | The sandbox with fresh fields |
+| Start or resume | `sandbox.start()`, `sandbox.resume()` | `sandbox.start()`, `sandbox.resume()` | The sandbox |
+| Pause | `sandbox.stop()`, `sandbox.pause()` | `sandbox.stop()`, `sandbox.pause()` | The sandbox |
+| Delete | `sandbox.delete()` | `sandbox.delete()` | `{ message }` |
+| Update | `sandbox.update({ name?, autoStopMinutes?, previewAccess?, labels?, egress? })` | `sandbox.update(name=, auto_stop_minutes=, preview_access=, labels=, egress=)` | The sandbox |
+| Network policy | `sandbox.setNetwork({ mode?, allow? })` | `sandbox.set_network(mode=None, allow=None)` | `{ sandbox, egressApplied, message? }` |
+| Snapshot | `sandbox.snapshot({ name?, wait?, timeoutMs?, intervalMs? })` | `sandbox.snapshot(name=None, wait=True, timeout=300, interval=2)` | The snapshot. Waits until `ready` unless `wait` is false; throws `SandboxSnapshotError` on `failed` |
+| Its snapshots | `sandbox.snapshots()` | `sandbox.snapshots()` | The snapshots taken from this sandbox |
+| Auto-stop | `sandbox.setAutoStop(minutes)` | `sandbox.set_auto_stop(minutes)` | The sandbox |
+| Labels | `sandbox.setLabels(labels)` | `sandbox.set_labels(labels)` | The sandbox. Replaces all labels |
+| Cost | `sandbox.usage()` | `sandbox.usage()` | `{ hourlyUsd, billedUsd, unbilledUsd, ledger }` |
+| Logs | `sandbox.logs()` | `sandbox.logs()` | `{ events, logs }` |
+| Terminal URL | `sandbox.terminalTicket()` | `sandbox.terminal_ticket()` | `{ wsUrl, ... }` |
+
+Read fields from the handle: `id`, `name`, `status`, `template`, `labels`, `egress`, `domain`, `hourlyUsd`, `isRunning`, `isPaused`, and `info` for the full [sandbox object](/integrations/api/sandboxes#the-sandbox-object). In Python, `info` is a dict and the flags are `is_running` and `is_paused`. Fields reflect the last fetch; call `refresh()` for current ones.
+
+## The sandboxes resource
+
+| Operation | Node.js | Python | Returns |
+| --- | --- | --- | --- |
+| Create | `pxxl.sandboxes.create(options)` | `client.sandboxes.create(**options)` | A `Sandbox` |
+| List | `pxxl.sandboxes.list({ teamId?, labels? })` | `client.sandboxes.list(team_id=None, labels=None)` | `{ sandboxes: Sandbox[], usage, pricing }` |
+| Get | `pxxl.sandboxes.get(id)` | `client.sandboxes.get(id)` | A `Sandbox` |
+| Templates | `pxxl.sandboxes.templates()` | `client.sandboxes.templates()` | `[{ id, label, description, version }]` |
+| Pricing | `pxxl.sandboxes.pricing()` | `client.sandboxes.pricing()` | Rates, sizes, templates, plan limits |
+| List snapshots | `pxxl.sandboxes.snapshots.list({ sandboxId? })` | `client.sandboxes.snapshots.list(sandbox_id=None)` | `SandboxSnapshot[]` |
+| Get a snapshot | `pxxl.sandboxes.snapshots.get(id)` | `client.sandboxes.snapshots.get(id)` | A `SandboxSnapshot` |
+| Delete a snapshot | `pxxl.sandboxes.snapshots.delete(id)` | `client.sandboxes.snapshots.delete(id)` | `{ message }` |
+| Snapshot by sandbox ID | `pxxl.sandboxes.snapshots.create(sandboxId, { name?, wait? })` | `client.sandboxes.snapshots.create(sandbox_id, name=None, wait=True)` | The snapshot |
+| Wait for a snapshot | `pxxl.sandboxes.snapshots.waitUntilReady(snapshotOrId, { timeoutMs?, intervalMs? })` | `client.sandboxes.snapshots.wait_until_ready(snapshot_or_id, timeout=, interval=)` | The ready snapshot |
+
+Create options: `name`, `template` (`base`, `node`, `python`, `go`, `rust`, `bun`; see [templates](/sandboxes/overview#templates)), `size` (`micro`, `small`, `medium`, `large`), `cpus`, `memoryMb`, `diskGb` (`2`, `5`, `10`), `autoStopMinutes` (`0` to `1440`), `env`, `sourceRepository`, `previewAccess`, `labels`, `egress` (`{ mode?, allow? }`), `snapshotId` (start from a [snapshot](#snapshots); the template comes from it), and `teamId`. Python takes the same options in snake case. `template` defaults to `base` (Debian 13).
+
+`pxxl.sandboxes` also has ID-based methods, such as `exec(id, command)` and `readFile(id, path)`, if you don't want a handle.
+
+## Errors
+
+API errors throw `PxxlAPIError` in both SDKs, with the HTTP status. A plan or wallet problem has `upgradeRequired` (`upgrade_required` in Python) set. See [errors](/integrations/sdk/errors-raw-requests).
+
+```ts
+import { SandboxError, isPlanGateError } from "@pxxlapp/pxxl";
+
+try {
+  await sandbox.waitUntilReady();
+} catch (error) {
+  if (error instanceof SandboxError) console.error(error.sandbox.status, await sandbox.logs());
+  else if (isPlanGateError(error)) console.error("Upgrade to Plus or top up your wallet");
+  else throw error;
+}
+```

@@ -59,6 +59,64 @@ client.reseller.set_dns_record("example.cv", "A", "@", "203.0.113.10")
 client.reseller.set_nameservers("example.cv", ["ns1.example.net", "ns2.example.net"])
 ```
 
+## Sandboxes
+
+Isolated Linux workspaces for agents, tests and previews (Plus plan and up), billed per second from your wallet while running and $0 while paused. Use an API key scoped to `all` or `sandbox`.
+
+```python
+# Templates: base (Debian 13), node, python, go, rust, bun.
+sandbox = client.sandboxes.create(template="python", size="small", auto_stop_minutes=30, labels={"team": "data"})
+sandbox.wait_until_ready()
+sandbox.files.write("/workspace/main.py", "print('hello')")
+result = sandbox.exec("python main.py", on_output=lambda chunk: print(chunk, end=""))
+print(result["exitCode"], sandbox.preview_url)
+sandbox.files.write("/workspace/logo.png", open("logo.png", "rb").read())  # bytes are binary-safe
+png = sandbox.files.read("/workspace/logo.png", binary=True)
+started = sandbox.exec("python3 -m http.server 3000", background=True)
+print(sandbox.processes())
+sandbox.kill(started["pid"])
+mine = client.sandboxes.list(labels={"team": "data"})["sandboxes"]
+sandbox.stop()    # paused: $0, /workspace kept
+sandbox.start()
+sandbox.delete()
+```
+
+### Network policies
+
+A sandbox reaches the whole internet by default. Limit it to an allowlist of domains (`github.com`, `*.npmjs.org`) and public IPv4 CIDRs, or cut it off:
+
+```python
+locked = client.sandboxes.create(template="python", egress={"allow": ["pypi.org", "files.pythonhosted.org"]})
+print(locked.egress)  # {"mode": "allowlist", "allow": ["pypi.org", "files.pythonhosted.org"]}
+
+result = locked.set_network("deny-all")  # no outbound connections, no DNS
+if not result["egressApplied"]:
+    print(result["message"])  # older sandboxes: applies at the next start
+locked.set_network(allow=["*.pythonhosted.org", "pypi.org"])  # replaces the list
+locked.set_network("allow-all")
+```
+
+New connections follow a change at once; open ones are not cut. An invalid entry raises `PxxlAPIError` (400).
+
+### Snapshots
+
+Save a running sandbox's home directory (global installs, dotfiles) and `/workspace`, then start new sandboxes from it. Memory and processes aren't kept. Plus keeps 5, Pro 25, Enterprise 100.
+
+```python
+sandbox.exec("pip install -r requirements.txt")
+snapshot = sandbox.snapshot(name="deps-installed")  # waits until ready (~5-15 s)
+copy = client.sandboxes.create(snapshot_id=snapshot["id"])  # template comes from the snapshot
+
+snapshots = client.sandboxes.snapshots.list()  # or sandbox_id=...
+client.sandboxes.snapshots.delete(snapshot["id"])  # PxxlAPIError 409 while sandboxes use it
+```
+
+`sandbox.snapshot(wait=False)` returns while it is still `creating`; a failed save raises `SandboxSnapshotError`.
+
+Default-size `node`, `python` and `base` sandboxes start in about 2 seconds from a warm pool.
+
+Set `PXXL_API_URL` to point the client at a Pxxl staging Gateway (`https://*.pxxl.app` only).
+
 ## Cron Jobs
 
 ```python

@@ -28,8 +28,10 @@ export type { PxxlS3Credentials } from "./s3.js";
 import { PxxlTools, PxxlTunnels, PxxlWebhooks } from "./tools.js";
 import { PxxlReseller } from "./reseller.js";
 import { PxxlServers } from "./servers.js";
+import { PxxlSandboxes } from "./sandboxes.js";
 export * from "./tools.js";
 export * from "./reseller.js";
+export * from "./sandboxes.js";
 export { PxxlServers } from "./servers.js";
 export type { ServerAction } from "./servers.js";
 
@@ -1696,12 +1698,15 @@ export class Pxxl extends PxxlClient {
   readonly servers: PxxlServers;
   /** Domain reselling with a reseller key (Pro and up), charged to your wallet. */
   readonly reseller: PxxlReseller;
+  /** Isolated Linux sandboxes, billed per second from your wallet (Plus and up). */
+  readonly sandboxes: PxxlSandboxes;
 
   constructor(options: PxxlClientOptions = {}) {
     super(options);
     const resellerKey = (options.resellerKey || (typeof process !== "undefined" ? process.env?.PXXL_RESELLER_KEY : "") || "").trim();
     this.reseller = new PxxlReseller(resellerKey ? new PxxlClient({ ...options, apiKey: resellerKey }) : this);
     this.servers = new PxxlServers(this, (options.teamId || "").trim() || undefined);
+    this.sandboxes = new PxxlSandboxes(this, (options.teamId || "").trim() || undefined);
     this.tools = new PxxlTools(this);
     this.tunnels = new PxxlTunnels(this);
     this.webhooks = new PxxlWebhooks(this);

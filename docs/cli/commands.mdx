@@ -313,6 +313,34 @@ See [Webhooks](/tools/webhooks).
 
 `[server]` is an id, name, or hostname. Leave it out if you have one server. See [Servers](/servers/overview).
 
+## Sandboxes
+
+| Command | What it does |
+| --- | --- |
+| `pxxl sandbox list` | Your sandboxes, what's running, and this month's spend. `--label key=value` filters. |
+| `pxxl sandbox create` | Create one. `--name`, `--template base\|node\|python\|go\|rust\|bun`, `--size`, `--disk`, `--auto-stop`, `--env KEY=VALUE` (repeat), `--label key=value` (repeat), `--allow <domain\|cidr>` (repeat) or `--no-internet`, `--snapshot <snapshotId>`, `--repo`, `--wait`. |
+| `pxxl sandbox templates` | Templates and their runtime versions. |
+| `pxxl sandbox get <sandbox>` | Status, size, preview URL, and cost. |
+| `pxxl sandbox exec <sandbox> -- <command>` | Run a command. Streams output and exits with its exit code. `--workdir`, `--timeout`, `--background`. |
+| `pxxl sandbox ps <sandbox>` | Processes running in the sandbox. |
+| `pxxl sandbox kill <sandbox> <pid>` | Signal a process. `--signal TERM\|KILL\|INT\|HUP` (default `TERM`). |
+| `pxxl sandbox files <sandbox> [path]` | List files. |
+| `pxxl sandbox read <sandbox> <path>` | Print a file. |
+| `pxxl sandbox write <sandbox> <path>` | Write a file from `--file`, `--content`, or stdin. Binary-safe. |
+| `pxxl sandbox upload <sandbox> <local> [remote]` | Copy a local file in, any bytes. |
+| `pxxl sandbox download <sandbox> <remote> [local]` | Copy a file out, any bytes. `-` writes to stdout. |
+| `pxxl sandbox start\|stop <sandbox>` | Resume or pause. `start --wait` waits until it's running. |
+| `pxxl sandbox delete <sandbox> --yes` | Delete it and its `/workspace`. |
+| `pxxl sandbox snapshot <sandbox>` | Save its home directory and `/workspace`. `--name`, `--no-wait`. |
+| `pxxl sandbox snapshots` | Your snapshots: id, name, status, size, created. `--sandbox <sandbox>` filters. `snapshots get <id>`, `snapshots rm <id> --yes` (or `snapshot-rm`). |
+| `pxxl sandbox network <sandbox>` | Show the outbound network policy, or change it with `--allow-all`, `--deny-all`/`--no-internet`, or `--allow <domain\|cidr>` (repeat; replaces the list). |
+| `pxxl sandbox update <sandbox>` | `--name`, `--auto-stop <minutes>`, `--private`/`--public`, `--label key=value` (replaces all), `--clear-labels`. |
+| `pxxl sandbox usage\|logs <sandbox>` | Cost so far, or provisioning events and output. |
+| `pxxl sandbox terminal <sandbox>` | Interactive shell. `--url` prints the WebSocket URL. |
+| `pxxl sandbox pricing` | Rates, sizes, templates with versions, and plan limits. |
+
+`<sandbox>` is an id or a name. See [Sandboxes CLI](/sandboxes/cli).
+
 ## Billing and invoices
 
 | Command | What it does |

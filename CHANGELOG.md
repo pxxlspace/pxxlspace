@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+- Sandboxes (Plus and up): isolated Linux workspaces billed per second from your wallet
+  ($0.012 per vCPU-hour, $0.006 per GB-hour, 10 GB disk included, $0 while paused).
+- SDK: `pxxl.sandboxes.create/list/get/pricing` returns a `Sandbox` with `exec` (streams output
+  with `onOutput`), `files.read/write/list`, `previewUrl`, `start`/`stop`, `delete`,
+  `waitUntilReady`, `usage`, `logs` and `setAutoStop`. Python: `client.sandboxes`, same shape.
+- CLI: `pxxl sandbox` with `create [--wait]`, `list`, `get`, `exec <id> -- <command>` (exits with
+  the command's exit code), `files`, `read`, `write`, `start`, `stop`, `delete`, `update`, `usage`,
+  `logs`, `terminal` and `pricing`.
+- Sandbox templates: `base` (Debian 13, the default), `node`, `python`, `go`, `rust` and `bun`;
+  `pricing().templates` carry each runtime's version. `pxxl.sandboxes.templates()` and
+  `pxxl sandbox templates`.
+- Sandbox labels: `create({ labels })`, `list({ labels })` filters, `sandbox.setLabels()`; CLI
+  `--label key=value` on `create`, `list` and `update`. Python: `labels=`, `set_labels()`.
+- Sandbox network policies: `create({ egress: { mode?, allow? } })`, `sandbox.egress`,
+  `sandbox.setNetwork({ mode?, allow? })` and `pxxl.sandboxes.setNetwork(id, policy)` returning
+  `{ sandbox, egressApplied, message? }` (types `SandboxEgress`, `EgressPolicy`). Python:
+  `egress=`, `sandbox.egress`, `set_network(mode, allow)`. CLI: `create --allow <domain|cidr>`
+  (repeat) and `--no-internet`; `pxxl sandbox network <id>` shows or changes the policy with
+  `--allow-all`, `--deny-all`/`--no-internet` or `--allow`.
+- Sandbox snapshots (Plus 5, Pro 25, Enterprise 100): `sandbox.snapshot({ name?, wait? })` saves
+  the home directory and `/workspace` and waits until ready (throws `SandboxSnapshotError` on
+  failure); `pxxl.sandboxes.snapshots.list({ sandboxId? })`, `.get(id)`, `.delete(id)`,
+  `.create(sandboxId, …)` and `.waitUntilReady()`; `create({ snapshotId })` starts from one (type
+  `SandboxSnapshot`). Python: `sandbox.snapshot(name=None, wait=True)`,
+  `client.sandboxes.snapshots.list/get/delete`, `create(snapshot_id=...)`. CLI:
+  `pxxl sandbox snapshot <id> [--name] [--no-wait]`, `pxxl sandbox snapshots [--sandbox <id>]`,
+  `snapshots get|rm <snapshotId>` (alias `snapshot-rm`; a 409 shows which sandboxes use it) and
+  `create --snapshot <snapshotId>`.
+- Sandbox fast starts: default-size Node, Python and base sandboxes start in about 2 seconds.
+- Sandbox processes: `sandbox.processes()` and `sandbox.kill(pid, signal)`; CLI `ps` and `kill`.
+- Binary sandbox files: `files.read(path, { binary: true })` returns bytes and `files.write()` takes
+  a `Uint8Array`/`Buffer` (Python: `binary=True`, `bytes`); CLI `upload` and `download`, and
+  `write --file` is binary-safe.
+- The Python SDK and the CLI honour `PXXL_API_URL` (https://*.pxxl.app or localhost), like the
+  JavaScript SDK, for testing against a staging Gateway.
+
 ## 0.6.0 - 2026-11-17
 
 - `pxxl setup agent`: installs the CLI globally and adds the Pxxl skill to Claude Code, Codex,

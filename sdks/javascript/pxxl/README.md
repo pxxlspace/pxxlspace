@@ -42,6 +42,7 @@ The grouped client includes:
   manual triggers, and run history.
 - `projects`, `deployments`, `env`, `databases`, `teams`, and `analytics` for the same
   platform operations available through the CLI.
+- `sandboxes` for isolated Linux sandboxes: run commands, read and write files, preview URLs.
 - `mcp` for Pxxl tools and resources over MCP.
 
 `PxxlClient` is also exported. It keeps the original flat method names for
@@ -128,6 +129,77 @@ await pxxl.reseller.setNameservers("example.cv", ["ns1.example.net", "ns2.exampl
 ```
 
 From the CLI: `pxxl domains reseller --help`.
+
+## Sandboxes
+
+Isolated Linux workspaces for agents, tests and previews (Plus plan and up). Billed per second from
+your wallet while running ($0.012 per vCPU-hour, $0.006 per GB-hour), $0 while paused. Use an API key
+scoped to `all` or `sandbox`.
+
+```ts
+import { readFile } from "node:fs/promises";
+
+// Templates: base (Debian 13), node, python, go, rust, bun.
+const sandbox = await pxxl.sandboxes.create({ template: "node", size: "small", autoStopMinutes: 30, labels: { team: "web" } });
+await sandbox.waitUntilReady();
+
+await sandbox.files.write("/workspace/server.js", "require('http').createServer((_, r) => r.end('hi')).listen(process.env.PORT)");
+const { exitCode } = await sandbox.exec("npm test", { onOutput: (chunk) => process.stdout.write(chunk) });
+console.log(sandbox.previewUrl); // public URL of the app on $PORT (3000)
+
+await sandbox.files.write("/workspace/logo.png", await readFile("logo.png")); // bytes are binary-safe
+const { pid } = await sandbox.exec("node server.js", { background: true });
+console.log(await sandbox.processes());
+await sandbox.kill(pid!);
+const mine = await pxxl.sandboxes.list({ labels: { team: "web" } });
+
+await sandbox.stop();   // paused: $0, /workspace kept
+await sandbox.start();  // resume
+await sandbox.delete();
+```
+
+### Network policies
+
+A sandbox reaches the whole internet by default. Limit it to an allowlist of domains
+(`github.com`, `*.npmjs.org`) and public IPv4 CIDRs, or cut it off:
+
+```ts
+const locked = await pxxl.sandboxes.create({ template: "node", egress: { allow: ["registry.npmjs.org", "github.com"] } });
+console.log(locked.egress); // { mode: "allowlist", allow: ["registry.npmjs.org", "github.com"] }
+
+const { egressApplied, message } = await locked.setNetwork({ mode: "deny-all" }); // no outbound, no DNS
+if (!egressApplied) console.log(message); // older sandboxes: applies at the next start
+await locked.setNetwork({ allow: ["*.npmjs.org"] }); // replaces the list
+await locked.setNetwork({ mode: "allow-all" });
+```
+
+New connections follow a change at once; open ones are not cut. CLI:
+`pxxl sandbox create --allow github.com --allow '*.npmjs.org'`, `--no-internet`, and
+`pxxl sandbox network <id> [--allow-all | --deny-all | --allow <entry>…]`.
+
+### Snapshots
+
+Save a running sandbox's home directory (global installs, dotfiles) and `/workspace`, then
+start new sandboxes from it. Memory and processes aren't kept. Plus keeps 5, Pro 25,
+Enterprise 100.
+
+```ts
+await sandbox.exec("npm install -g pnpm && pnpm install");
+const snapshot = await sandbox.snapshot({ name: "deps-installed" }); // waits until ready (~5-15 s)
+const copy = await pxxl.sandboxes.create({ snapshotId: snapshot.id }); // template comes from the snapshot
+
+const all = await pxxl.sandboxes.snapshots.list();                  // or { sandboxId }
+await pxxl.sandboxes.snapshots.delete(snapshot.id);                 // 409 while sandboxes use it
+```
+
+`snapshot({ wait: false })` returns while it is still `creating`; a failed save throws
+`SandboxSnapshotError`. CLI: `pxxl sandbox snapshot <id> [--name n] [--no-wait]`,
+`pxxl sandbox snapshots [--sandbox <id>]`, `pxxl sandbox snapshots rm <snapshotId>` and
+`pxxl sandbox create --snapshot <snapshotId>`.
+
+Default-size `node`, `python` and `base` sandboxes start in about 2 seconds from a warm pool.
+
+From the CLI: `pxxl sandbox --help`.
 
 ## Cron jobs
 

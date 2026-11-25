@@ -1,0 +1,170 @@
+---
+title: "Sandboxes"
+description: "Isolated Linux sandboxes for agents, tests, and previews, billed per second from your wallet."
+---
+
+A sandbox is an isolated Linux workspace you can create in seconds, run commands in, read and write files in, and throw away. Use one to run code an AI agent wrote, try a repository, run tests, or share a live preview.
+
+Each sandbox has:
+
+- A persistent `/workspace` directory that survives pauses.
+- A public preview URL, `https://<domain>`, for the app listening on `$PORT` (3000) inside the sandbox.
+- Commands, files, and an interactive terminal from the [API](/integrations/api/sandboxes), the [SDKs](/integrations/sdk/sandboxes), the [CLI](/sandboxes/cli), and the dashboard.
+
+<Note>
+  The preview URL is public. Anyone with the link can open the app on `$PORT`. Don't serve secrets from it.
+</Note>
+
+## Pricing
+
+You pay for the CPU and memory a sandbox has while it runs, **billed per second** from your USD wallet.
+
+| Resource | Price |
+| --- | --- |
+| vCPU | $0.012 per vCPU-hour |
+| Memory | $0.006 per GB-hour |
+| Disk | 10 GB included. Choose 2, 5, or 10 GB. |
+| Paused or stopped | $0. `/workspace` is kept. |
+
+| Size | vCPU | Memory | Per hour | 8 hours a day for 30 days |
+| --- | --- | --- | --- | --- |
+| `micro` | 1 | 1 GB | $0.018 | $4.32 |
+| `small` | 2 | 4 GB | $0.048 | $11.52 |
+| `medium` | 4 | 8 GB | $0.096 | $23.04 |
+| `large` | 8 | 16 GB | $0.192 | $46.08 |
+
+Rates can change. `GET /sandboxes/pricing` and `pxxl sandbox pricing` always return the current ones.
+
+Starting a sandbox needs at least **$0.25** in your [wallet](/account/wallet). If the wallet runs low while a sandbox is running, Pxxl pauses it (status `paused_low_balance`) instead of letting the balance go negative. Top up and start it again.
+
+## Plans and limits
+
+Sandboxes are on Plus, Pro, and Enterprise.
+
+| Plan | Running at once | Total | Largest sandbox |
+| --- | --- | --- | --- |
+| Plus | 3 | 10 | 4 vCPU, 8 GB |
+| Pro | 10 | 25 | 8 vCPU, 16 GB |
+| Enterprise | 50 | 100 | 8 vCPU, 16 GB |
+
+Paused sandboxes count toward the total but not toward the running limit.
+
+## Templates
+
+Every template is Debian 13 with git, curl and build tools. The language templates add the latest release of their runtime.
+
+| Template | What's in it | Version |
+| --- | --- | --- |
+| `base` | Debian 13 with git, curl, Python 3, and build tools. The default. | Debian 13 |
+| `node` | Node.js and npm. | 26.13.1 |
+| `python` | Python 3 with pip and venv. | 3.15.2 |
+| `go` | The Go toolchain. | 1.27.4 |
+| `rust` | Stable Rust with cargo. | 1.100.0 |
+| `bun` | The Bun runtime. | 1.4.5 |
+
+Versions are as of Nov 24, 2026; images track the latest upstream release. `GET /sandboxes/pricing` and `pxxl sandbox templates` return the current ones. `nodejs`, `js`, and `typescript` also mean `node`, `py` means `python`, and `golang` means `go`.
+
+Pass `sourceRepository` (`owner/repo`) to clone one of your connected GitHub repositories into `/workspace`.
+
+## Labels
+
+Give a sandbox up to 20 `key: value` labels, such as `team: payments` or `run: ci-4812`, to find it later. Keys are lowercase letters, digits, `_`, `.`, and `-`, up to 63 characters, starting with a letter or digit. Values are one line, up to 256 characters.
+
+Set labels when you create a sandbox, replace them with `PATCH /sandboxes/{id}`, and filter the list with `GET /sandboxes?label=team:payments`. Several `label` parameters must all match; `label=team` matches any value of `team`.
+
+## Network policies
+
+Each sandbox has an egress policy for outbound connections:
+
+| Mode | What the sandbox can reach |
+| --- | --- |
+| `allow-all` | The public internet. The default. |
+| `deny-all` | Nothing. Outbound connections are blocked and DNS is refused. |
+| `allowlist` | Only the entries in `allow`. |
+
+Allowlist entries are domains (`github.com` matches exactly, `*.npmjs.org` matches any subdomain) or public IPv4 addresses and CIDRs (`140.82.112.0/20`), up to 64. Private and reserved ranges and internal names are refused.
+
+Set the policy when you create a sandbox, or change it with `PATCH /sandboxes/{id}` while it runs. New connections follow the new policy at once; connections already open are not cut. A sandbox created before network policies picks up a change at its next start.
+
+```bash
+pxxl sandbox create --template node --allow registry.npmjs.org --allow github.com
+pxxl sandbox network demo --no-internet
+```
+
+See [the CLI](/sandboxes/cli#network-policies), [the SDKs](/integrations/sdk/sandboxes#network-policies), and [the API](/integrations/api/sandboxes#network-policies).
+
+## Snapshots
+
+A snapshot saves a sandbox's home directory (global installs, dotfiles, caches) and `/workspace`. Memory and running processes aren't kept. Install your tools once, snapshot the sandbox, and start new sandboxes from the snapshot with everything already there. The new sandbox gets the snapshot's template.
+
+Take a snapshot of a running sandbox; saving takes about 5 to 15 seconds. Plus keeps 5 snapshots, Pro 25, and Enterprise 100. A snapshot that sandboxes still use can't be deleted.
+
+```bash
+pxxl sandbox snapshot demo --name deps-installed
+pxxl sandbox create --snapshot snap_123
+```
+
+See [the CLI](/sandboxes/cli#snapshots), [the SDKs](/integrations/sdk/sandboxes#snapshots), and [the API](/integrations/api/sandboxes#snapshots).
+
+## Fast starts
+
+Default-size `node`, `python`, and `base` sandboxes start in about 2 seconds: Pxxl keeps warm ones ready. Other templates and custom sizes start in a few seconds more. There's nothing to configure.
+
+## Lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> creating
+  creating --> running
+  creating --> failed
+  running --> paused: stop
+  running --> paused_idle: auto-stop
+  running --> paused_low_balance: wallet low
+  paused --> running: start
+  paused_idle --> running: start
+  paused_low_balance --> running: start after top-up
+```
+
+| Status | Meaning | Billed |
+| --- | --- | --- |
+| `creating` | Pxxl is placing and starting the sandbox. | No |
+| `running` | Ready for commands, files, and previews. | Yes |
+| `paused` | You stopped it. | No |
+| `paused_idle` | Auto-stop paused it after it was idle. | No |
+| `paused_low_balance` | Your wallet ran low. | No |
+| `failed` | It couldn't start. Check its logs. | No |
+
+Older sandboxes may report `stopped` or `paused_insufficient_points`. Treat both as paused.
+
+### Auto-stop
+
+Every sandbox pauses itself after it's idle for `autoStopMinutes` (default 60, up to 1440). Set it to `0` to never pause on idle. Change it any time with `PATCH /sandboxes/{id}`, `sandbox.setAutoStop(minutes)`, or `pxxl sandbox update <id> --auto-stop <minutes>`.
+
+## Commands and files
+
+- `exec` runs a shell command in `/workspace` (or `workdir`) and returns the exit code and output. A command can run for up to 300 seconds. Ask for `application/x-ndjson` to stream output as it's produced.
+- `exec` with `background` starts a long-running process, such as a dev server, and returns its pid at once.
+- List the processes running in a sandbox, with CPU and memory, and stop one with a signal (`TERM`, `KILL`, `INT`, or `HUP`).
+- Files are up to 2 MB each. List a directory, read a file, or write one. Text goes as is; binary files, such as images or archives, go base64-encoded. The SDKs and the CLI's `upload` and `download` do that for you.
+- The terminal gives you an interactive shell over a WebSocket. It's available when terminals are enabled for your account.
+
+## Costs at a glance
+
+`pxxl sandbox summary` (or `GET /sandboxes/summary`) shows what's running, the cost per hour right now, spend this month, and how long your wallet lasts. The dashboard suggests stopping sandboxes that have been idle for 15 minutes. It warns you, and emails you, before the wallet runs out. Preview URL traffic shows up in the sandbox's Analytics tab.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" href="/sandboxes/quickstart">
+    Create a sandbox and run a command from code, the CLI, or curl.
+  </Card>
+  <Card title="API reference" href="/integrations/api/sandboxes">
+    Every sandbox endpoint, with request and response shapes.
+  </Card>
+  <Card title="SDKs" href="/integrations/sdk/sandboxes">
+    The `Sandbox` handle in Node.js and Python.
+  </Card>
+  <Card title="CLI" href="/sandboxes/cli">
+    `pxxl sandbox` commands.
+  </Card>
+</CardGroup>
