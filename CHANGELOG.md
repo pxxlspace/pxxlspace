@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 (npm) · 0.4.0 (Python), 2026-11-25
 
 - Sandboxes (Plus and up): isolated Linux workspaces billed per second from your wallet
   ($0.012 per vCPU-hour, $0.006 per GB-hour, 10 GB disk included, $0 while paused).
