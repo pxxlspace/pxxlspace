@@ -66,6 +66,7 @@
             "group": "Networking",
             "pages": [
               "networking/private-networking",
+              "networking/cloudflare-tunnels",
               "networking/regions"
             ]
           },
