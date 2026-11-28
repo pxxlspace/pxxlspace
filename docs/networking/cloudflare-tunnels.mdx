@@ -1,0 +1,77 @@
+---
+title: "Cloudflare Tunnels"
+description: "Reach any port of your app from a hostname on your Cloudflare account, and keep the app off the public internet with Public access."
+---
+
+A Cloudflare Tunnel connects a hostname on your own Cloudflare account to a port of your running app. Pxxl runs the Cloudflare connector next to your app, so traffic goes from Cloudflare straight to the app. You get Cloudflare's firewall, DDoS protection, caching and Access on that hostname, without a public Pxxl domain.
+
+Use it for an admin panel behind Cloudflare Access, an internal API, or any app that should only be reachable through Cloudflare.
+
+<Note>
+Tunnels are on Plus, Pro and Enterprise. Static sites can't use them: there's no server for the tunnel to reach.
+</Note>
+
+## Add a tunnel
+
+<Steps>
+  <Step title="Create the tunnel in Cloudflare">
+    In Cloudflare, open **Zero Trust > Networks > Tunnels** and create a tunnel with the **Cloudflared** connector. Copy the token from the install command. You don't install anything yourself.
+  </Step>
+  <Step title="Add it to your project">
+    Open your project, go to **Networking > Tunnels**, and click **Add tunnel**. Choose the port your app listens on and paste the token. Pasting the whole `cloudflared service install …` command works too.
+  </Step>
+  <Step title="Add a public hostname in Cloudflare">
+    In the tunnel's settings in Cloudflare, add a public hostname, such as `admin.example.com`, with service type **HTTP** and URL `app:<port>`. Use the same port you chose in Pxxl.
+  </Step>
+</Steps>
+
+The tunnel shows **Connected** within a minute.
+
+## How it works
+
+- Your app is reachable from the connector as `app`, so the service in Cloudflare is always `http://app:<port>`.
+- The port can be any port your app listens on, not only its main one. Expose an admin port through the tunnel while the main port stays on your Pxxl domain.
+- Every replica gets its own connector, so Cloudflare shares traffic between them.
+- The connector only connects out to Cloudflare. No port is opened on Pxxl for it.
+- It follows your app through deploys, restarts and server moves within about 30 seconds. No redeploy is needed to add or remove a tunnel.
+
+## Status
+
+| Status | Meaning |
+| --- | --- |
+| **Connected** | Cloudflare has live connections from your app. The section shows how many, and from how many replicas. |
+| **Starting** | The connector is starting, usually for less than a minute after you add a tunnel or deploy. |
+| **Not connected** | Cloudflare refuses the connector, with the reason shown. If it doesn't recognise the token, copy it again from the tunnel's install command and replace it. |
+
+## When the hostname fails
+
+- **502**: Cloudflare reached the connector, but your app didn't answer on that port. Check that the port in Cloudflare matches the one your app listens on, and that the app listens on `0.0.0.0`, not only `127.0.0.1`.
+- **404**: the hostname isn't set up on the tunnel in Cloudflare.
+- Apps deployed before November 9, 2026 need one redeploy before a tunnel can reach them.
+
+## Public access
+
+**Networking > Public access** decides whether your Pxxl domains reach the app. Turn it off to keep the app reachable only through its tunnels and [private networking](/networking/private-networking).
+
+When it's off:
+
+- Every domain of the project, including its Pxxl address, shows an unavailable page. Domains you add meanwhile stay offline too.
+- Webhooks such as GitHub, Stripe and payment callbacks stop arriving unless they come through a tunnel.
+- Certificates for those domains don't renew until it's back on.
+- Tunnels, private networking, the terminal and logs keep working.
+
+Turning it back on brings back exactly the domains it took offline. Domains you paused yourself stay paused. Public access off is free.
+
+## Limits and billing
+
+Per project:
+
+| Plan | Tunnels | Tunnel traffic included per month |
+| --- | --- | --- |
+| Plus | 1 | 50 GB |
+| Pro | 3 | 150 GB |
+| Enterprise | 10 | 1 TB |
+
+A tunnel is billed per project for the days the project has one, on your monthly usage invoice, and paid from your wallet. **Networking > Tunnels** and the **Usage** page show the price, this month's days and traffic, and the cost so far, in your currency. Enterprise contracts can cover the monthly fee.
+
+Tunnel traffic doesn't pass the Pxxl edge, so it's counted on Pxxl's servers, in and out. A connector keeping its connections alive uses about 2 GB a month.
