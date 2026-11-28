@@ -1,0 +1,45 @@
+---
+title: "Static outbound IP"
+description: "Send your app's outbound requests from one fixed IP address you can add to allowlists."
+---
+
+Payment providers, managed databases, banks and partner APIs often only accept requests from addresses on an allowlist. Your app's requests normally leave from the server it runs on, and that address changes when Pxxl moves the app. Turn on a static outbound IP and every new connection your app opens to the internet leaves from one fixed address instead.
+
+| | |
+| --- | --- |
+| Outbound IP | `193.182.134.167` |
+| Location | Copenhagen, Denmark |
+| IP version | IPv4. If a provider asks for a range, use `193.182.134.167/32`. |
+
+<Note>
+The address is also shown, with a copy button, under **Networking > Static outbound IP** in your project.
+</Note>
+
+## Turn it on
+
+<Steps>
+  <Step title="Switch it on">
+    Open your project, go to **Networking > Static outbound IP**, turn it on and confirm the price.
+  </Step>
+  <Step title="Allowlist the address">
+    Add `193.182.134.167` to your provider's allowlist.
+  </Step>
+</Steps>
+
+New connections use the address within a minute, with no redeploy. Apps deployed before November 9, 2026 need one redeploy first. Turning it off works the same way: new connections go back to your server's own address within a minute.
+
+## What uses the IP
+
+- Requests your app opens to the internet: HTTP calls, webhooks you send, database connections, and SMTP on ports 587 and 465.
+- Not responses to your visitors. Those go back through the Pxxl edge.
+- Not traffic between your own projects over [private networking](/networking/private-networking), and not builds.
+
+Every project with a static outbound IP shares this address. To keep it off blocklists, port 25 (direct delivery to mail servers) is blocked on every Pxxl server. Send mail through a provider on port 587 or 465.
+
+Apps in every region can use it. Requests travel to Copenhagen before they leave, which adds about 20 ms per request from Europe and more from other continents.
+
+## Billing
+
+It's billed per project for the days it's on, with **50 GB** of traffic a month included per project, in and out. **Networking > Static outbound IP** shows the price, this month's days, traffic and cost so far, in your currency; the **Usage** page shows all projects.
+
+At the start of each month Pxxl raises one invoice for the month before, paid from your wallet automatically. If your wallet can't cover it within 7 days, the static IP turns off for your projects until the invoice is paid. Enterprise contracts can cover it.

@@ -67,6 +67,7 @@
             "pages": [
               "networking/private-networking",
               "networking/cloudflare-tunnels",
+              "networking/static-outbound-ip",
               "networking/regions"
             ]
           },
